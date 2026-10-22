@@ -26,6 +26,7 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.innovatex.expensetracker.MainActivity
 
 class LargeExpenseGlanceWidget : GlanceAppWidget() {
@@ -57,7 +58,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "APEX LEDGER",
                         style = TextStyle(
-                            color = Color(0xFF10B981),
+                            color = ColorProvider(Color(0xFF10B981)),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -66,7 +67,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "LIVE",
                         style = TextStyle(
-                            color = Color(0xFF94A3B8),
+                            color = ColorProvider(Color(0xFF94A3B8)),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -79,7 +80,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "$1,248.50",
                     style = TextStyle(
-                        color = Color(0xFFF8FAFC),
+                        color = ColorProvider(Color(0xFFF8FAFC)),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -88,7 +89,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "$1,251.50 remaining of $2,500 budget",
                     style = TextStyle(
-                        color = Color(0xFF94A3B8),
+                        color = ColorProvider(Color(0xFF94A3B8)),
                         fontSize = 12.sp
                     )
                 )
@@ -99,7 +100,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "RECENT ACTIVITY",
                     style = TextStyle(
-                        color = Color(0xFF64748B),
+                        color = ColorProvider(Color(0xFF64748B)),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -126,17 +127,24 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = merchant,
-                    style = TextStyle(color = Color(0xFFF8FAFC), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    style = TextStyle(
+                        color = ColorProvider(Color(0xFFF8FAFC)),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 )
                 Text(
                     text = category,
-                    style = TextStyle(color = Color(0xFF94A3B8), fontSize = 10.sp)
+                    style = TextStyle(
+                        color = ColorProvider(Color(0xFF94A3B8)),
+                        fontSize = 10.sp
+                    )
                 )
             }
             Text(
                 text = amount,
                 style = TextStyle(
-                    color = if (amount.startsWith("+")) Color(0xFF10B981) else Color(0xFFF8FAFC),
+                    color = ColorProvider(if (amount.startsWith("+")) Color(0xFF10B981) else Color(0xFFF8FAFC)),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )

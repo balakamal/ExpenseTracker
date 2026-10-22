@@ -59,6 +59,7 @@ object ApexThemeTokens {
     val RadiusSm = RoundedCornerShape(14.dp)
     val RadiusMd = RoundedCornerShape(20.dp)
     val RadiusLg = RoundedCornerShape(28.dp)
+    val RadiusSheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
     // Physics-Based Spring Animations
     fun <T> springPhysics() = spring<T>(

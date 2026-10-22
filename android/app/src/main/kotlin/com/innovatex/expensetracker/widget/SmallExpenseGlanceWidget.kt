@@ -24,6 +24,7 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.innovatex.expensetracker.MainActivity
 
 class SmallExpenseGlanceWidget : GlanceAppWidget() {
@@ -51,7 +52,7 @@ class SmallExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "APEX SPENT",
                     style = TextStyle(
-                        color = Color(0xFF10B981),
+                        color = ColorProvider(Color(0xFF10B981)),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -62,7 +63,7 @@ class SmallExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "$842.50",
                     style = TextStyle(
-                        color = Color(0xFFF8FAFC),
+                        color = ColorProvider(Color(0xFFF8FAFC)),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -73,7 +74,7 @@ class SmallExpenseGlanceWidget : GlanceAppWidget() {
                 Text(
                     text = "34% of budget",
                     style = TextStyle(
-                        color = Color(0xFF94A3B8),
+                        color = ColorProvider(Color(0xFF94A3B8)),
                         fontSize = 11.sp
                     )
                 )

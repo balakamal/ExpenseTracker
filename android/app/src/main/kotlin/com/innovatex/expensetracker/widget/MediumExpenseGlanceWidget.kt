@@ -27,6 +27,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.innovatex.expensetracker.MainActivity
 
 class MediumExpenseGlanceWidget : GlanceAppWidget() {
@@ -58,7 +59,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "MONTHLY SPENT",
                         style = TextStyle(
-                            color = Color(0xFF94A3B8),
+                            color = ColorProvider(Color(0xFF94A3B8)),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -67,7 +68,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "$1,248.50",
                         style = TextStyle(
-                            color = Color(0xFFF8FAFC),
+                            color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -76,7 +77,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "$1,251.50 remaining",
                         style = TextStyle(
-                            color = Color(0xFF10B981),
+                            color = ColorProvider(Color(0xFF10B981)),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -92,7 +93,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "TOP CATEGORIES",
                         style = TextStyle(
-                            color = Color(0xFF64748B),
+                            color = ColorProvider(Color(0xFF64748B)),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -101,7 +102,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "• Groceries: $480.00",
                         style = TextStyle(
-                            color = Color(0xFFF8FAFC),
+                            color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 12.sp
                         )
                     )
@@ -109,7 +110,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     Text(
                         text = "• Dining: $215.20",
                         style = TextStyle(
-                            color = Color(0xFFF8FAFC),
+                            color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 12.sp
                         )
                     )
