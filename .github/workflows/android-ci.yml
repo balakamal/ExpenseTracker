@@ -32,15 +32,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.7"
+          gradle-version: "8.9"
           cache-read-only: false
 
       - name: Prepare Gradle Wrapper
         run: |
           cd android
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7
-          fi
+          gradle wrapper --gradle-version 8.9
           chmod +x gradlew
 
       - name: Run Unit Tests
