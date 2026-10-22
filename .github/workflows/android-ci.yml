@@ -101,10 +101,23 @@ jobs:
             echo "Triggered By:    ${{ github.actor }}"
             echo "Workflow Event:  ${{ github.event_name }}"
             echo "=========================================================="
-            echo ""
-            echo "--- LAST 300 LINES OF BUILD EXECUTION LOG ---"
+            echo "--- BUILD ISSUES & ROOT CAUSES ---"
             if [ -f build-execution.log ]; then
-              tail -n 300 build-execution.log
+              # Extract the failure section and root causes, filtering out internal Gradle reflection frames
+              awk '
+                /FAILURE: Build failed/ { recording=1 }
+                recording {
+                  if ($0 !~ /^\s+at (org\.gradle\.|java\.base\/|jdk\.internal)/) {
+                    print $0
+                  }
+                }
+              ' build-execution.log > /tmp/failure_extracted.txt
+
+              if [ -s /tmp/failure_extracted.txt ]; then
+                cat /tmp/failure_extracted.txt
+              else
+                grep -E '(> Task .* FAILED|e: |ERROR:|FAILURE:|Caused by:|\* What went wrong:)' build-execution.log | head -n 50
+              fi
             else
               echo "No build-execution.log found."
             fi
