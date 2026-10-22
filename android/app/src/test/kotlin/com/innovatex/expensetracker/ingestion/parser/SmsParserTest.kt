@@ -43,8 +43,24 @@ class SmsParserTest {
         assertEquals(1250.00, result!!.amount)
         assertEquals("INR", result.currency)
         assertEquals(TransactionType.CREDIT, result.type)
+        assertEquals("Amazon Refund", result.cleanMerchant)
         assertEquals("8899", result.accountLast4)
         assertEquals("77665544", result.referenceId)
+    }
+
+    @Test
+    fun `test paid for service SMS extraction`() {
+        val sms = "Paid USD 24.50 for Uber on 10-Oct using card ending 5544. Ref: UBR998822"
+        assertTrue(parser.isFinancialAlert(sms))
+
+        val result = parser.parse(sms)
+        assertNotNull(result)
+        assertEquals(24.50, result!!.amount)
+        assertEquals("USD", result.currency)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("Uber", result.cleanMerchant)
+        assertEquals("5544", result.accountLast4)
+        assertEquals("UBR998822", result.referenceId)
     }
 
     @Test

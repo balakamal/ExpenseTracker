@@ -31,6 +31,7 @@ class EmailParserTest {
         assertEquals("USD", result.currency)
         assertEquals(TransactionType.DEBIT, result.type)
         assertEquals(SourceChannel.EMAIL, result.sourceChannel)
+        assertEquals("Trader Joe's", result.cleanMerchant)
         assertEquals("9012", result.accountLast4)
     }
 

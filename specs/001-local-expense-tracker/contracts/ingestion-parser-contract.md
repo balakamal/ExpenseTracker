@@ -72,5 +72,9 @@ Any message matching these regex patterns is immediately dropped:
 - **Credit Keywords**: `(?i)\b(credited|deposited|refunded|cashback|received|added to account)\b`
 
 ### 3.4 Merchant Extraction
-- Extracts text following prepositions: `(?i)\b(?:at|to|in|for|vpa)\s+([A-Za-z0-9\s\.\&\*\-]+?)(?:\s+(?:on|using|via|ref|bal|avbl|acct|ending)\b|$)`
+- Extracts text following prepositions: `(?i)\b(?:at|in|vpa|from|(?:for(?!\s*(?:[$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\.?|\d)))|(?:to(?!\s*(?:acct|a/c|account|card|\*\*|xx|\d))))\s+([A-Za-z0-9\s\.\&\*\-]{2,30}?)(?:\s+(?:on|using|via|ref|rrn|utr|bal|avbl|acct|ending|card)\b|[.,;]|$)`
 - Cleans and normalizes strings: strips trailing punctuation, converts ALL-CAPS to Title Case (e.g. `STARBUCKS #1204` -> `Starbucks`).
+
+### 3.5 Account Last 4 Digits Extraction
+- Matches account references: `(?i)(?:acct|account|a/c|card|ending|xx|\*\*)[\\s:]*(?:(?:ending|no\.?|#)[\s:]*)?(?:(?:in|with)[\s:]*)?[xX\*]*(\d{4})\b`
+

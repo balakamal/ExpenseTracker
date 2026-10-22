@@ -49,14 +49,14 @@ class SmsParserEngine @Inject constructor() {
         "(?i)(?:([$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?))|([0-9,]+(?:\\.[0-9]{1,2})?)\\s*(USD|EUR|GBP|INR|CAD|AUD)"
     )
 
-    // Merchant extraction following prepositions (at Starbucks, to Whole Foods, for Uber)
+    // Merchant extraction following prepositions (at Starbucks, to Whole Foods, for Uber, from Amazon)
     private val merchantPrepositionPattern = Pattern.compile(
-        "(?i)\\b(?:at|to|in|for|vpa)\\s+([A-Za-z0-9\\s\\.\\&\\*\\-]{2,30}?)(?:\\s+(?:on|using|via|ref|bal|avbl|acct|ending|card)\\b|$)"
+        "(?i)\\b(?:at|in|vpa|from|(?:for(?!\\s*(?:[$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|\\d)))|(?:to(?!\\s*(?:acct|a/c|account|card|\\*\\*|xx|\\d))))\\s+([A-Za-z0-9\\s\\.\\&\\*\\-]{2,30}?)(?:\\s+(?:on|using|via|ref|rrn|utr|bal|avbl|acct|ending|card)\\b|[.,;]|$)"
     )
 
-    // Account last 4 digits (ending 1234, acct XX1234, card **1234)
+    // Account last 4 digits (ending 1234, acct XX1234, card **1234, card ending in 1234)
     private val accountLast4Pattern = Pattern.compile(
-        "(?i)(?:acct|a/c|card|ending|xx|\\*\\*)[\\s:]*(?:[xX\\*]*(\\d{4}))"
+        "(?i)(?:acct|account|a/c|card|ending|xx|\\*\\*)[\\s:]*(?:(?:ending|no\\.?|#)[\\s:]*)?(?:(?:in|with)[\\s:]*)?[xX\\*]*(\\d{4})\\b"
     )
 
     // Transaction reference ID / UTR
