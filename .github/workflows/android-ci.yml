@@ -2,9 +2,7 @@ name: Android CI / CD Build & Test
 
 on:
   push:
-    branches: [ "main", "master", "001-local-expense-tracker" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 concurrency:
@@ -33,27 +31,32 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+          build-root-directory: android
           cache-read-only: false
 
-      - name: Prepare Gradle Wrapper
-        run: |
-          cd android
-          gradle wrapper --gradle-version 8.9
-          chmod +x gradlew
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x android/gradlew
 
       - name: Run Unit Tests
+        working-directory: android
         run: |
-          cd android && (./gradlew testDebugUnitTest --continue || gradle testDebugUnitTest --continue)
+          set -o pipefail
+          ./gradlew testDebugUnitTest --continue --stacktrace 2>&1 | tee -a build-execution.log
 
       - name: Run Android Lint Check
+        working-directory: android
         run: |
-          cd android && (./gradlew lintDebug || gradle lintDebug)
+          set -o pipefail
+          ./gradlew lintDebug --stacktrace 2>&1 | tee -a build-execution.log
 
       - name: Assemble Debug & Release APKs
+        working-directory: android
         run: |
-          cd android && (./gradlew assembleDebug assembleRelease || gradle assembleDebug assembleRelease)
+          set -o pipefail
+          ./gradlew assembleDebug assembleRelease --stacktrace 2>&1 | tee -a build-execution.log
 
       - name: Upload Debug APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: apex-expense-tracker-debug-apk
@@ -62,6 +65,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload Release APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: apex-expense-tracker-release-apk
@@ -77,3 +81,56 @@ jobs:
           path: android/app/build/reports/tests/
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Collect & Generate Error Logs
+        if: failure()
+        working-directory: android
+        run: |
+          mkdir -p error-artifacts
+          
+          # Write comprehensive error diagnostic header
+          {
+            echo "=========================================================="
+            echo "              BUILD FAILURE DIAGNOSTIC REPORT             "
+            echo "=========================================================="
+            echo "Timestamp:       $(date -u)"
+            echo "Repository:      ${{ github.repository }}"
+            echo "Branch / Ref:    ${{ github.ref }}"
+            echo "Commit SHA:      ${{ github.sha }}"
+            echo "Triggered By:    ${{ github.actor }}"
+            echo "Workflow Event:  ${{ github.event_name }}"
+            echo "=========================================================="
+            echo ""
+            echo "--- LAST 300 LINES OF BUILD EXECUTION LOG ---"
+            if [ -f build-execution.log ]; then
+              tail -n 300 build-execution.log
+            else
+              echo "No build-execution.log found."
+            fi
+          } > error-artifacts/error-summary.txt
+
+          # Copy entire console execution log
+          if [ -f build-execution.log ]; then
+            cp build-execution.log error-artifacts/build-execution.log
+          fi
+
+          # Copy Gradle daemon logs if available
+          if [ -d "$HOME/.gradle/daemon" ]; then
+            mkdir -p error-artifacts/daemon-logs
+            cp -r "$HOME/.gradle/daemon"/*/*.log error-artifacts/daemon-logs/ 2>/dev/null || true
+          fi
+
+          # Copy test and lint reports if available
+          if [ -d "app/build/reports" ]; then
+            mkdir -p error-artifacts/reports
+            cp -r "app/build/reports"/* error-artifacts/reports/ 2>/dev/null || true
+          fi
+
+      - name: Upload Error Logs Artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-logs
+          path: android/error-artifacts/
+          retention-days: 14
+          if-no-files-found: warn
