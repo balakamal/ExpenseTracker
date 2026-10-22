@@ -1,0 +1,80 @@
+package com.innovatex.expensetracker
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import com.innovatex.expensetracker.presentation.dashboard.DashboardViewModel
+import com.innovatex.expensetracker.presentation.dashboard.MonthlyDashboardScreen
+import com.innovatex.expensetracker.presentation.theme.ApexExpenseTrackerTheme
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    private val dashboardViewModel: DashboardViewModel by viewModels()
+
+    private val requestPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val smsGranted = permissions[Manifest.permission.RECEIVE_SMS] == true ||
+            permissions[Manifest.permission.READ_SMS] == true
+        if (smsGranted) {
+            dashboardViewModel.triggerHistoricalScan(this)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        checkAndRequestPermissions()
+
+        setContent {
+            ApexExpenseTrackerTheme {
+                MonthlyDashboardScreen(
+                    viewModel = dashboardViewModel,
+                    onSettingsClick = {
+                        // Open Notification Listener Settings to enable Email capture
+                        runCatching {
+                            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        }
+                    },
+                    onTransactionClick = { transaction ->
+                        // Handled in detail sheet
+                    }
+                )
+            }
+        }
+    }
+
+    private fun checkAndRequestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECEIVE_SMS)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.READ_SMS)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            dashboardViewModel.triggerHistoricalScan(this)
+        }
+    }
+}
