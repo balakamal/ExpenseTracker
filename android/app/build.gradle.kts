@@ -142,3 +142,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
