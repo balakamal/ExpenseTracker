@@ -60,7 +60,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: apex-expense-tracker-debug-apk
+          name: expense-tracker-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
           if-no-files-found: warn
@@ -69,7 +69,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: apex-expense-tracker-release-apk
+          name: expense-tracker-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: warn

@@ -87,7 +87,7 @@ fun MonthlyDashboardScreen(
                 ) {
                     Column {
                         Text(
-                            text = "APEX FINANCE",
+                            text = "EXPENSE TRACKER",
                             color = ApexThemeTokens.AccentPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

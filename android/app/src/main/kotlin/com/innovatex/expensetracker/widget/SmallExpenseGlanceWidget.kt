@@ -50,7 +50,7 @@ class SmallExpenseGlanceWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "APEX SPENT",
+                    text = "TOTAL SPENT",
                     style = TextStyle(
                         color = ColorProvider(Color(0xFF10B981)),
                         fontSize = 10.sp,

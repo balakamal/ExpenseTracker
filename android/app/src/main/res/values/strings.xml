@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">Apex Finance</string>
-    <string name="notification_listener_service_label">Apex Expense Alert Listener</string>
-    <string name="widget_small_label">Apex Quick Balance</string>
-    <string name="widget_medium_label">Apex Monthly Velocity</string>
-    <string name="widget_large_label">Apex Ledger Summary</string>
+    <string name="app_name">Expense tracker</string>
+    <string name="notification_listener_service_label">Expense Tracker Alert Listener</string>
+    <string name="widget_small_label">Quick Balance</string>
+    <string name="widget_medium_label">Monthly Velocity</string>
+    <string name="widget_large_label">Ledger Summary</string>
 </resources>

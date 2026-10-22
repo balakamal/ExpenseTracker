@@ -56,7 +56,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "APEX LEDGER",
+                        text = "EXPENSES",
                         style = TextStyle(
                             color = ColorProvider(Color(0xFF10B981)),
                             fontSize = 11.sp,
