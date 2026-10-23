@@ -25,15 +25,14 @@ interface TransactionDao {
         """
         SELECT * FROM transactions 
         WHERE timestamp BETWEEN :startTime AND :endTime 
-          AND amount = :amount 
-          AND currency = :currency
+          AND amount = :amount
         """
     )
     suspend fun findPotentialDuplicates(
         startTime: Long,
         endTime: Long,
         amount: Double,
-        currency: String
+        currency: String = "INR"
     ): List<TransactionEntity>
 
     @Query("SELECT DISTINCT month_key FROM transactions ORDER BY month_key DESC")
@@ -51,6 +50,12 @@ interface TransactionDao {
     @Delete
     suspend fun deleteTransaction(transaction: TransactionEntity)
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    suspend fun getAllTransactions(): List<TransactionEntity>
+
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransactionById(id: String)
+
+    @Query("DELETE FROM transactions WHERE id IN (:ids)")
+    suspend fun deleteTransactionsByIds(ids: List<String>)
 }

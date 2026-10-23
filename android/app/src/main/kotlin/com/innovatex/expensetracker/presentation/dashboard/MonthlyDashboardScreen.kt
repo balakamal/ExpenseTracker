@@ -203,7 +203,7 @@ fun MonthlyDashboardScreen(
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "$${String.format(java.util.Locale.US, "%.2f", spendItem.totalSpent)}",
+                                            text = "₹${String.format(java.util.Locale("en", "IN"), "%,.2f", spendItem.totalSpent)}",
                                             color = ApexThemeTokens.TextPrimary,
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold

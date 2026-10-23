@@ -91,9 +91,37 @@ class TransactionRepositoryImpl @Inject constructor(
                 totalDebit = totalDebit,
                 totalCredit = totalCredit,
                 netBalance = totalCredit - totalDebit,
-                budgetLimit = 2500.0, // Can be overridden by user preference
+                budgetLimit = 25000.0, // Default INR monthly budget limit
                 categoryTotals = categoryTotals,
                 transactionCount = transactions.size
             )
         }.flowOn(ioDispatcher)
+
+    override suspend fun purgeDuplicates(): Int = withContext(ioDispatcher) {
+        val allEntities = transactionDao.getAllTransactions()
+        val seenKeys = mutableSetOf<String>()
+        val duplicateIds = mutableListOf<String>()
+
+        for (entity in allEntities) {
+            val key = if (!entity.referenceId.isNullOrBlank()) {
+                "ref_${entity.referenceId.trim().lowercase()}_${entity.amount}_${entity.type.name}"
+            } else {
+                val timeBucket = entity.timestamp / (2 * 60 * 1000L) // 2-minute bucket
+                val amountInt = (entity.amount * 100).toLong()
+                val cleanMerchant = entity.merchantClean.trim().lowercase()
+                "bucket_${timeBucket}_${amountInt}_${entity.type.name}_$cleanMerchant"
+            }
+
+            if (seenKeys.contains(key)) {
+                duplicateIds.add(entity.id)
+            } else {
+                seenKeys.add(key)
+            }
+        }
+
+        if (duplicateIds.isNotEmpty()) {
+            transactionDao.deleteTransactionsByIds(duplicateIds)
+        }
+        duplicateIds.size
+    }
 }

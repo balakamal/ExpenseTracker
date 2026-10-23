@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Telephony
+import android.util.Log
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
+import com.innovatex.expensetracker.domain.usecase.DeduplicateTransactionUseCase
 import com.innovatex.expensetracker.domain.usecase.ParseTransactionUseCase
 import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,6 +26,9 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var parseTransactionUseCase: ParseTransactionUseCase
+
+    @Inject
+    lateinit var deduplicateTransactionUseCase: DeduplicateTransactionUseCase
 
     @Inject
     lateinit var transactionRepository: TransactionRepository
@@ -55,10 +60,12 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                         source = SourceChannel.SMS
                     )
                     if (parsedTxn != null) {
-                        transactionRepository.saveTransaction(parsedTxn)
+                        deduplicateTransactionUseCase(parsedTxn)
                         widgetSyncManager.notifyDataChanged(context)
                     }
                 }
+            } catch (e: Exception) {
+                Log.e("SmsReceiver", "Error processing incoming SMS", e)
             } finally {
                 pendingResult.finish()
             }
@@ -69,45 +76,74 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 @Singleton
 class HistoricalSmsScanner @Inject constructor(
     private val parseTransactionUseCase: ParseTransactionUseCase,
+    private val deduplicateTransactionUseCase: DeduplicateTransactionUseCase,
     private val transactionRepository: TransactionRepository,
     private val preferencesDataStore: PreferencesDataStore,
     private val widgetSyncManager: ExpenseWidgetSyncManager
 ) {
     suspend fun scanLast30Days(context: Context): Int = withContext(Dispatchers.IO) {
-        val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
-        val uri = Uri.parse("content://sms/inbox")
+        // Expand scan window to 90 days to capture complete expense history
+        val scanWindowDays = 90L
+        val scanStartTimestamp = System.currentTimeMillis() - (scanWindowDays * 24 * 60 * 60 * 1000L)
         val projection = arrayOf("_id", "address", "body", "date")
-        val selection = "date >= ?"
-        val selectionArgs = arrayOf(thirtyDaysAgo.toString())
 
         var count = 0
-        runCatching {
-            context.contentResolver.query(
-                uri,
-                projection,
-                selection,
-                selectionArgs,
-                "date DESC"
-            )?.use { cursor ->
-                val bodyIndex = cursor.getColumnIndex("body")
-                val dateIndex = cursor.getColumnIndex("date")
 
-                while (cursor.moveToNext()) {
-                    val body = cursor.getString(bodyIndex) ?: continue
-                    val date = cursor.getLong(dateIndex)
+        // Helper function to query a given URI
+        fun querySmsUri(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int {
+            var scanned = 0
+            runCatching {
+                context.contentResolver.query(
+                    uri,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    "date DESC"
+                )?.use { cursor ->
+                    val bodyIndex = cursor.getColumnIndex("body")
+                    val dateIndex = cursor.getColumnIndex("date")
 
-                    val parsed = parseTransactionUseCase.parse(
-                        body = body,
-                        timestamp = date,
-                        source = SourceChannel.SMS
-                    )
-                    if (parsed != null) {
-                        transactionRepository.saveTransaction(parsed)
-                        count++
+                    if (bodyIndex >= 0 && dateIndex >= 0) {
+                        while (cursor.moveToNext()) {
+                            val body = cursor.getString(bodyIndex) ?: continue
+                            val date = cursor.getLong(dateIndex)
+
+                            val parsed = parseTransactionUseCase.parse(
+                                body = body,
+                                timestamp = date,
+                                source = SourceChannel.SMS
+                            )
+                            if (parsed != null) {
+                                deduplicateTransactionUseCase(parsed)
+                                scanned++
+                            }
+                        }
                     }
                 }
+            }.onFailure { err ->
+                Log.e("HistoricalSmsScanner", "Error querying SMS uri: $uri", err)
             }
+            return scanned
         }
+
+        // Try primary inbox URI first
+        count += querySmsUri(
+            uri = Uri.parse("content://sms/inbox"),
+            selection = "date >= ?",
+            selectionArgs = arrayOf(scanStartTimestamp.toString())
+        )
+
+        // Fallback to general sms content provider if inbox was empty
+        if (count == 0) {
+            count += querySmsUri(
+                uri = Telephony.Sms.CONTENT_URI,
+                selection = "type = 1 AND date >= ?",
+                selectionArgs = arrayOf(scanStartTimestamp.toString())
+            )
+        }
+
+        // Clean up any historical duplicate entries in the database
+        transactionRepository.purgeDuplicates()
 
         preferencesDataStore.setHistoricalScanCompleted(true)
         if (count > 0) {

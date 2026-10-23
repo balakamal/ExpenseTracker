@@ -78,7 +78,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
 
                 // Monthly Total
                 Text(
-                    text = "$1,248.50",
+                    text = "₹1,248.50",
                     style = TextStyle(
                         color = ColorProvider(Color(0xFFF8FAFC)),
                         fontSize = 32.sp,
@@ -87,7 +87,7 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                 )
 
                 Text(
-                    text = "$1,251.50 remaining of $2,500 budget",
+                    text = "₹1,251.50 remaining of ₹25,000 budget",
                     style = TextStyle(
                         color = ColorProvider(Color(0xFF94A3B8)),
                         fontSize = 12.sp
@@ -109,11 +109,11 @@ class LargeExpenseGlanceWidget : GlanceAppWidget() {
                 Spacer(modifier = GlanceModifier.height(6.dp))
 
                 // Recent Items
-                WidgetItemRow("Whole Foods", "-$58.20", "Groceries")
+                WidgetItemRow("Swiggy", "-₹258.20", "Food & Dining")
                 Spacer(modifier = GlanceModifier.height(4.dp))
-                WidgetItemRow("Starbucks", "-$18.75", "Food & Dining")
+                WidgetItemRow("Blinkit", "-₹418.75", "Groceries")
                 Spacer(modifier = GlanceModifier.height(4.dp))
-                WidgetItemRow("Salary Deposit", "+$3,200.00", "Income")
+                WidgetItemRow("Salary Deposit", "+₹45,000.00", "Income")
             }
         }
     }

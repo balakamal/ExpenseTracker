@@ -113,8 +113,17 @@ class ParseTransactionUseCase @Inject constructor(
         val categoryId = resolveCategory(candidate)
         val monthKey = formatMonthKey(candidate.transactionTimestamp)
 
+        val stableId = if (!candidate.referenceId.isNullOrBlank()) {
+            "ref_${candidate.referenceId.trim().lowercase()}"
+        } else {
+            val amountCents = (candidate.amount * 100).toLong()
+            val timeBucket = candidate.transactionTimestamp / (60 * 1000L) // 1-minute bucket
+            val merchantSlug = candidate.cleanMerchant.lowercase().replace(Regex("[^a-z0-9]"), "_").take(20)
+            "sms_${timeBucket}_${amountCents}_${candidate.type.name}_$merchantSlug"
+        }
+
         return Transaction(
-            id = UUID.randomUUID().toString(),
+            id = stableId,
             amount = candidate.amount,
             currency = candidate.currency,
             type = candidate.type,
@@ -148,16 +157,16 @@ class ParseTransactionUseCase @Inject constructor(
             }
         }
 
-        // Standard heuristics
+        // Standard heuristics including Indian merchants
         val merchantLower = candidate.cleanMerchant.lowercase()
         return when {
-            merchantLower.containsAny("starbucks", "cafe", "coffee", "restaurant", "burger", "pizza", "diner", "bakery") -> "food_dining"
-            merchantLower.containsAny("walmart", "whole foods", "supermarket", "grocery", "trader joe", "kroger") -> "groceries"
-            merchantLower.containsAny("uber", "lyft", "metro", "subway", "transit", "gas", "shell", "chevron", "petrol") -> "transport"
-            merchantLower.containsAny("amazon", "apple", "target", "nike", "zara", "ebay", "store") -> "shopping"
-            merchantLower.containsAny("electric", "water", "utility", "wifi", "internet", "verizon", "at&t") -> "utilities"
-            merchantLower.containsAny("netflix", "spotify", "cinema", "hulu", "disney", "theater") -> "entertainment"
-            merchantLower.containsAny("pharmacy", "cvs", "walgreens", "hospital", "clinic", "dental") -> "health"
+            merchantLower.containsAny("swiggy", "zomato", "mcdonald", "kfc", "domino", "starbucks", "cafe", "coffee", "restaurant", "burger", "pizza", "diner", "bakery", "chai", "tea") -> "food_dining"
+            merchantLower.containsAny("blinkit", "zepto", "instamart", "bigbasket", "bbnow", "dmart", "spencer", "walmart", "whole foods", "supermarket", "grocery", "trader joe", "kroger") -> "groceries"
+            merchantLower.containsAny("ola", "uber", "rapido", "irctc", "metro", "subway", "transit", "gas", "shell", "chevron", "petrol", "fuel", "hpcl", "bpcl", "iocl") -> "transport"
+            merchantLower.containsAny("flipkart", "amazon", "myntra", "meesho", "ajio", "nykaa", "tata cliq", "apple", "target", "nike", "zara", "ebay", "store") -> "shopping"
+            merchantLower.containsAny("electricity", "bescom", "tneb", "mseb", "water", "utility", "wifi", "broadband", "jio", "airtel", "vi", "bsnl", "verizon", "at&t") -> "utilities"
+            merchantLower.containsAny("bookmyshow", "pvr", "inox", "netflix", "hotstar", "prime video", "spotify", "cinema", "hulu", "disney", "theater") -> "entertainment"
+            merchantLower.containsAny("apollo", "pharmeasy", "1mg", "netmeds", "medplus", "pharmacy", "cvs", "walgreens", "hospital", "clinic", "dental") -> "health"
             else -> "general"
         }
     }

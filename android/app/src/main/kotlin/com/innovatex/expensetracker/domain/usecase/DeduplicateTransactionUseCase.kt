@@ -37,13 +37,15 @@ class DeduplicateTransactionUseCase @Inject constructor(
             val acctMatch = !existing.accountLast4.isNullOrBlank() &&
                 existing.accountLast4 == candidate.accountLast4
             val merchantMatch = isMerchantSimilar(existing.merchantClean, candidate.merchantClean)
+            val timeVeryClose = kotlin.math.abs(existing.timestamp - candidate.timestamp) <= 60_000L
 
-            sameType && (refMatch || acctMatch || merchantMatch)
+            sameType && (refMatch || acctMatch || merchantMatch || timeVeryClose)
         }
 
         return if (matchedExisting != null) {
             val combinedSources = (matchedExisting.sources + candidate.sources).distinct()
             val merged = matchedExisting.copy(
+                currency = candidate.currency,
                 sources = combinedSources,
                 isDeduplicated = true,
                 referenceId = matchedExisting.referenceId ?: candidate.referenceId,

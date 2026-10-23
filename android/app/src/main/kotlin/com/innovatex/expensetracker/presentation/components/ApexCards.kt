@@ -46,11 +46,11 @@ fun ApexFintechSummaryCard(
     totalCredit: Double,
     budgetLimit: Double,
     progressPercent: Int,
-    currencySymbol: String = "$",
+    currencySymbol: String = "₹",
     modifier: Modifier = Modifier,
     onBudgetClick: () -> Unit = {}
 ) {
-    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
+    val numberFormat = remember { NumberFormat.getNumberInstance(Locale("en", "IN")).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
     val formattedDebit = "$currencySymbol${numberFormat.format(totalDebit)}"
     val formattedCredit = "$currencySymbol${numberFormat.format(totalCredit)}"
     val formattedBudget = "$currencySymbol${numberFormat.format(budgetLimit)}"

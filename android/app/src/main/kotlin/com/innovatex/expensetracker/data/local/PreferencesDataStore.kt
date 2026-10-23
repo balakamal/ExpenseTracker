@@ -20,8 +20,8 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ex
 data class AppSettings(
     val smsTrackingEnabled: Boolean = true,
     val emailTrackingEnabled: Boolean = true,
-    val defaultCurrency: String = "USD",
-    val defaultMonthlyBudget: Double = 2500.0,
+    val defaultCurrency: String = "INR",
+    val defaultMonthlyBudget: Double = 25000.0,
     val isHistoricalScanCompleted: Boolean = false,
     val deduplicationWindowMinutes: Int = 10
 )
@@ -45,8 +45,8 @@ class PreferencesDataStore @Inject constructor(
         AppSettings(
             smsTrackingEnabled = preferences[KEY_SMS_ENABLED] ?: true,
             emailTrackingEnabled = preferences[KEY_EMAIL_ENABLED] ?: true,
-            defaultCurrency = preferences[KEY_DEFAULT_CURRENCY] ?: "USD",
-            defaultMonthlyBudget = preferences[KEY_DEFAULT_BUDGET] ?: 2500.0,
+            defaultCurrency = preferences[KEY_DEFAULT_CURRENCY] ?: "INR",
+            defaultMonthlyBudget = preferences[KEY_DEFAULT_BUDGET] ?: 25000.0,
             isHistoricalScanCompleted = preferences[KEY_HISTORICAL_SCAN_DONE] ?: false,
             deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10
         )

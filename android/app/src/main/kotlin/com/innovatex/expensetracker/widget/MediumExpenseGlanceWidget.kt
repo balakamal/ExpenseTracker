@@ -66,7 +66,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
-                        text = "$1,248.50",
+                        text = "₹1,248.50",
                         style = TextStyle(
                             color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 26.sp,
@@ -75,7 +75,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
-                        text = "$1,251.50 remaining",
+                        text = "₹1,251.50 remaining",
                         style = TextStyle(
                             color = ColorProvider(Color(0xFF10B981)),
                             fontSize = 12.sp,
@@ -100,7 +100,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.height(6.dp))
                     Text(
-                        text = "• Groceries: $480.00",
+                        text = "• Groceries: ₹480.00",
                         style = TextStyle(
                             color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 12.sp
@@ -108,7 +108,7 @@ class MediumExpenseGlanceWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.height(3.dp))
                     Text(
-                        text = "• Dining: $215.20",
+                        text = "• Dining: ₹215.20",
                         style = TextStyle(
                             color = ColorProvider(Color(0xFFF8FAFC)),
                             fontSize = 12.sp

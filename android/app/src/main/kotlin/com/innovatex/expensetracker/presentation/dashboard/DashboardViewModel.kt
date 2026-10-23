@@ -39,6 +39,12 @@ class DashboardViewModel @Inject constructor(
     private val _selectedMonth = MutableStateFlow(currentMonthKey)
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            transactionRepository.purgeDuplicates()
+        }
+    }
+
     val settings: StateFlow<AppSettings> = preferencesDataStore.appSettingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 

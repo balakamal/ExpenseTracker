@@ -54,7 +54,7 @@ fun TransactionRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
-    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.US).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
+    val numberFormat = remember { NumberFormat.getNumberInstance(Locale("en", "IN")).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 } }
     val formattedAmount = numberFormat.format(transaction.amount)
     val isCredit = transaction.type == TransactionType.CREDIT
 
@@ -134,7 +134,7 @@ fun TransactionRow(
 
             // Amount
             Text(
-                text = "$amountPrefix$${formattedAmount}",
+                text = "$amountPrefix₹${formattedAmount}",
                 color = amountColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold

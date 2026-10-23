@@ -20,4 +20,5 @@ interface TransactionRepository {
     ): List<Transaction>
     fun getAvailableMonths(): Flow<List<String>>
     fun getMonthlySummary(monthKey: String): Flow<MonthlySummary>
+    suspend fun purgeDuplicates(): Int
 }

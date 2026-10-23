@@ -61,7 +61,7 @@ class SmallExpenseGlanceWidget : GlanceAppWidget() {
                 Spacer(modifier = GlanceModifier.height(6.dp))
 
                 Text(
-                    text = "$842.50",
+                    text = "₹842.50",
                     style = TextStyle(
                         color = ColorProvider(Color(0xFFF8FAFC)),
                         fontSize = 22.sp,

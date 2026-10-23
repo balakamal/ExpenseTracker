@@ -71,9 +71,53 @@ class SmsParserTest {
     }
 
     @Test
-    fun `test promotional spam SMS is ignored`() {
+    fun `test promotional spam SMS without debit or credit is ignored`() {
         val promoSms = "Congratulations! You have an exclusive offer for pre-approved personal loan of $10,000. Apply now!"
         assertFalse(parser.isFinancialAlert(promoSms))
         assertNull(parser.parse(promoSms))
+    }
+
+    @Test
+    fun `test Indian bank SMS with promo footer is correctly parsed`() {
+        val sms = "Sent Rs.500.00 from HDFC Bank A/C **1234 to Zomato on 22-10-24. UPI Ref 429618291029. Congratulations! Get 10% discount on flights."
+        assertTrue(parser.isFinancialAlert(sms))
+
+        val result = parser.parse(sms)
+        assertNotNull(result)
+        assertEquals(500.00, result!!.amount)
+        assertEquals("INR", result.currency)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("Zomato", result.cleanMerchant)
+        assertEquals("1234", result.accountLast4)
+        assertEquals("429618291029", result.referenceId)
+    }
+
+    @Test
+    fun `test Indian SBI UPI debit SMS extraction`() {
+        val sms = "Dear SBI UPI User, your A/c ...4321 debited by Rs.150.00 on 22Oct24 transfer to Swiggy. UPI Ref 429618291029."
+        assertTrue(parser.isFinancialAlert(sms))
+
+        val result = parser.parse(sms)
+        assertNotNull(result)
+        assertEquals(150.00, result!!.amount)
+        assertEquals("INR", result.currency)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("4321", result.accountLast4)
+        assertEquals("429618291029", result.referenceId)
+    }
+
+    @Test
+    fun `test Indian ICICI Dr transaction extraction`() {
+        val sms = "Acct XX9876 Dr with Rs. 350.00 on 20-Oct-24 towards Blinkit. Ref: 99887766."
+        assertTrue(parser.isFinancialAlert(sms))
+
+        val result = parser.parse(sms)
+        assertNotNull(result)
+        assertEquals(350.00, result!!.amount)
+        assertEquals("INR", result.currency)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("Blinkit", result.cleanMerchant)
+        assertEquals("9876", result.accountLast4)
+        assertEquals("99887766", result.referenceId)
     }
 }
