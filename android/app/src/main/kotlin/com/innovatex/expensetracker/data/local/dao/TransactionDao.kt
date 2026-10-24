@@ -26,13 +26,14 @@ interface TransactionDao {
         SELECT * FROM transactions 
         WHERE timestamp BETWEEN :startTime AND :endTime 
           AND amount = :amount
+          AND currency = :currency
         """
     )
     suspend fun findPotentialDuplicates(
         startTime: Long,
         endTime: Long,
         amount: Double,
-        currency: String = "INR"
+        currency: String
     ): List<TransactionEntity>
 
     @Query("SELECT DISTINCT month_key FROM transactions ORDER BY month_key DESC")

@@ -125,6 +125,10 @@ jobs:
             echo "=========================================================="
             echo "--- BUILD ISSUES & ROOT CAUSES ---"
             if [ -f build-execution.log ]; then
+              echo ">>> COMPILER & KSP DIAGNOSTICS:"
+              grep -E '(e: |error:|ERROR:|\[ksp\]|> Task .* FAILED)' build-execution.log | head -n 40 || true
+              echo ""
+              echo ">>> GRADLE EXECUTION SUMMARY:"
               # Extract the failure section and root causes, filtering out internal Gradle reflection frames
               awk '
                 /FAILURE: Build failed/ { recording=1 }
