@@ -8,6 +8,9 @@
     <!-- Notification permission for Android 13+ (budget alerts & live updates) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Internet permission for GitHub App update release checking (zero telemetry) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Storage Access Framework handles exports without external storage permissions -->
 
     <application

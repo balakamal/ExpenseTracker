@@ -1,5 +1,7 @@
 package com.innovatex.expensetracker.presentation.dashboard
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,6 +37,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,10 +47,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.domain.model.AppUpdateInfo
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.presentation.components.ApexFintechSummaryCard
+import com.innovatex.expensetracker.presentation.components.SettingsBottomSheet
 import com.innovatex.expensetracker.presentation.components.ShimmerCardLoader
 import com.innovatex.expensetracker.presentation.components.TransactionRow
+import com.innovatex.expensetracker.presentation.components.UpdateAlertBanner
+import com.innovatex.expensetracker.presentation.components.UpdateBadgePill
+import com.innovatex.expensetracker.presentation.components.UpdateDetailsBottomSheet
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 
 @Composable
@@ -56,7 +66,21 @@ fun MonthlyDashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
+    val showUpdateBanner by viewModel.showUpdateBanner.collectAsState()
     val context = LocalContext.current
+
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
+
+    val openUrl = { url: String ->
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
+    }
 
     Scaffold(
         containerColor = ApexThemeTokens.BgCanvas,
@@ -103,8 +127,19 @@ fun MonthlyDashboardScreen(
 
                     Spacer(modifier = Modifier.weight(1f))
 
+                    // Update Badge Pill (shows when a new version is published to GitHub)
+                    if (updateState is UpdateCheckState.Available) {
+                        UpdateBadgePill(
+                            latestVersion = (updateState as UpdateCheckState.Available).updateInfo.latestVersion,
+                            onClick = {
+                                selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
                     IconButton(
-                        onClick = onSettingsClick,
+                        onClick = { showSettingsSheet = true },
                         modifier = Modifier
                             .clip(ApexThemeTokens.RadiusFull)
                             .background(ApexThemeTokens.BgGlassPill)
@@ -147,6 +182,21 @@ fun MonthlyDashboardScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // GitHub Update Alert Banner
+            if (updateState is UpdateCheckState.Available && showUpdateBanner) {
+                item {
+                    UpdateAlertBanner(
+                        updateInfo = (updateState as UpdateCheckState.Available).updateInfo,
+                        onUpdateClick = {
+                            selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
+                        },
+                        onDismissClick = {
+                            viewModel.dismissUpdateBanner()
+                        }
+                    )
                 }
             }
 
@@ -290,5 +340,33 @@ fun MonthlyDashboardScreen(
                 }
             }
         }
+    }
+
+    // Settings Bottom Sheet
+    if (showSettingsSheet) {
+        SettingsBottomSheet(
+            settings = settings,
+            updateState = updateState,
+            onDismiss = { showSettingsSheet = false },
+            onToggleSms = { viewModel.toggleSms(it) },
+            onToggleEmail = { viewModel.toggleEmail(it) },
+            onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
+            onCheckForUpdatesManual = { viewModel.checkForUpdates(manual = true) },
+            onReviewUpdate = { updateInfo ->
+                showSettingsSheet = false
+                selectedUpdateInfoForReview = updateInfo
+            },
+            onOpenNotificationSettings = onSettingsClick
+        )
+    }
+
+    // Update Details Modal Bottom Sheet
+    selectedUpdateInfoForReview?.let { updateInfo ->
+        UpdateDetailsBottomSheet(
+            updateInfo = updateInfo,
+            onDismiss = { selectedUpdateInfoForReview = null },
+            onDownloadApk = { apkUrl -> openUrl(apkUrl) },
+            onOpenReleasePage = { releaseUrl -> openUrl(releaseUrl) }
+        )
     }
 }

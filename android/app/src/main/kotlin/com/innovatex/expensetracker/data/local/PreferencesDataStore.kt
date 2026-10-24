@@ -23,7 +23,8 @@ data class AppSettings(
     val defaultCurrency: String = "INR",
     val defaultMonthlyBudget: Double = 25000.0,
     val isHistoricalScanCompleted: Boolean = false,
-    val deduplicationWindowMinutes: Int = 10
+    val deduplicationWindowMinutes: Int = 10,
+    val autoCheckUpdates: Boolean = true
 )
 
 @Singleton
@@ -39,6 +40,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_DEFAULT_BUDGET = doublePreferencesKey("key_default_monthly_budget")
         val KEY_HISTORICAL_SCAN_DONE = booleanPreferencesKey("key_historical_scan_done")
         val KEY_DEDUP_WINDOW_MIN = intPreferencesKey("key_dedup_window_minutes")
+        val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("key_auto_check_updates")
     }
 
     val appSettingsFlow: Flow<AppSettings> = dataStore.data.map { preferences ->
@@ -48,7 +50,8 @@ class PreferencesDataStore @Inject constructor(
             defaultCurrency = preferences[KEY_DEFAULT_CURRENCY] ?: "INR",
             defaultMonthlyBudget = preferences[KEY_DEFAULT_BUDGET] ?: 25000.0,
             isHistoricalScanCompleted = preferences[KEY_HISTORICAL_SCAN_DONE] ?: false,
-            deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10
+            deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10,
+            autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true
         )
     }
 
@@ -74,5 +77,9 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setDeduplicationWindowMinutes(minutes: Int) {
         dataStore.edit { it[KEY_DEDUP_WINDOW_MIN] = minutes }
+    }
+
+    suspend fun setAutoCheckUpdates(enabled: Boolean) {
+        dataStore.edit { it[KEY_AUTO_CHECK_UPDATES] = enabled }
     }
 }

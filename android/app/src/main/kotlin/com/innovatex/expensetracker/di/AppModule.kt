@@ -10,6 +10,8 @@ import com.innovatex.expensetracker.data.repository.CategoryRepositoryImpl
 import com.innovatex.expensetracker.data.repository.TransactionRepositoryImpl
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
+import com.innovatex.expensetracker.data.remote.GithubReleaseChecker
+import com.innovatex.expensetracker.domain.repository.AppUpdateRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -78,4 +80,10 @@ abstract class RepositoryModule {
     abstract fun bindCategoryRepository(
         impl: CategoryRepositoryImpl
     ): CategoryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppUpdateRepository(
+        impl: GithubReleaseChecker
+    ): AppUpdateRepository
 }

@@ -1,0 +1,348 @@
+package com.innovatex.expensetracker.presentation.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.BuildConfig
+import com.innovatex.expensetracker.data.local.AppSettings
+import com.innovatex.expensetracker.domain.model.AppUpdateInfo
+import com.innovatex.expensetracker.presentation.dashboard.UpdateCheckState
+import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsBottomSheet(
+    settings: AppSettings,
+    updateState: UpdateCheckState,
+    onDismiss: () -> Unit,
+    onToggleSms: (Boolean) -> Unit,
+    onToggleEmail: (Boolean) -> Unit,
+    onToggleAutoCheckUpdates: (Boolean) -> Unit,
+    onCheckForUpdatesManual: () -> Unit,
+    onReviewUpdate: (AppUpdateInfo) -> Unit,
+    onOpenNotificationSettings: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = ApexThemeTokens.BgSurface,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(ApexThemeTokens.RadiusFull)
+                    .background(ApexThemeTokens.StrokeHighlight)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(ApexThemeTokens.RadiusSm)
+                        .background(ApexThemeTokens.BgGlassPill),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = ApexThemeTokens.AccentPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = "CONFIGURATION",
+                        color = ApexThemeTokens.TextTertiary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "Settings & Updates",
+                        color = ApexThemeTokens.TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Ingestion Channels Section
+            Text(
+                text = "FINANCIAL INGESTION CHANNELS",
+                color = ApexThemeTokens.TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            IngestionChannelToggleCard(
+                title = "SMS Alert Capture",
+                subtitle = "Parses bank SMS messages locally on device",
+                enabled = settings.smsTrackingEnabled,
+                onToggle = onToggleSms
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            IngestionChannelToggleCard(
+                title = "Email Notification Listener",
+                subtitle = "Captures financial alerts from mail applications",
+                enabled = settings.emailTrackingEnabled,
+                onToggle = onToggleEmail
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onOpenNotificationSettings,
+                shape = ApexThemeTokens.RadiusSm,
+                border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.StrokeSubtle),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexThemeTokens.TextSecondary),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Android Notification Listener Access",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // App Updates & GitHub Releases Section
+            Text(
+                text = "APPLICATION UPDATES & RELEASES",
+                color = ApexThemeTokens.TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ApexThemeTokens.RadiusMd)
+                    .background(ApexThemeTokens.BgSurfaceElevated)
+                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Installed Version",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Button(
+                            onClick = onCheckForUpdatesManual,
+                            enabled = updateState !is UpdateCheckState.Checking,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ApexThemeTokens.AccentCobalt,
+                                contentColor = Color.White
+                            ),
+                            shape = ApexThemeTokens.RadiusSm
+                        ) {
+                            if (updateState is UpdateCheckState.Checking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Check for updates",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Check", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Auto-check switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Auto-Check on App Launch",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Pings GitHub Releases API (zero personal data sent)",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Switch(
+                            checked = settings.autoCheckUpdates,
+                            onCheckedChange = onToggleAutoCheckUpdates,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                            )
+                        )
+                    }
+
+                    // Update Status Feedback
+                    AnimatedVisibility(visible = updateState !is UpdateCheckState.Idle) {
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            when (updateState) {
+                                is UpdateCheckState.Checking -> {
+                                    Text(
+                                        text = "Querying GitHub repository...",
+                                        color = ApexThemeTokens.TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                is UpdateCheckState.UpToDate -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = ApexThemeTokens.AccentPrimary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "You are on the latest version",
+                                            color = ApexThemeTokens.AccentPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                is UpdateCheckState.Available -> {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.SystemUpdate,
+                                                contentDescription = null,
+                                                tint = ApexThemeTokens.AccentCobalt,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "v${updateState.updateInfo.latestVersion} Ready",
+                                                color = ApexThemeTokens.AccentCobalt,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Text(
+                                            text = "Review Update ➔",
+                                            color = ApexThemeTokens.AccentPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.clip(ApexThemeTokens.RadiusSm)
+                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                                is UpdateCheckState.Error -> {
+                                    Text(
+                                        text = updateState.message,
+                                        color = ApexThemeTokens.AccentDanger,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
