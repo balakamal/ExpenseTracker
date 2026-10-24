@@ -90,9 +90,9 @@ class HistoricalSmsScanner @Inject constructor(
         var count = 0
 
         // Helper function to query a given URI
-        fun querySmsUri(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int {
+        suspend fun querySmsUri(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int {
             var scanned = 0
-            runCatching {
+            try {
                 context.contentResolver.query(
                     uri,
                     projection,
@@ -120,7 +120,7 @@ class HistoricalSmsScanner @Inject constructor(
                         }
                     }
                 }
-            }.onFailure { err ->
+            } catch (err: Exception) {
                 Log.e("HistoricalSmsScanner", "Error querying SMS uri: $uri", err)
             }
             return scanned
