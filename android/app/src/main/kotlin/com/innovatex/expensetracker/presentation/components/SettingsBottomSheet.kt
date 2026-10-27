@@ -218,8 +218,8 @@ fun SettingsBottomSheet(
                         Button(
                             onClick = onCleanSpam,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = ApexThemeTokens.AccentEmerald,
-                                contentColor = Color.White
+                                containerColor = ApexThemeTokens.AccentPrimary,
+                                contentColor = Color.Black
                             ),
                             shape = ApexThemeTokens.RadiusSm
                         ) {
@@ -237,7 +237,7 @@ fun SettingsBottomSheet(
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = cleanSpamStatus,
-                            color = ApexThemeTokens.AccentEmerald,
+                            color = ApexThemeTokens.AccentPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
