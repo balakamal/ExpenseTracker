@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -60,6 +61,7 @@ fun CorbelTransactionTable(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
+    var isTableView by remember { mutableStateOf(false) }
 
     val numberFormat = remember {
         NumberFormat.getNumberInstance(Locale("en", "IN")).apply {
@@ -190,79 +192,80 @@ fun CorbelTransactionTable(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Corbel Filter Pills (All, Debits, Credits)
+            // Corbel Filter Pills (All, Debits, Credits) & View Mode Switcher (Cards / Table)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                FilterPill(
-                    label = "All ${transactions.size}",
-                    isSelected = selectedFilter == TransactionFilter.ALL,
-                    onClick = { selectedFilter = TransactionFilter.ALL }
-                )
-                FilterPill(
-                    label = "Debits $debitCount",
-                    isSelected = selectedFilter == TransactionFilter.DEBITS,
-                    activeColor = ApexThemeTokens.AccentDanger,
-                    onClick = { selectedFilter = TransactionFilter.DEBITS }
-                )
-                FilterPill(
-                    label = "Credits $creditCount",
-                    isSelected = selectedFilter == TransactionFilter.CREDITS,
-                    activeColor = ApexThemeTokens.AccentPrimary,
-                    onClick = { selectedFilter = TransactionFilter.CREDITS }
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    FilterPill(
+                        label = "All ${transactions.size}",
+                        isSelected = selectedFilter == TransactionFilter.ALL,
+                        onClick = { selectedFilter = TransactionFilter.ALL }
+                    )
+                    FilterPill(
+                        label = "Debits $debitCount",
+                        isSelected = selectedFilter == TransactionFilter.DEBITS,
+                        activeColor = ApexThemeTokens.AccentDanger,
+                        onClick = { selectedFilter = TransactionFilter.DEBITS }
+                    )
+                    FilterPill(
+                        label = "Credits $creditCount",
+                        isSelected = selectedFilter == TransactionFilter.CREDITS,
+                        activeColor = ApexThemeTokens.AccentPrimary,
+                        onClick = { selectedFilter = TransactionFilter.CREDITS }
+                    )
+                }
+
+                // Corbel Segmented View Switcher: Cards vs Table
+                Row(
+                    modifier = Modifier
+                        .clip(ApexThemeTokens.RadiusFull)
+                        .background(ApexThemeTokens.BgGlassPill)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusFull)
+                        .padding(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(ApexThemeTokens.RadiusFull)
+                            .background(if (!isTableView) ApexThemeTokens.BgHighContrast else Color.Transparent)
+                            .clickable { isTableView = false }
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Cards",
+                            color = if (!isTableView) ApexThemeTokens.TextHighContrast else ApexThemeTokens.TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (!isTableView) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(ApexThemeTokens.RadiusFull)
+                            .background(if (isTableView) ApexThemeTokens.BgHighContrast else Color.Transparent)
+                            .clickable { isTableView = true }
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Table",
+                            color = if (isTableView) ApexThemeTokens.TextHighContrast else ApexThemeTokens.TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (isTableView) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Corbel Table Structure
-            // Table Header Row
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(ApexThemeTokens.BgGlassPill)
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                    .clip(ApexThemeTokens.RadiusXs)
-            ) {
-                Text(
-                    text = "DATE",
-                    color = ApexThemeTokens.TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(55.dp)
-                )
-                Text(
-                    text = "MERCHANT",
-                    color = ApexThemeTokens.TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "CATEGORY",
-                    color = ApexThemeTokens.TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(90.dp)
-                )
-                Text(
-                    text = "AMOUNT",
-                    color = ApexThemeTokens.TextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.width(75.dp)
-                )
-            }
-
-            HorizontalDivider(
-                color = ApexThemeTokens.StrokeSubtle,
-                thickness = 1.dp
-            )
-
-            // Table Body Rows or Empty State
+            // Table / Cards Body Rows or Empty State
             if (filteredTransactions.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -292,8 +295,9 @@ fun CorbelTransactionTable(
                         )
                     }
                 }
-            } else {
-                Column {
+            } else if (!isTableView) {
+                // 1. CARDS VIEW: Mobile-Optimized FinTech Ledger (Full Merchant Visibility, Squircle Category Icon)
+                Column(modifier = Modifier.fillMaxWidth()) {
                     filteredTransactions.forEachIndexed { index, txn ->
                         val date = Date(txn.timestamp)
                         val dateStr = dateFormatter.format(date)
@@ -312,51 +316,76 @@ fun CorbelTransactionTable(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onTransactionClick(txn) }
-                                .padding(horizontal = 10.dp, vertical = 11.dp)
+                                .padding(horizontal = 4.dp, vertical = 10.dp)
                         ) {
-                            // Column 1: Date & Time
-                            Column(modifier = Modifier.width(55.dp)) {
+                            // Category Squircle Avatar with initial
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(ApexThemeTokens.RadiusSm)
+                                    .background(categoryColor.copy(alpha = 0.14f))
+                                    .border(1.dp, categoryColor.copy(alpha = 0.35f), ApexThemeTokens.RadiusSm),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = dateStr,
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = timeStr,
-                                    color = ApexThemeTokens.TextMuted,
-                                    fontSize = 9.5.sp
+                                    text = (category?.name ?: txn.categoryId).take(2).uppercase(),
+                                    color = categoryColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            // Column 2: Merchant & Source
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 6.dp)
-                            ) {
+                            Spacer(modifier = Modifier.width(11.dp))
+
+                            // Middle Column: Merchant Name & Subline Chips
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = txn.merchantClean.ifBlank { "Unknown Merchant" },
                                     color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 12.5.sp,
+                                    fontSize = 13.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    // Category Chip
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(ApexThemeTokens.RadiusFull)
+                                            .background(categoryColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(4.dp)
+                                                    .clip(CircleShape)
+                                                    .background(categoryColor)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() },
+                                                color = categoryColor,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+
                                     PaymentMediumBadge(medium = txn.paymentMedium)
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    val sourceName = txn.sender ?: if (txn.sources.contains(SourceChannel.EMAIL)) "Email" else "SMS"
-                                    Text(
-                                        text = sourceName,
-                                        color = ApexThemeTokens.TextMuted,
-                                        fontSize = 10.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+
                                     if (!txn.accountLast4.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = " • ••${txn.accountLast4}",
+                                            text = "••${txn.accountLast4}",
                                             color = ApexThemeTokens.TextMuted,
                                             fontSize = 10.sp
                                         )
@@ -364,55 +393,202 @@ fun CorbelTransactionTable(
                                 }
                             }
 
-                            // Column 3: Category Pill with colored dot
-                            Box(
-                                modifier = Modifier
-                                    .width(90.dp)
-                                    .clip(ApexThemeTokens.RadiusFull)
-                                    .background(categoryColor.copy(alpha = 0.12f))
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(5.dp)
-                                            .clip(CircleShape)
-                                            .background(categoryColor)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() },
-                                        color = categoryColor,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Right Column: Formatted Tabular Amount & Date/Time
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = amountStr,
+                                    color = amountColor,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.End
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "$dateStr, $timeStr",
+                                    color = ApexThemeTokens.TextMuted,
+                                    fontSize = 10.5.sp,
+                                    textAlign = TextAlign.End
+                                )
                             }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            // Column 4: Right-Aligned Amount
-                            Text(
-                                text = amountStr,
-                                color = amountColor,
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier.width(75.dp)
-                            )
                         }
 
                         if (index < filteredTransactions.lastIndex) {
                             HorizontalDivider(
                                 color = ApexThemeTokens.StrokeSubtle.copy(alpha = 0.5f),
                                 thickness = 0.5.dp,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
+                        }
+                    }
+                }
+            } else {
+                // 2. TABLE VIEW: Horizontally Scrollable Multi-Column Grid (Zero Squishing)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    Column(modifier = Modifier.widthIn(min = 490.dp)) {
+                        // Table Header Row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ApexThemeTokens.BgGlassPill)
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .clip(ApexThemeTokens.RadiusXs)
+                        ) {
+                            Text(
+                                text = "DATE",
+                                color = ApexThemeTokens.TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(72.dp)
+                            )
+                            Text(
+                                text = "MERCHANT & CHANNEL",
+                                color = ApexThemeTokens.TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(170.dp)
+                            )
+                            Text(
+                                text = "CATEGORY",
+                                color = ApexThemeTokens.TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(110.dp)
+                            )
+                            Text(
+                                text = "AMOUNT",
+                                color = ApexThemeTokens.TextMuted,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(100.dp)
+                            )
+                        }
+
+                        HorizontalDivider(
+                            color = ApexThemeTokens.StrokeSubtle,
+                            thickness = 1.dp
+                        )
+
+                        filteredTransactions.forEachIndexed { index, txn ->
+                            val date = Date(txn.timestamp)
+                            val dateStr = dateFormatter.format(date)
+                            val timeStr = timeFormatter.format(date)
+                            val isCredit = txn.type == TransactionType.CREDIT
+                            val category = categoryMap[txn.categoryId]
+                            val categoryColor = category?.colorHex?.let {
+                                runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
+                            } ?: if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentCobalt
+
+                            val amountStr = if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
+                            val amountColor = if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onTransactionClick(txn) }
+                                    .padding(horizontal = 10.dp, vertical = 11.dp)
+                            ) {
+                                // Column 1: Date & Time
+                                Column(modifier = Modifier.width(72.dp)) {
+                                    Text(
+                                        text = dateStr,
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = timeStr,
+                                        color = ApexThemeTokens.TextMuted,
+                                        fontSize = 9.5.sp
+                                    )
+                                }
+
+                                // Column 2: Merchant & Channel
+                                Column(
+                                    modifier = Modifier
+                                        .width(170.dp)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Text(
+                                        text = txn.merchantClean.ifBlank { "Unknown Merchant" },
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        PaymentMediumBadge(medium = txn.paymentMedium)
+                                        if (!txn.accountLast4.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "••${txn.accountLast4}",
+                                                color = ApexThemeTokens.TextMuted,
+                                                fontSize = 9.5.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Column 3: Category Pill
+                                Box(
+                                    modifier = Modifier
+                                        .width(110.dp)
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(categoryColor.copy(alpha = 0.12f))
+                                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(categoryColor)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() },
+                                            color = categoryColor,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Column 4: Amount
+                                Text(
+                                    text = amountStr,
+                                    color = amountColor,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.width(100.dp)
+                                )
+                            }
+
+                            if (index < filteredTransactions.lastIndex) {
+                                HorizontalDivider(
+                                    color = ApexThemeTokens.StrokeSubtle.copy(alpha = 0.5f),
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                )
+                            }
                         }
                     }
                 }

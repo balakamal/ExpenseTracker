@@ -3,6 +3,8 @@ package com.innovatex.expensetracker.presentation.dashboard
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -126,64 +128,100 @@ fun MonthlyDashboardScreen(
         }
     }
 
-    // Ping animation for Corbel's "live now" status indicator
+    // Ping animation for Corbel's "live now" status indicator (2.2s cubic curve matching Corbel web)
     val infiniteTransition = rememberInfiniteTransition(label = "livePing")
     val pingScale by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 2.2f,
+        initialValue = 0.4f,
+        targetValue = 2.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
+            animation = tween(2200, easing = CubicBezierEasing(0.2f, 0.6f, 0.3f, 1.0f)),
             repeatMode = RepeatMode.Restart
         ),
         label = "pingScale"
     )
     val pingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.75f,
+        initialValue = 0.9f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
+            animation = tween(2200, easing = CubicBezierEasing(0.2f, 0.6f, 0.3f, 1.0f)),
             repeatMode = RepeatMode.Restart
         ),
         label = "pingAlpha"
     )
 
+    // Ambient floating mesh animation (Smooth drift matching Corbel .mesh blobs)
+    val meshTransition = rememberInfiniteTransition(label = "meshMotion")
+    val meshDriftA by meshTransition.animateFloat(
+        initialValue = -0.05f,
+        targetValue = 0.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(14000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "meshDriftA"
+    )
+    val meshDriftB by meshTransition.animateFloat(
+        initialValue = 0.04f,
+        targetValue = -0.04f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(18000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "meshDriftB"
+    )
+    val meshPulse by meshTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(9000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "meshPulse"
+    )
+
     Box(modifier = Modifier.fillMaxSize().background(ApexThemeTokens.BgCanvas)) {
-        // Corbel Ambient Background Mesh (Soft radial glow spots)
+        // Corbel Ambient Background Mesh (Drifting, pulsing radial glow spots)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
-            // Top-left Ocean Glow
+            // Top-left Ocean Glow (Floating Blob A)
+            val centerA = Offset(width * (0.15f + meshDriftA), height * (0.08f + meshDriftB * 0.5f))
+            val radiusA = width * 0.8f * meshPulse
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(ApexThemeTokens.MeshA, Color.Transparent),
-                    center = Offset(width * 0.15f, height * 0.08f),
-                    radius = width * 0.75f
+                    center = centerA,
+                    radius = radiusA
                 ),
-                radius = width * 0.75f,
-                center = Offset(width * 0.15f, height * 0.08f)
+                radius = radiusA,
+                center = centerA
             )
 
-            // Top-right Coral Glow
+            // Top-right Coral Glow (Floating Blob C)
+            val centerC = Offset(width * (0.9f - meshDriftA * 0.7f), height * (0.25f + meshDriftB))
+            val radiusC = width * 0.65f * meshPulse
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(ApexThemeTokens.MeshC, Color.Transparent),
-                    center = Offset(width * 0.9f, height * 0.25f),
-                    radius = width * 0.6f
+                    center = centerC,
+                    radius = radiusC
                 ),
-                radius = width * 0.6f,
-                center = Offset(width * 0.9f, height * 0.25f)
+                radius = radiusC,
+                center = centerC
             )
 
-            // Bottom-right Mint Glow
+            // Bottom-right Mint Glow (Floating Blob B)
+            val centerB = Offset(width * (0.8f + meshDriftB), height * (0.85f - meshDriftA * 0.5f))
+            val radiusB = width * 0.75f * meshPulse
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(ApexThemeTokens.MeshB, Color.Transparent),
-                    center = Offset(width * 0.8f, height * 0.85f),
-                    radius = width * 0.7f
+                    center = centerB,
+                    radius = radiusB
                 ),
-                radius = width * 0.7f,
-                center = Offset(width * 0.8f, height * 0.85f)
+                radius = radiusB,
+                center = centerB
             )
         }
 

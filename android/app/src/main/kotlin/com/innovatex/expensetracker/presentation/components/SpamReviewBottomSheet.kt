@@ -1,7 +1,12 @@
 package com.innovatex.expensetracker.presentation.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,12 +21,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,7 +42,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -252,6 +266,14 @@ private fun SuspectedSpamCard(
     onConfirmSpam: () -> Unit,
     onTrustSender: () -> Unit
 ) {
+    val context = LocalContext.current
+    val allMessages = remember(item) {
+        val list = item.sampleMessages.ifEmpty { listOfNotNull(item.sampleSnippet) }
+        if (list.isEmpty()) listOfNotNull(item.sampleSnippet) else list
+    }
+    var currentMsgIndex by remember(item) { mutableStateOf(0) }
+    val activeMessage = allMessages.getOrNull(currentMsgIndex) ?: item.sampleSnippet ?: ""
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -318,27 +340,132 @@ private fun SuspectedSpamCard(
                 fontSize = 11.sp
             )
 
-            if (!item.sampleSnippet.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
+            if (activeMessage.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Full SMS Container
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(ApexThemeTokens.RadiusSm)
                         .background(ApexThemeTokens.BgCanvas)
-                        .padding(9.dp)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusSm)
+                        .padding(10.dp)
                 ) {
-                    Text(
-                        text = "\"${item.sampleSnippet}\"",
-                        color = ApexThemeTokens.TextSecondary,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // SMS Header with Icon, message counter & Copy action
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sms,
+                                contentDescription = null,
+                                tint = ApexThemeTokens.AccentCobalt,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (allMessages.size > 1) {
+                                    "SMS MESSAGE (${currentMsgIndex + 1}/${allMessages.size})"
+                                } else {
+                                    "COMPLETE SMS MESSAGE"
+                                },
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Multiple messages switcher
+                            if (allMessages.size > 1) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(if (currentMsgIndex > 0) ApexThemeTokens.BgGlassPill else Color.Transparent)
+                                            .clickable(enabled = currentMsgIndex > 0) {
+                                                currentMsgIndex--
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ChevronLeft,
+                                            contentDescription = "Previous message",
+                                            tint = if (currentMsgIndex > 0) ApexThemeTokens.TextPrimary else ApexThemeTokens.TextMuted,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(if (currentMsgIndex < allMessages.lastIndex) ApexThemeTokens.BgGlassPill else Color.Transparent)
+                                            .clickable(enabled = currentMsgIndex < allMessages.lastIndex) {
+                                                currentMsgIndex++
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ChevronRight,
+                                            contentDescription = "Next message",
+                                            tint = if (currentMsgIndex < allMessages.lastIndex) ApexThemeTokens.TextPrimary else ApexThemeTokens.TextMuted,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                            }
+
+                            // Copy SMS Action Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(ApexThemeTokens.RadiusFull)
+                                    .background(ApexThemeTokens.BgGlassPill)
+                                    .clickable {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("SMS from ${item.sender}", activeMessage)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "SMS copied to clipboard", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy SMS",
+                                        tint = ApexThemeTokens.TextSecondary,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Copy",
+                                        color = ApexThemeTokens.TextSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(7.dp))
+
+                        // Full SMS Text - Unclipped, Complete Visibility!
+                        Text(
+                            text = activeMessage,
+                            color = ApexThemeTokens.TextPrimary,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Action Buttons
             Row(

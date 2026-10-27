@@ -14,27 +14,27 @@ import androidx.compose.ui.unit.dp
 @Immutable
 object ApexThemeTokens {
     // Corbel FinTech Surfaces & Canvas
-    val BgCanvas = Color(0xFF0C1216)            // Deep slate-charcoal canvas
-    val BgSurface = Color(0xFF172129)           // Elevated dark card panel
-    val BgSurfaceElevated = Color(0xFF1A242B)   // Floating toolbars & sheets
-    val BgSurfaceCard = Color(0xDF141D24)       // Translucent frosted glass card (reveals ambient mesh glow)
-    val BgGlassPill = Color(0x12FFFFFF)         // 7% translucent glass pill
-    val BgGlassPillHover = Color(0x24FFFFFF)    // 14% translucent glass pill
-    val BgHighContrast = Color(0xFFFBFDFE)      // Corbel signature off-white highlight pill
-    val TextHighContrast = Color(0xFF14202A)    // High contrast ink text
+    val BgCanvas = Color(0xFF0C1216)            // Deep slate-charcoal canvas (--bg: #0c1216)
+    val BgSurface = Color(0xFF172129)           // Elevated dark card panel (--surface: #172129)
+    val BgSurfaceElevated = Color(0xFF1A242B)   // Floating toolbars & sheets (--float: #1a242b)
+    val BgSurfaceCard = Color(0xCC16222A)       // Frosted glass card revealing ambient mesh glow
+    val BgGlassPill = Color(0x14FFFFFF)         // Frosted glass pill (--glass-2: #ffffff16)
+    val BgGlassPillHover = Color(0x24FFFFFF)    // Interactive hover pill
+    val BgHighContrast = Color(0xFFE8EEF1)      // Corbel signature active pill (--pill: #e8eef1)
+    val TextHighContrast = Color(0xFF0F171C)    // High contrast ink text on pill (--on-pill: #0f171c)
 
     // Corbel Live Status Badge
-    val BgLive = Color(0xFF6FD3B0)              // Corbel solid mint live pill
-    val TextLive = Color(0xFF14202A)            // Corbel deep ink text on live pill
+    val BgLive = Color(0xFF6FD3B0)              // Corbel solid mint live badge (--mint / --up: #6fd3b0)
+    val TextLive = Color(0xFF0F171C)            // Corbel deep ink text on live badge
 
-    // Corbel Ambient Mesh Glows
-    val MeshA = Color(0x38468CC8) // Ocean Sky ambient glow
-    val MeshB = Color(0x302EA080) // Mint Emerald ambient glow
-    val MeshC = Color(0x26E6785F) // Coral Peach ambient glow
+    // Corbel Ambient Mesh Glows (from official CSS)
+    val MeshA = Color(0x52468CC8) // Ocean Sky ambient glow (--mesh-a: #468cc852)
+    val MeshB = Color(0x3D2EA080) // Mint Emerald ambient glow (--mesh-b: #2ea0803d)
+    val MeshC = Color(0x30E6785F) // Coral Peach ambient glow (--mesh-c: #e6785f26)
 
     // Hairline Borders & Dividers
-    val StrokeSubtle = Color(0x18FFFFFF)   // Subtle hairline frosted glass rim
-    val StrokeHighlight = Color(0x2EFFFFFF) // Active/hover border
+    val StrokeSubtle = Color(0x1AFFFFFF)   // Subtle hairline frosted glass rim (--rim: #ffffff13)
+    val StrokeHighlight = Color(0x2EFFFFFF) // Active border (--line-2: #ffffff29)
     val StrokeActive = Color(0x40FFFFFF)
 
     // Calendar Range Highlight Connectors

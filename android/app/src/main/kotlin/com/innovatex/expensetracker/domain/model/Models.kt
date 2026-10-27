@@ -170,6 +170,7 @@ data class SuspectedSpamItem(
     val totalAmount: Double,
     val reason: String,
     val sampleSnippet: String?,
+    val sampleMessages: List<String> = emptyList(),
     val transactionIds: List<String>
 )
 

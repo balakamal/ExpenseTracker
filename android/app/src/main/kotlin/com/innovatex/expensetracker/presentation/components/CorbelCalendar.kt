@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -128,28 +127,18 @@ fun CorbelCalendar(
             .padding(16.dp)
     ) {
         Column {
-            // Header Row: Month title, Chevrons & Active Filter Status Pill
+            // 1. Top Metadata Row: Micro-label and Reset Filter Status Pill
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text(
-                        text = "FINANCIAL CALENDAR",
-                        color = ApexThemeTokens.TextMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = monthTitle,
-                        color = ApexThemeTokens.TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.3).sp
-                    )
-                }
+                Text(
+                    text = "FINANCIAL CALENDAR",
+                    color = ApexThemeTokens.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
 
                 Spacer(modifier = Modifier.weight(1f))
 
@@ -165,7 +154,7 @@ fun CorbelCalendar(
                             ApexThemeTokens.RadiusFull
                         )
                         .clickable(onClick = onClearDateSelection)
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -192,40 +181,74 @@ fun CorbelCalendar(
                         }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-                // Month Switchers
-                IconButton(
-                    onClick = onPreviousMonth,
+            // 2. Month Navigation Row: Month Title and Connected Month Switcher Pill
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = monthTitle,
+                    color = ApexThemeTokens.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.3).sp
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Connected Corbel Glass Month Switcher Pill (Collision-Free)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+                        .clip(ApexThemeTokens.RadiusFull)
                         .background(ApexThemeTokens.BgGlassPill)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusFull)
+                        .padding(horizontal = 4.dp, vertical = 3.dp)
                 ) {
-                    Icon(
-                        Icons.Default.ChevronLeft,
-                        contentDescription = "Previous Month",
-                        tint = ApexThemeTokens.TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onPreviousMonth),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.ChevronLeft,
+                            contentDescription = "Previous Month",
+                            tint = ApexThemeTokens.TextPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                IconButton(
-                    onClick = onNextMonth,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(ApexThemeTokens.BgGlassPill)
-                ) {
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = "Next Month",
-                        tint = ApexThemeTokens.TextSecondary,
-                        modifier = Modifier.size(18.dp)
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(14.dp)
+                            .background(ApexThemeTokens.StrokeSubtle)
                     )
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onNextMonth),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = "Next Month",
+                            tint = ApexThemeTokens.TextPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 

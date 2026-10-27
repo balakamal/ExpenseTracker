@@ -235,12 +235,14 @@ class TransactionRepositoryImpl @Inject constructor(
         }
 
         suspectedBySender.map { (sender, entities) ->
+            val allMessages = entities.mapNotNull { it.rawSnippet?.ifBlank { null } ?: it.merchantRaw?.ifBlank { null } }.distinct()
             SuspectedSpamItem(
                 sender = sender,
                 transactionCount = entities.size,
                 totalAmount = entities.sumOf { it.amount },
                 reason = senderReasons[sender] ?: "Suspected marketing message",
-                sampleSnippet = entities.firstOrNull()?.rawSnippet ?: entities.firstOrNull()?.merchantRaw,
+                sampleSnippet = allMessages.firstOrNull(),
+                sampleMessages = allMessages,
                 transactionIds = entities.map { it.id }
             )
         }
