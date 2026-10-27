@@ -78,11 +78,75 @@ class SmsParserTest {
     }
 
     @Test
+    fun `test pre-approved loan spam with amount and apply is strictly rejected`() {
+        val loanSms = "Congratulations! You are eligible for pre-approved personal loan of Rs 5,00,000 with instant credit to your account. Apply now: http://bit.ly/loan"
+        assertFalse(parser.isFinancialAlert(loanSms))
+        assertNull(parser.parse(loanSms))
+    }
+
+    @Test
+    fun `test discount coupon promo is rejected`() {
+        val discountSms = "Dear customer, flat Rs 200 discount on your purchase at Dominos! Order now on app. Use code FEAST."
+        assertFalse(parser.isFinancialAlert(discountSms))
+        assertNull(parser.parse(discountSms))
+    }
+
+    @Test
+    fun `test cashback offer promo is rejected`() {
+        val cashbackSms = "Get Rs. 500 cashback on your next purchase of Rs. 2000 using your HDFC Credit Card. Hurry! Offer valid till midnight."
+        assertFalse(parser.isFinancialAlert(cashbackSms))
+        assertNull(parser.parse(cashbackSms))
+    }
+
+    @Test
+    fun `test bill due reminder without debit is rejected`() {
+        val billSms = "Your electricity bill of Rs. 1,450 is due on 28-Oct. Pay now to avoid late fee and disconnection."
+        assertFalse(parser.isFinancialAlert(billSms))
+        assertNull(parser.parse(billSms))
+    }
+
+    @Test
+    fun `test payment collect request is rejected`() {
+        val collectSms = "Request received to pay Rs. 300 to XYZ on PhonePe. Click here to approve collect request."
+        assertFalse(parser.isFinancialAlert(collectSms))
+        assertNull(parser.parse(collectSms))
+    }
+
+    @Test
+    fun `test telecom recharge marketing is rejected`() {
+        val rechargeSms = "Recharge with Rs. 299 and get 1.5GB/day daily data and unlimited calls for 28 days. Recharge now on Airtel Thanks."
+        assertFalse(parser.isFinancialAlert(rechargeSms))
+        assertNull(parser.parse(rechargeSms))
+    }
+
+    @Test
+    fun `test gaming and rummy spam is rejected`() {
+        val gamingSms = "Win cash up to Rs. 10,000 daily! Play Rummy now. Deposit Rs. 100 and claim your bonus points."
+        assertFalse(parser.isFinancialAlert(gamingSms))
+        assertNull(parser.parse(gamingSms))
+    }
+
+    @Test
+    fun `test personal 10-digit mobile number sender is rejected`() {
+        val sms = "I sent you Rs 500 for dinner yesterday"
+        val sender = "+919876543210"
+        assertFalse(parser.isFinancialAlert(sms, sender))
+        assertNull(parser.parse(sms, sender = sender))
+    }
+
+    @Test
+    fun `test credit card limit increase notification is rejected`() {
+        val limitSms = "Good news! Your credit card limit has been increased to Rs. 2,50,000. Enjoy enhanced spending power."
+        assertFalse(parser.isFinancialAlert(limitSms))
+        assertNull(parser.parse(limitSms))
+    }
+
+    @Test
     fun `test Indian bank SMS with promo footer is correctly parsed`() {
         val sms = "Sent Rs.500.00 from HDFC Bank A/C **1234 to Zomato on 22-10-24. UPI Ref 429618291029. Congratulations! Get 10% discount on flights."
-        assertTrue(parser.isFinancialAlert(sms))
+        assertTrue(parser.isFinancialAlert(sms, sender = "AD-HDFCBK"))
 
-        val result = parser.parse(sms)
+        val result = parser.parse(sms, sender = "AD-HDFCBK")
         assertNotNull(result)
         assertEquals(500.00, result!!.amount)
         assertEquals("INR", result.currency)
@@ -95,9 +159,9 @@ class SmsParserTest {
     @Test
     fun `test Indian SBI UPI debit SMS extraction`() {
         val sms = "Dear SBI UPI User, your A/c ...4321 debited by Rs.150.00 on 22Oct24 transfer to Swiggy. UPI Ref 429618291029."
-        assertTrue(parser.isFinancialAlert(sms))
+        assertTrue(parser.isFinancialAlert(sms, sender = "VK-SBIINB"))
 
-        val result = parser.parse(sms)
+        val result = parser.parse(sms, sender = "VK-SBIINB")
         assertNotNull(result)
         assertEquals(150.00, result!!.amount)
         assertEquals("INR", result.currency)
@@ -109,9 +173,9 @@ class SmsParserTest {
     @Test
     fun `test Indian ICICI Dr transaction extraction`() {
         val sms = "Acct XX9876 Dr with Rs. 350.00 on 20-Oct-24 towards Blinkit. Ref: 99887766."
-        assertTrue(parser.isFinancialAlert(sms))
+        assertTrue(parser.isFinancialAlert(sms, sender = "BP-ICICIB"))
 
-        val result = parser.parse(sms)
+        val result = parser.parse(sms, sender = "BP-ICICIB")
         assertNotNull(result)
         assertEquals(350.00, result!!.amount)
         assertEquals("INR", result.currency)

@@ -23,13 +23,14 @@ class IngestionPipeline @Inject constructor(
     suspend fun processIncomingMessage(
         body: String,
         timestamp: Long,
-        source: SourceChannel
+        source: SourceChannel,
+        sender: String? = null
     ): DeduplicationResult? {
         val settings = preferencesDataStore.appSettingsFlow.first()
         if (source == SourceChannel.SMS && !settings.smsTrackingEnabled) return null
         if (source == SourceChannel.EMAIL && !settings.emailTrackingEnabled) return null
 
-        val candidate = parseTransactionUseCase.parse(body, timestamp, source) ?: return null
+        val candidate = parseTransactionUseCase.parse(body, timestamp, source, sender) ?: return null
 
         val result = deduplicateTransactionUseCase(
             candidate = candidate,

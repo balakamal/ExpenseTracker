@@ -48,6 +48,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         // Concatenate multipart SMS segments
         val fullBody = messages.joinToString("") { it.displayMessageBody ?: "" }
         val timestamp = messages[0].timestampMillis
+        val sender = messages[0].originatingAddress
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -57,7 +58,8 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                     val parsedTxn = parseTransactionUseCase.parse(
                         body = fullBody,
                         timestamp = timestamp,
-                        source = SourceChannel.SMS
+                        source = SourceChannel.SMS,
+                        sender = sender
                     )
                     if (parsedTxn != null) {
                         deduplicateTransactionUseCase(parsedTxn)
@@ -102,16 +104,19 @@ class HistoricalSmsScanner @Inject constructor(
                 )?.use { cursor ->
                     val bodyIndex = cursor.getColumnIndex("body")
                     val dateIndex = cursor.getColumnIndex("date")
+                    val addressIndex = cursor.getColumnIndex("address")
 
                     if (bodyIndex >= 0 && dateIndex >= 0) {
                         while (cursor.moveToNext()) {
                             val body = cursor.getString(bodyIndex) ?: continue
                             val date = cursor.getLong(dateIndex)
+                            val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
 
                             val parsed = parseTransactionUseCase.parse(
                                 body = body,
                                 timestamp = date,
-                                source = SourceChannel.SMS
+                                source = SourceChannel.SMS,
+                                sender = sender
                             )
                             if (parsed != null) {
                                 deduplicateTransactionUseCase(parsed)
@@ -142,8 +147,9 @@ class HistoricalSmsScanner @Inject constructor(
             )
         }
 
-        // Clean up any historical duplicate entries in the database
+        // Clean up any historical duplicate entries and residual spam in the database
         transactionRepository.purgeDuplicates()
+        transactionRepository.purgeSpamTransactions()
 
         preferencesDataStore.setHistoricalScanCompleted(true)
         if (count > 0) {

@@ -55,9 +55,16 @@ class DashboardViewModel @Inject constructor(
     private val _showUpdateBanner = MutableStateFlow(true)
     val showUpdateBanner: StateFlow<Boolean> = _showUpdateBanner.asStateFlow()
 
+    private val _cleanSpamStatus = MutableStateFlow<String?>(null)
+    val cleanSpamStatus: StateFlow<String?> = _cleanSpamStatus.asStateFlow()
+
     init {
         viewModelScope.launch {
             transactionRepository.purgeDuplicates()
+            val purged = transactionRepository.purgeSpamTransactions()
+            if (purged > 0) {
+                _cleanSpamStatus.value = "Automatically filtered $purged spam transactions."
+            }
             val currentSettings = preferencesDataStore.appSettingsFlow.first()
             if (currentSettings.autoCheckUpdates) {
                 checkForUpdates(manual = false)
@@ -206,5 +213,20 @@ class DashboardViewModel @Inject constructor(
                 checkForUpdates(manual = false)
             }
         }
+    }
+
+    fun cleanSpamAndRecalculate() {
+        viewModelScope.launch {
+            val count = transactionRepository.purgeSpamTransactions()
+            _cleanSpamStatus.value = if (count > 0) {
+                "Cleaned $count spam items. Cards recalculated!"
+            } else {
+                "No spam detected. Ledger is clean."
+            }
+        }
+    }
+
+    fun clearCleanSpamStatus() {
+        _cleanSpamStatus.value = null
     }
 }

@@ -5,6 +5,7 @@ import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.ingestion.parser.SmsParserEngine
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -20,11 +21,12 @@ import org.junit.jupiter.api.Test
 class TransactionRepositoryTest {
 
     private val transactionDao: TransactionDao = mockk(relaxed = true)
+    private val smsParserEngine = SmsParserEngine()
     private lateinit var repository: TransactionRepositoryImpl
 
     @BeforeEach
     fun setup() {
-        repository = TransactionRepositoryImpl(transactionDao, Dispatchers.Unconfined)
+        repository = TransactionRepositoryImpl(transactionDao, smsParserEngine, Dispatchers.Unconfined)
     }
 
     @Test
@@ -97,5 +99,56 @@ class TransactionRepositoryTest {
         assertEquals(3, summary.transactionCount)
         assertEquals(100.0, summary.categoryTotals["shopping"])
         assertEquals(50.0, summary.categoryTotals["food_dining"])
+    }
+
+    @Test
+    fun `test purgeSpamTransactions identifies and removes spam items`() = runTest {
+        val validDebit = TransactionEntity(
+            id = "valid_1",
+            amount = 150.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 1000L,
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy",
+            merchantClean = "Swiggy",
+            rawSnippet = "Dear SBI UPI User, your A/c ...4321 debited by Rs.150.00 on 22Oct24 transfer to Swiggy. UPI Ref 429618291029.",
+            sources = listOf(SourceChannel.SMS)
+        )
+
+        val spamLoan = TransactionEntity(
+            id = "spam_loan",
+            amount = 500000.0,
+            currency = "INR",
+            type = TransactionType.CREDIT,
+            timestamp = 2000L,
+            monthKey = "2026-10",
+            merchantRaw = "Loan Approved",
+            merchantClean = "Pre-approved Loan",
+            rawSnippet = "Congratulations! You are eligible for pre-approved personal loan of Rs 5,00,000. Apply now.",
+            sources = listOf(SourceChannel.SMS)
+        )
+
+        val spamBillDue = TransactionEntity(
+            id = "spam_bill",
+            amount = 1450.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 3000L,
+            monthKey = "2026-10",
+            merchantRaw = "Electricity Bill Due",
+            merchantClean = "Bill Due",
+            rawSnippet = "Your electricity bill of Rs. 1,450 is due on 28-Oct. Pay now to avoid late fee.",
+            sources = listOf(SourceChannel.SMS)
+        )
+
+        coEvery { transactionDao.getAllTransactions() } returns listOf(validDebit, spamLoan, spamBillDue)
+        coEvery { transactionDao.deleteTransactionsByIds(any()) } returns Unit
+
+        val purgedCount = repository.purgeSpamTransactions()
+        assertEquals(2, purgedCount)
+        coVerify(exactly = 1) {
+            transactionDao.deleteTransactionsByIds(listOf("spam_loan", "spam_bill"))
+        }
     }
 }

@@ -44,11 +44,18 @@ class EmailNotificationListenerService : NotificationListenerService() {
             timestamp = timestamp
         ) ?: return
 
+        val combinedContent = buildString {
+            if (!title.isNullOrBlank()) append(title).append(". ")
+            if (!bigText.isNullOrBlank()) append(bigText)
+            else if (!text.isNullOrBlank()) append(text)
+        }
+
         serviceScope.launch {
             ingestionPipeline.processIncomingMessage(
-                body = candidate.rawSnippet,
-                timestamp = candidate.transactionTimestamp,
-                source = SourceChannel.EMAIL
+                body = combinedContent,
+                timestamp = timestamp,
+                source = SourceChannel.EMAIL,
+                sender = title
             )
         }
     }

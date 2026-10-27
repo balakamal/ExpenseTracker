@@ -7,6 +7,7 @@ import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
+import com.innovatex.expensetracker.ingestion.parser.SmsParserEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -18,6 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
+    private val smsParserEngine: SmsParserEngine,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : TransactionRepository {
 
@@ -163,5 +165,46 @@ class TransactionRepositoryImpl @Inject constructor(
             transactionDao.deleteTransactionsByIds(duplicateIds)
         }
         duplicateIds.size
+    }
+
+    override suspend fun purgeSpamTransactions(): Int = withContext(ioDispatcher) {
+        val allEntities = transactionDao.getAllTransactions()
+        val spamIds = mutableListOf<String>()
+
+        for (entity in allEntities) {
+            val snippet = entity.rawSnippet
+            var isSpam = false
+
+            if (!snippet.isNullOrBlank()) {
+                // If snippet is stored, re-validate with strict financial alert criteria
+                if (!smsParserEngine.isFinancialAlert(snippet)) {
+                    isSpam = true
+                }
+            } else {
+                // If raw snippet is not stored, inspect merchant clean and raw fields for spam indicators
+                val merchant = entity.merchantClean.lowercase()
+                val isKnownSpam = merchant.contains("loan") ||
+                    merchant.contains("pre-approved") ||
+                    merchant.contains("cashback") ||
+                    merchant.contains("discount") ||
+                    merchant.contains("rummy") ||
+                    merchant.contains("recharge") ||
+                    merchant.contains("bill due") ||
+                    merchant.contains("claim now") ||
+                    merchant.contains("exclusive offer")
+                if (isKnownSpam) {
+                    isSpam = true
+                }
+            }
+
+            if (isSpam) {
+                spamIds.add(entity.id)
+            }
+        }
+
+        if (spamIds.isNotEmpty()) {
+            transactionDao.deleteTransactionsByIds(spamIds)
+        }
+        spamIds.size
     }
 }

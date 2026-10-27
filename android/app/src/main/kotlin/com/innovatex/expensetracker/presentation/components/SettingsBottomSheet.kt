@@ -49,6 +49,8 @@ import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 fun SettingsBottomSheet(
     settings: AppSettings,
     updateState: UpdateCheckState,
+    cleanSpamStatus: String? = null,
+    onCleanSpam: () -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -167,6 +169,80 @@ fun SettingsBottomSheet(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Anti-Spam & Ledger Cleanup Section
+            Text(
+                text = "DATA HYGIENE & ANTI-SPAM",
+                color = ApexThemeTokens.TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ApexThemeTokens.RadiusMd)
+                    .background(ApexThemeTokens.BgSurfaceElevated)
+                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Anti-Spam Filter & Ledger Cleanup",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Removes loan promos, cashback offers, recharge spam, and bill due reminders, recalculating cards.",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Button(
+                            onClick = onCleanSpam,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ApexThemeTokens.AccentEmerald,
+                                contentColor = Color.White
+                            ),
+                            shape = ApexThemeTokens.RadiusSm
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Clean Spam", fontSize = 12.sp)
+                        }
+                    }
+
+                    if (!cleanSpamStatus.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = cleanSpamStatus,
+                            color = ApexThemeTokens.AccentEmerald,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

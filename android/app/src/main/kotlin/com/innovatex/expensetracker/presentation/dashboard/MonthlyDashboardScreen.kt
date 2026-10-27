@@ -96,6 +96,7 @@ fun MonthlyDashboardScreen(
     val updateState by viewModel.updateState.collectAsState()
     val showUpdateBanner by viewModel.showUpdateBanner.collectAsState()
     val calendarMonthMillis by viewModel.calendarMonthMillis.collectAsState()
+    val cleanSpamStatus by viewModel.cleanSpamStatus.collectAsState()
     val context = LocalContext.current
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -518,6 +519,8 @@ fun MonthlyDashboardScreen(
         SettingsBottomSheet(
             settings = settings,
             updateState = updateState,
+            cleanSpamStatus = cleanSpamStatus,
+            onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
             onDismiss = { showSettingsSheet = false },
             onToggleSms = { viewModel.toggleSms(it) },
             onToggleEmail = { viewModel.toggleEmail(it) },

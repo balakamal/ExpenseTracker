@@ -185,9 +185,10 @@ class ParseTransactionUseCase @Inject constructor(
     suspend fun parse(
         body: String,
         timestamp: Long = System.currentTimeMillis(),
-        source: SourceChannel = SourceChannel.SMS
+        source: SourceChannel = SourceChannel.SMS,
+        sender: String? = null
     ): Transaction? {
-        val candidate = parserEngine.parse(body, timestamp, source) ?: return null
+        val candidate = parserEngine.parse(body, timestamp, source, sender) ?: return null
         val categoryId = resolveCategory(candidate)
         val monthKey = formatMonthKey(candidate.transactionTimestamp)
 
