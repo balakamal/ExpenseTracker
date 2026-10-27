@@ -1,15 +1,18 @@
 package com.innovatex.expensetracker.data.repository
 
+import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.MonthlySummary
+import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.ingestion.parser.SmsParserEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -20,6 +23,7 @@ import javax.inject.Singleton
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
     private val smsParserEngine: SmsParserEngine,
+    private val preferencesDataStore: PreferencesDataStore,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : TransactionRepository {
 
@@ -169,35 +173,14 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun purgeSpamTransactions(): Int = withContext(ioDispatcher) {
         val allEntities = transactionDao.getAllTransactions()
+        val spamSenders = preferencesDataStore.spamSendersFlow.first()
         val spamIds = mutableListOf<String>()
 
         for (entity in allEntities) {
-            val snippet = entity.rawSnippet
-            var isSpam = false
-
-            if (!snippet.isNullOrBlank()) {
-                // If snippet is stored, re-validate with strict financial alert criteria
-                if (!smsParserEngine.isFinancialAlert(snippet)) {
-                    isSpam = true
-                }
-            } else {
-                // If raw snippet is not stored, inspect merchant clean and raw fields for spam indicators
-                val merchant = entity.merchantClean.lowercase()
-                val isKnownSpam = merchant.contains("loan") ||
-                    merchant.contains("pre-approved") ||
-                    merchant.contains("cashback") ||
-                    merchant.contains("discount") ||
-                    merchant.contains("rummy") ||
-                    merchant.contains("recharge") ||
-                    merchant.contains("bill due") ||
-                    merchant.contains("claim now") ||
-                    merchant.contains("exclusive offer")
-                if (isKnownSpam) {
-                    isSpam = true
-                }
-            }
-
-            if (isSpam) {
+            val domain = entity.toDomain()
+            val senderKey = domain.sender?.uppercase()
+            // Only purge transactions whose sender has been confirmed as spam by user
+            if (senderKey != null && spamSenders.contains(senderKey)) {
                 spamIds.add(entity.id)
             }
         }
@@ -207,4 +190,88 @@ class TransactionRepositoryImpl @Inject constructor(
         }
         spamIds.size
     }
+
+    override suspend fun getSuspectedSpamItems(): List<SuspectedSpamItem> = withContext(ioDispatcher) {
+        val allEntities = transactionDao.getAllTransactions()
+        val trustedSenders = preferencesDataStore.trustedSendersFlow.first()
+        val spamSenders = preferencesDataStore.spamSendersFlow.first()
+
+        val suspectedBySender = mutableMapOf<String, MutableList<TransactionEntity>>()
+        val senderReasons = mutableMapOf<String, String>()
+
+        for (entity in allEntities) {
+            val domain = entity.toDomain()
+            val sender = domain.sender ?: "Unknown Sender"
+            val senderKey = sender.uppercase()
+
+            // If user explicitly trusted this sender, skip
+            if (trustedSenders.contains(senderKey)) continue
+            // If already confirmed as spam, it is already accounted for
+            if (spamSenders.contains(senderKey)) continue
+
+            val snippet = entity.rawSnippet?.lowercase() ?: ""
+            val merchant = entity.merchantClean.lowercase()
+
+            val reason = when {
+                snippet.containsAny("loan", "pre-approved", "pre approved", "eligible for a loan", "instant cash") ||
+                    merchant.containsAny("loan", "pre-approved") -> "Pre-approved loan promotion"
+                snippet.containsAny("rummy", "win cash", "jackpot", "lottery", "bonus points") ||
+                    merchant.containsAny("rummy", "dream11") -> "Gaming or lottery advertisement"
+                snippet.containsAny("coupon", "promo code", "flat 50%", "flat 20%", "claim reward", "use code") ||
+                    merchant.containsAny("discount", "coupon") -> "Promotional discount or voucher"
+                snippet.containsAny("recharge now", "recharge with", "daily data", "unlimited calls") ||
+                    merchant.containsAny("recharge") -> "Telecom recharge promotion"
+                snippet.containsAny("bill is due", "due on", "avoid late fee", "pay before") -> "Unpaid bill due reminder"
+                !smsParserEngine.isFinancialAlert(entity.rawSnippet ?: "", sender) -> "Unverified financial notification"
+                else -> null
+            }
+
+            if (reason != null) {
+                suspectedBySender.getOrPut(sender) { mutableListOf() }.add(entity)
+                if (!senderReasons.containsKey(sender)) {
+                    senderReasons[sender] = reason
+                }
+            }
+        }
+
+        suspectedBySender.map { (sender, entities) ->
+            SuspectedSpamItem(
+                sender = sender,
+                transactionCount = entities.size,
+                totalAmount = entities.sumOf { it.amount },
+                reason = senderReasons[sender] ?: "Suspected marketing message",
+                sampleSnippet = entities.firstOrNull()?.rawSnippet ?: entities.firstOrNull()?.merchantRaw,
+                transactionIds = entities.map { it.id }
+            )
+        }
+    }
+
+    override suspend fun confirmSpam(sender: String, transactionIds: List<String>): Unit = withContext(ioDispatcher) {
+        preferencesDataStore.markSenderAsSpam(sender)
+        if (transactionIds.isNotEmpty()) {
+            transactionDao.deleteTransactionsByIds(transactionIds)
+        }
+    }
+
+    override suspend fun trustSender(sender: String): Unit = withContext(ioDispatcher) {
+        preferencesDataStore.markSenderAsTrusted(sender)
+    }
+
+    override suspend fun deleteTransactionsBySender(sender: String): Int = withContext(ioDispatcher) {
+        val allEntities = transactionDao.getAllTransactions()
+        val targetSender = sender.trim().uppercase()
+        val matchingIds = allEntities.filter { entity ->
+            val domain = entity.toDomain()
+            domain.sender?.trim()?.uppercase() == targetSender
+        }.map { it.id }
+
+        if (matchingIds.isNotEmpty()) {
+            transactionDao.deleteTransactionsByIds(matchingIds)
+        }
+        matchingIds.size
+    }
+
+    private fun String.containsAny(vararg keywords: String): Boolean =
+        keywords.any { this.contains(it, ignoreCase = true) }
 }
+

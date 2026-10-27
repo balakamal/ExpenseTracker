@@ -55,6 +55,9 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             try {
                 val settings = preferencesDataStore.appSettingsFlow.first()
                 if (settings.smsTrackingEnabled) {
+                    if (preferencesDataStore.isSpamSender(sender)) {
+                        return@launch
+                    }
                     val parsedTxn = parseTransactionUseCase.parse(
                         body = fullBody,
                         timestamp = timestamp,
@@ -111,6 +114,9 @@ class HistoricalSmsScanner @Inject constructor(
                             val body = cursor.getString(bodyIndex) ?: continue
                             val date = cursor.getLong(dateIndex)
                             val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
+                            if (preferencesDataStore.isSpamSender(sender)) {
+                                continue
+                            }
 
                             val parsed = parseTransactionUseCase.parse(
                                 body = body,
@@ -147,9 +153,8 @@ class HistoricalSmsScanner @Inject constructor(
             )
         }
 
-        // Clean up any historical duplicate entries and residual spam in the database
+        // Clean up any historical duplicate entries in the database
         transactionRepository.purgeDuplicates()
-        transactionRepository.purgeSpamTransactions()
 
         preferencesDataStore.setHistoricalScanCompleted(true)
         if (count > 0) {

@@ -3,6 +3,7 @@ package com.innovatex.expensetracker.domain.usecase
 import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SourceChannel
+import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
@@ -235,7 +236,8 @@ class ParseTransactionUseCase @Inject constructor(
             sources = listOf(candidate.sourceChannel),
             referenceId = candidate.referenceId,
             accountLast4 = candidate.accountLast4,
-            rawSnippet = candidate.rawSnippet
+            rawSnippet = candidate.rawSnippet,
+            notes = sender
         )
     }
 
@@ -278,4 +280,32 @@ class ParseTransactionUseCase @Inject constructor(
         val sdf = SimpleDateFormat("yyyy-MM", Locale.US)
         return sdf.format(Date(timestamp))
     }
+}
+
+class GetSuspectedSpamUseCase @Inject constructor(
+    private val transactionRepository: TransactionRepository
+) {
+    suspend operator fun invoke(): List<SuspectedSpamItem> =
+        transactionRepository.getSuspectedSpamItems()
+}
+
+class ConfirmSpamSenderUseCase @Inject constructor(
+    private val transactionRepository: TransactionRepository
+) {
+    suspend operator fun invoke(sender: String, transactionIds: List<String>) =
+        transactionRepository.confirmSpam(sender, transactionIds)
+}
+
+class TrustSenderUseCase @Inject constructor(
+    private val transactionRepository: TransactionRepository
+) {
+    suspend operator fun invoke(sender: String) =
+        transactionRepository.trustSender(sender)
+}
+
+class DeleteTransactionsBySenderUseCase @Inject constructor(
+    private val transactionRepository: TransactionRepository
+) {
+    suspend operator fun invoke(sender: String): Int =
+        transactionRepository.deleteTransactionsBySender(sender)
 }

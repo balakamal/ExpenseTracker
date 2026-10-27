@@ -272,5 +272,40 @@ class SmsParserTest {
         val walletText = "Paid Rs. 150.00 using Paytm Wallet to Cafe Coffee Day."
         assertEquals(PaymentMedium.WALLET, PaymentMedium.detect(walletText, "Cafe Coffee Day", null))
     }
+
+    @Test
+    fun `test transaction sender property returns notes or fallback`() {
+        val txnWithNotes = Transaction(
+            amount = 100.0,
+            type = TransactionType.DEBIT,
+            timestamp = 1000L,
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy",
+            merchantClean = "Swiggy",
+            notes = "AD-HDFCBK"
+        )
+        assertEquals("AD-HDFCBK", txnWithNotes.sender)
+
+        val txnWithSnippetFallback = Transaction(
+            amount = 50.0,
+            type = TransactionType.DEBIT,
+            timestamp = 1000L,
+            monthKey = "2026-10",
+            merchantRaw = "Unknown Merchant",
+            merchantClean = "Unknown Merchant",
+            rawSnippet = "[Sender: VM-SBIBNK] Sent Rs 50 to merchant"
+        )
+        assertEquals("VM-SBIBNK", txnWithSnippetFallback.sender)
+
+        val txnWithMerchantFallback = Transaction(
+            amount = 50.0,
+            type = TransactionType.DEBIT,
+            timestamp = 1000L,
+            monthKey = "2026-10",
+            merchantRaw = "AD-KOTAKB",
+            merchantClean = "Kotak"
+        )
+        assertEquals("AD-KOTAKB", txnWithMerchantFallback.sender)
+    }
 }
 

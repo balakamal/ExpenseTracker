@@ -30,6 +30,11 @@ class IngestionPipeline @Inject constructor(
         if (source == SourceChannel.SMS && !settings.smsTrackingEnabled) return null
         if (source == SourceChannel.EMAIL && !settings.emailTrackingEnabled) return null
 
+        // If sender is marked as spam by the user, ignore immediately
+        if (preferencesDataStore.isSpamSender(sender)) {
+            return null
+        }
+
         val candidate = parseTransactionUseCase.parse(body, timestamp, source, sender) ?: return null
 
         val result = deduplicateTransactionUseCase(

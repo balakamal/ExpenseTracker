@@ -1,5 +1,6 @@
 package com.innovatex.expensetracker.data.repository
 
+import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.domain.model.SourceChannel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -22,11 +24,14 @@ class TransactionRepositoryTest {
 
     private val transactionDao: TransactionDao = mockk(relaxed = true)
     private val smsParserEngine = SmsParserEngine()
+    private val preferencesDataStore: PreferencesDataStore = mockk(relaxed = true)
     private lateinit var repository: TransactionRepositoryImpl
 
     @BeforeEach
     fun setup() {
-        repository = TransactionRepositoryImpl(transactionDao, smsParserEngine, Dispatchers.Unconfined)
+        every { preferencesDataStore.spamSendersFlow } returns flowOf(emptySet())
+        every { preferencesDataStore.trustedSendersFlow } returns flowOf(emptySet())
+        repository = TransactionRepositoryImpl(transactionDao, smsParserEngine, preferencesDataStore, Dispatchers.Unconfined)
     }
 
     @Test
@@ -123,10 +128,11 @@ class TransactionRepositoryTest {
             type = TransactionType.CREDIT,
             timestamp = 2000L,
             monthKey = "2026-10",
-            merchantRaw = "Loan Approved",
+            merchantRaw = "LM-KREDIT",
             merchantClean = "Pre-approved Loan",
             rawSnippet = "Congratulations! You are eligible for pre-approved personal loan of Rs 5,00,000. Apply now.",
-            sources = listOf(SourceChannel.SMS)
+            sources = listOf(SourceChannel.SMS),
+            notes = "LM-KREDIT"
         )
 
         val spamBillDue = TransactionEntity(
@@ -136,19 +142,35 @@ class TransactionRepositoryTest {
             type = TransactionType.DEBIT,
             timestamp = 3000L,
             monthKey = "2026-10",
-            merchantRaw = "Electricity Bill Due",
+            merchantRaw = "BW-BILL",
             merchantClean = "Bill Due",
             rawSnippet = "Your electricity bill of Rs. 1,450 is due on 28-Oct. Pay now to avoid late fee.",
-            sources = listOf(SourceChannel.SMS)
+            sources = listOf(SourceChannel.SMS),
+            notes = "BW-BILL"
         )
 
         coEvery { transactionDao.getAllTransactions() } returns listOf(validDebit, spamLoan, spamBillDue)
         coEvery { transactionDao.deleteTransactionsByIds(any()) } returns Unit
 
-        val purgedCount = repository.purgeSpamTransactions()
-        assertEquals(2, purgedCount)
-        coVerify(exactly = 1) {
-            transactionDao.deleteTransactionsByIds(listOf("spam_loan", "spam_bill"))
-        }
+        // 1. Check suspected spam items
+        val suspected = repository.getSuspectedSpamItems()
+        assertEquals(2, suspected.size)
+        val senders = suspected.map { it.sender }
+        assertTrue(senders.contains("LM-KREDIT"))
+        assertTrue(senders.contains("BW-BILL"))
+
+        // 2. Confirm spam for a sender
+        repository.confirmSpam("LM-KREDIT", listOf("spam_loan"))
+        coVerify(exactly = 1) { preferencesDataStore.markSenderAsSpam("LM-KREDIT") }
+        coVerify(exactly = 1) { transactionDao.deleteTransactionsByIds(listOf("spam_loan")) }
+
+        // 3. Trust a sender
+        repository.trustSender("VK-SBIINB")
+        coVerify(exactly = 1) { preferencesDataStore.markSenderAsTrusted("VK-SBIINB") }
+
+        // 4. Delete transactions by sender
+        val deletedCount = repository.deleteTransactionsBySender("BW-BILL")
+        assertEquals(1, deletedCount)
+        coVerify(exactly = 1) { transactionDao.deleteTransactionsByIds(listOf("spam_bill")) }
     }
 }

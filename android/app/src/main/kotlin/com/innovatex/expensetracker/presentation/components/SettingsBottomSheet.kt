@@ -17,7 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,7 +52,12 @@ fun SettingsBottomSheet(
     settings: AppSettings,
     updateState: UpdateCheckState,
     cleanSpamStatus: String? = null,
+    suspectedSpamCount: Int = 0,
+    blockedSendersCount: Int = 0,
+    trustedSendersCount: Int = 0,
     onCleanSpam: () -> Unit = {},
+    onOpenReviewSpam: () -> Unit = {},
+    onOpenManageSenders: () -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -184,64 +191,149 @@ fun SettingsBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(ApexThemeTokens.RadiusMd)
-                    .background(ApexThemeTokens.BgSurfaceElevated)
-                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
-                    .padding(16.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // 1. Review Suspected Spam
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ApexThemeTokens.RadiusMd)
+                        .background(ApexThemeTokens.BgSurfaceElevated)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                        .padding(14.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Anti-Spam Filter & Ledger Cleanup",
-                                color = ApexThemeTokens.TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Removes loan promos, cashback offers, recharge spam, and bill due reminders, recalculating cards.",
-                                color = ApexThemeTokens.TextSecondary,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(ApexThemeTokens.RadiusFull)
+                                .background(if (suspectedSpamCount > 0) ApexThemeTokens.AccentDangerTint else ApexThemeTokens.AccentPrimaryTint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = if (suspectedSpamCount > 0) ApexThemeTokens.AccentDanger else ApexThemeTokens.AccentPrimary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Suspected Spam",
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(if (suspectedSpamCount > 0) ApexThemeTokens.AccentDangerTint else ApexThemeTokens.AccentPrimaryTint)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (suspectedSpamCount > 0) "$suspectedSpamCount to review" else "Ledger Clean",
+                                        color = if (suspectedSpamCount > 0) ApexThemeTokens.AccentDanger else ApexThemeTokens.AccentPrimary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Inspect promotional or unverified messages. Final call is yours.",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
 
                         Button(
-                            onClick = onCleanSpam,
+                            onClick = onOpenReviewSpam,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = ApexThemeTokens.AccentPrimary,
-                                contentColor = Color.Black
+                                containerColor = if (suspectedSpamCount > 0) ApexThemeTokens.AccentDanger else ApexThemeTokens.BgSurface,
+                                contentColor = if (suspectedSpamCount > 0) Color.Black else ApexThemeTokens.TextPrimary
                             ),
                             shape = ApexThemeTokens.RadiusSm
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Clean Spam", fontSize = 12.sp)
+                            Text(text = "Review", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
 
-                    if (!cleanSpamStatus.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = cleanSpamStatus,
-                            color = ApexThemeTokens.AccentPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                // 2. Manage Senders
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ApexThemeTokens.RadiusMd)
+                        .background(ApexThemeTokens.BgSurfaceElevated)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(ApexThemeTokens.RadiusFull)
+                                .background(ApexThemeTokens.AccentCobaltTint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = ApexThemeTokens.AccentCobalt,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Manage Senders",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$blockedSendersCount blocked spam • $trustedSendersCount trusted",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        OutlinedButton(
+                            onClick = onOpenManageSenders,
+                            shape = ApexThemeTokens.RadiusSm,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = ApexThemeTokens.AccentCobalt
+                            )
+                        ) {
+                            Text(text = "Rules", fontSize = 12.sp)
+                        }
                     }
+                }
+
+                if (!cleanSpamStatus.isNullOrBlank()) {
+                    Text(
+                        text = cleanSpamStatus,
+                        color = ApexThemeTokens.AccentPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 

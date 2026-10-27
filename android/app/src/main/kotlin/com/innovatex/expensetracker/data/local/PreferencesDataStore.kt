@@ -8,9 +8,11 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,6 +43,72 @@ class PreferencesDataStore @Inject constructor(
         val KEY_HISTORICAL_SCAN_DONE = booleanPreferencesKey("key_historical_scan_done")
         val KEY_DEDUP_WINDOW_MIN = intPreferencesKey("key_dedup_window_minutes")
         val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("key_auto_check_updates")
+        val KEY_SPAM_SENDERS = stringSetPreferencesKey("key_spam_senders")
+        val KEY_TRUSTED_SENDERS = stringSetPreferencesKey("key_trusted_senders")
+    }
+
+    val spamSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
+        preferences[KEY_SPAM_SENDERS] ?: emptySet()
+    }
+
+    val trustedSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
+        preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
+    }
+
+    suspend fun markSenderAsSpam(sender: String) {
+        val normalized = sender.trim().uppercase()
+        if (normalized.isBlank()) return
+        dataStore.edit { preferences ->
+            val currentSpam = preferences[KEY_SPAM_SENDERS] ?: emptySet()
+            preferences[KEY_SPAM_SENDERS] = currentSpam + normalized
+            val currentTrusted = preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
+            if (currentTrusted.contains(normalized)) {
+                preferences[KEY_TRUSTED_SENDERS] = currentTrusted - normalized
+            }
+        }
+    }
+
+    suspend fun removeSenderFromSpam(sender: String) {
+        val normalized = sender.trim().uppercase()
+        dataStore.edit { preferences ->
+            val current = preferences[KEY_SPAM_SENDERS] ?: emptySet()
+            preferences[KEY_SPAM_SENDERS] = current - normalized
+        }
+    }
+
+    suspend fun markSenderAsTrusted(sender: String) {
+        val normalized = sender.trim().uppercase()
+        if (normalized.isBlank()) return
+        dataStore.edit { preferences ->
+            val currentTrusted = preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
+            preferences[KEY_TRUSTED_SENDERS] = currentTrusted + normalized
+            val currentSpam = preferences[KEY_SPAM_SENDERS] ?: emptySet()
+            if (currentSpam.contains(normalized)) {
+                preferences[KEY_SPAM_SENDERS] = currentSpam - normalized
+            }
+        }
+    }
+
+    suspend fun removeSenderFromTrusted(sender: String) {
+        val normalized = sender.trim().uppercase()
+        dataStore.edit { preferences ->
+            val current = preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
+            preferences[KEY_TRUSTED_SENDERS] = current - normalized
+        }
+    }
+
+    suspend fun isSpamSender(sender: String?): Boolean {
+        if (sender.isNullOrBlank()) return false
+        val normalized = sender.trim().uppercase()
+        val spamSet = spamSendersFlow.first()
+        return spamSet.contains(normalized)
+    }
+
+    suspend fun isTrustedSender(sender: String?): Boolean {
+        if (sender.isNullOrBlank()) return false
+        val normalized = sender.trim().uppercase()
+        val trustedSet = trustedSendersFlow.first()
+        return trustedSet.contains(normalized)
     }
 
     val appSettingsFlow: Flow<AppSettings> = dataStore.data.map { preferences ->

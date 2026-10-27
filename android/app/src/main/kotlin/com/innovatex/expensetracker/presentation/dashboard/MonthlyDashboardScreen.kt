@@ -31,10 +31,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -46,6 +51,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.innovatex.expensetracker.presentation.components.ManageSendersBottomSheet
+import com.innovatex.expensetracker.presentation.components.SpamReviewBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -97,9 +104,15 @@ fun MonthlyDashboardScreen(
     val showUpdateBanner by viewModel.showUpdateBanner.collectAsState()
     val calendarMonthMillis by viewModel.calendarMonthMillis.collectAsState()
     val cleanSpamStatus by viewModel.cleanSpamStatus.collectAsState()
+    val suspectedSpamItems by viewModel.suspectedSpamItems.collectAsState()
+    val spamSenders by viewModel.spamSenders.collectAsState()
+    val trustedSenders by viewModel.trustedSenders.collectAsState()
     val context = LocalContext.current
 
     var showSettingsSheet by remember { mutableStateOf(false) }
+    var showSpamReviewSheet by remember { mutableStateOf(false) }
+    var showManageSendersSheet by remember { mutableStateOf(false) }
+    var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
@@ -309,6 +322,60 @@ fun MonthlyDashboardScreen(
                     }
                 }
 
+                // Suspected Spam Suggestion Banner (Dismissible, User-Confirmed)
+                if (suspectedSpamItems.isNotEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ApexThemeTokens.RadiusMd)
+                                .background(ApexThemeTokens.AccentDangerTint)
+                                .border(1.dp, ApexThemeTokens.AccentDangerBorder, ApexThemeTokens.RadiusMd)
+                                .clickable { showSpamReviewSheet = true }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = ApexThemeTokens.AccentDanger,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${suspectedSpamItems.size} Suspected Spam Sender(s)",
+                                        color = ApexThemeTokens.AccentDanger,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Tap to review and confirm blocking or keeping them",
+                                        color = ApexThemeTokens.TextSecondary,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(ApexThemeTokens.AccentDanger)
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Review",
+                                        color = Color.Black,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. Corbel Interactive Financial Calendar (Range-aware, Overlap-free)
                 item {
                     val dateRange = remember(uiState.startDateMillis, uiState.endDateMillis) {
@@ -429,6 +496,7 @@ fun MonthlyDashboardScreen(
                 // Detail Rows
                 DetailRow(label = "Date & Time", value = dateFormatter.format(Date(txn.timestamp)))
                 DetailRow(label = "Payment Medium", value = txn.paymentMedium.displayName)
+                DetailRow(label = "Sender / Source", value = txn.sender ?: "Unknown")
                 DetailRow(label = "Category", value = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() })
                 DetailRow(label = "Channel", value = if (txn.sources.contains(SourceChannel.EMAIL)) "Email Notification" else "SMS Ingestion")
                 if (!txn.accountLast4.isNullOrBlank()) {
@@ -501,6 +569,39 @@ fun MonthlyDashboardScreen(
                     }
                 }
 
+                // Block / Unblock Sender Action Row
+                if (!txn.sender.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    val isSenderBlocked = spamSenders.contains(txn.sender!!.uppercase())
+                    if (isSenderBlocked) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.unblockSender(txn.sender!!)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ApexThemeTokens.RadiusFull,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.AccentCobaltBorder)
+                        ) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = ApexThemeTokens.AccentCobalt, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Sender is Blocked (Tap to Unblock)", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                senderToBlockConfirm = txn.sender
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ApexThemeTokens.RadiusFull,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.AccentDangerBorder)
+                        ) {
+                            Icon(Icons.Default.Block, contentDescription = null, tint = ApexThemeTokens.AccentDanger, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Mark Sender as Spam & Block", color = ApexThemeTokens.AccentDanger, fontSize = 12.sp)
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
             }
         }
@@ -526,7 +627,18 @@ fun MonthlyDashboardScreen(
             settings = settings,
             updateState = updateState,
             cleanSpamStatus = cleanSpamStatus,
+            suspectedSpamCount = suspectedSpamItems.size,
+            blockedSendersCount = spamSenders.size,
+            trustedSendersCount = trustedSenders.size,
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
+            onOpenReviewSpam = {
+                showSettingsSheet = false
+                showSpamReviewSheet = true
+            },
+            onOpenManageSenders = {
+                showSettingsSheet = false
+                showManageSendersSheet = true
+            },
             onDismiss = { showSettingsSheet = false },
             onToggleSms = { viewModel.toggleSms(it) },
             onToggleEmail = { viewModel.toggleEmail(it) },
@@ -537,6 +649,78 @@ fun MonthlyDashboardScreen(
                 selectedUpdateInfoForReview = updateInfo
             },
             onOpenNotificationSettings = onSettingsClick
+        )
+    }
+
+    // Review Suspected Spam Bottom Sheet
+    if (showSpamReviewSheet) {
+        SpamReviewBottomSheet(
+            suspectedItems = suspectedSpamItems,
+            onConfirmSpam = { item -> viewModel.confirmSpamSender(item) },
+            onTrustSender = { item -> viewModel.trustSender(item) },
+            onConfirmAll = { viewModel.confirmAllSpam() },
+            onDismissRequest = { showSpamReviewSheet = false }
+        )
+    }
+
+    // Manage Senders Bottom Sheet
+    if (showManageSendersSheet) {
+        ManageSendersBottomSheet(
+            spamSenders = spamSenders,
+            trustedSenders = trustedSenders,
+            onUnblockSender = { sender -> viewModel.unblockSender(sender) },
+            onAddSpamSender = { sender -> viewModel.markSenderAsSpam(sender, deleteExisting = true) },
+            onUntrustSender = { sender -> viewModel.untrustSender(sender) },
+            onAddTrustedSender = { sender -> viewModel.markSenderAsTrusted(sender) },
+            onDismissRequest = { showManageSendersSheet = false }
+        )
+    }
+
+    // Block Sender Confirmation Dialog
+    senderToBlockConfirm?.let { sender ->
+        AlertDialog(
+            onDismissRequest = { senderToBlockConfirm = null },
+            containerColor = ApexThemeTokens.BgSurface,
+            title = {
+                Text(
+                    text = "Block Sender as Spam?",
+                    color = ApexThemeTokens.TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Sender '$sender' will be added to your blocked list. All existing transactions from this sender will be removed, and future incoming messages will be ignored.",
+                    color = ApexThemeTokens.TextSecondary,
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.markSenderAsSpam(sender, deleteExisting = true)
+                        selectedTransactionForDetail = null
+                        senderToBlockConfirm = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ApexThemeTokens.AccentDanger,
+                        contentColor = Color.Black
+                    ),
+                    shape = ApexThemeTokens.RadiusSm
+                ) {
+                    Text("Block & Delete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { senderToBlockConfirm = null },
+                    shape = ApexThemeTokens.RadiusSm
+                ) {
+                    Text("Cancel", fontSize = 12.sp)
+                }
+            }
         )
     }
 

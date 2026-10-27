@@ -90,7 +90,8 @@ fun CorbelTransactionTable(
                     txn.merchantRaw.contains(searchQuery, ignoreCase = true) ||
                     (txn.referenceId?.contains(searchQuery, ignoreCase = true) == true) ||
                     (txn.accountLast4?.contains(searchQuery) == true) ||
-                    txn.paymentMedium.displayName.contains(searchQuery, ignoreCase = true)
+                    txn.paymentMedium.displayName.contains(searchQuery, ignoreCase = true) ||
+                    (txn.sender?.contains(searchQuery, ignoreCase = true) == true)
             }
 
             matchesFilter && matchesSearch
@@ -345,11 +346,13 @@ fun CorbelTransactionTable(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     PaymentMediumBadge(medium = txn.paymentMedium)
                                     Spacer(modifier = Modifier.width(5.dp))
-                                    val sourceName = if (txn.sources.contains(SourceChannel.EMAIL)) "Email" else "SMS"
+                                    val sourceName = txn.sender ?: if (txn.sources.contains(SourceChannel.EMAIL)) "Email" else "SMS"
                                     Text(
                                         text = sourceName,
                                         color = ApexThemeTokens.TextMuted,
-                                        fontSize = 10.sp
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     if (!txn.accountLast4.isNullOrBlank()) {
                                         Text(

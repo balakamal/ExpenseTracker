@@ -17,6 +17,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -58,13 +59,21 @@ class DashboardViewModel @Inject constructor(
     private val _cleanSpamStatus = MutableStateFlow<String?>(null)
     val cleanSpamStatus: StateFlow<String?> = _cleanSpamStatus.asStateFlow()
 
+    val spamSenders: StateFlow<Set<String>> = preferencesDataStore.spamSendersFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val trustedSenders: StateFlow<Set<String>> = preferencesDataStore.trustedSendersFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    private val _suspectedSpamItems = MutableStateFlow<List<SuspectedSpamItem>>(emptyList())
+    val suspectedSpamItems: StateFlow<List<SuspectedSpamItem>> = _suspectedSpamItems.asStateFlow()
+
+    private val _dismissedSpamSenders = MutableStateFlow<Set<String>>(emptySet())
+
     init {
         viewModelScope.launch {
             transactionRepository.purgeDuplicates()
-            val purged = transactionRepository.purgeSpamTransactions()
-            if (purged > 0) {
-                _cleanSpamStatus.value = "Automatically filtered $purged spam transactions."
-            }
+            refreshSuspectedSpam()
             val currentSettings = preferencesDataStore.appSettingsFlow.first()
             if (currentSettings.autoCheckUpdates) {
                 checkForUpdates(manual = false)
@@ -295,6 +304,7 @@ class DashboardViewModel @Inject constructor(
     fun cleanSpamAndRecalculate() {
         viewModelScope.launch {
             val count = transactionRepository.purgeSpamTransactions()
+            refreshSuspectedSpam()
             _cleanSpamStatus.value = if (count > 0) {
                 "Cleaned $count spam items. Cards recalculated!"
             } else {
@@ -305,6 +315,86 @@ class DashboardViewModel @Inject constructor(
 
     fun clearCleanSpamStatus() {
         _cleanSpamStatus.value = null
+    }
+
+    fun refreshSuspectedSpam() {
+        viewModelScope.launch {
+            val items = transactionRepository.getSuspectedSpamItems()
+            val dismissed = _dismissedSpamSenders.value
+            _suspectedSpamItems.value = items.filter { !dismissed.contains(it.sender.uppercase()) }
+        }
+    }
+
+    fun confirmSpamSender(item: SuspectedSpamItem) {
+        viewModelScope.launch {
+            transactionRepository.confirmSpam(item.sender, item.transactionIds)
+            _cleanSpamStatus.value = "Blocked ${item.sender} and deleted ${item.transactionCount} transactions."
+            refreshSuspectedSpam()
+        }
+    }
+
+    fun trustSender(item: SuspectedSpamItem) {
+        viewModelScope.launch {
+            transactionRepository.trustSender(item.sender)
+            _cleanSpamStatus.value = "Marked ${item.sender} as trusted."
+            refreshSuspectedSpam()
+        }
+    }
+
+    fun confirmAllSpam() {
+        viewModelScope.launch {
+            val items = _suspectedSpamItems.value
+            var totalCount = 0
+            for (item in items) {
+                transactionRepository.confirmSpam(item.sender, item.transactionIds)
+                totalCount += item.transactionCount
+            }
+            _cleanSpamStatus.value = "Blocked ${items.size} spam senders and cleaned $totalCount transactions."
+            _suspectedSpamItems.value = emptyList()
+        }
+    }
+
+    fun dismissSuspectedSpam() {
+        val currentSenders = _suspectedSpamItems.value.map { it.sender.uppercase() }.toSet()
+        _dismissedSpamSenders.value = _dismissedSpamSenders.value + currentSenders
+        _suspectedSpamItems.value = emptyList()
+    }
+
+    fun markSenderAsSpam(sender: String, deleteExisting: Boolean = true) {
+        viewModelScope.launch {
+            preferencesDataStore.markSenderAsSpam(sender)
+            if (deleteExisting) {
+                val deleted = transactionRepository.deleteTransactionsBySender(sender)
+                _cleanSpamStatus.value = "Blocked $sender and deleted $deleted transactions."
+            } else {
+                _cleanSpamStatus.value = "Blocked $sender."
+            }
+            refreshSuspectedSpam()
+        }
+    }
+
+    fun unblockSender(sender: String) {
+        viewModelScope.launch {
+            preferencesDataStore.removeSenderFromSpam(sender)
+            _cleanSpamStatus.value = "Unblocked $sender."
+            refreshSuspectedSpam()
+        }
+    }
+
+    fun markSenderAsTrusted(sender: String) {
+        viewModelScope.launch {
+            preferencesDataStore.markSenderAsTrusted(sender)
+            _cleanSpamStatus.value = "Added $sender to trusted senders."
+            refreshSuspectedSpam()
+        }
+    }
+
+    fun untrustSender(sender: String) {
+        viewModelScope.launch {
+            preferencesDataStore.removeSenderFromTrusted(sender)
+            _cleanSpamStatus.value = "Removed $sender from trusted senders."
+            refreshSuspectedSpam()
+        }
     }
 }
 

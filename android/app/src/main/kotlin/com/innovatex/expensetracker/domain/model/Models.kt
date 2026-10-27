@@ -141,7 +141,37 @@ data class Transaction(
 ) {
     val paymentMedium: PaymentMedium
         get() = PaymentMedium.detect(rawSnippet, merchantRaw, accountLast4, referenceId)
+
+    val sender: String?
+        get() = notes?.ifBlank { null } ?: extractSenderFallback(rawSnippet, merchantRaw)
+
+    companion object {
+        private val senderPrefixRegex = Regex("(?i)(?:\\[(?:sender|from):\\s*([^\\]]+)\\]|^([A-Za-z]{2}-[A-Za-z0-9]{4,10})\\b)")
+
+        fun extractSenderFallback(rawSnippet: String?, merchantRaw: String?): String? {
+            if (!rawSnippet.isNullOrBlank()) {
+                val match = senderPrefixRegex.find(rawSnippet)
+                if (match != null) {
+                    val candidate = (match.groupValues.getOrNull(1) ?: match.groupValues.getOrNull(2))?.trim()
+                    if (!candidate.isNullOrBlank()) return candidate
+                }
+            }
+            if (!merchantRaw.isNullOrBlank() && merchantRaw != "Unknown Merchant") {
+                return merchantRaw.trim()
+            }
+            return null
+        }
+    }
 }
+
+data class SuspectedSpamItem(
+    val sender: String,
+    val transactionCount: Int,
+    val totalAmount: Double,
+    val reason: String,
+    val sampleSnippet: String?,
+    val transactionIds: List<String>
+)
 
 data class Category(
     val id: String,
