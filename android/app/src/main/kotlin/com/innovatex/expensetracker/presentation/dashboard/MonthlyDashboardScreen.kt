@@ -436,7 +436,7 @@ fun MonthlyDashboardScreen(
                 // Detail Rows
                 DetailRow(label = "Date & Time", value = dateFormatter.format(Date(txn.timestamp)))
                 DetailRow(label = "Category", value = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() })
-                DetailRow(label = "Channel", value = if (txn.sources.contains(SourceChannel.NOTIFICATION)) "Email Notification" else "SMS Ingestion")
+                DetailRow(label = "Channel", value = if (txn.sources.contains(SourceChannel.EMAIL)) "Email Notification" else "SMS Ingestion")
                 if (!txn.accountLast4.isNullOrBlank()) {
                     DetailRow(label = "Account", value = "Ending in ••${txn.accountLast4}")
                 }

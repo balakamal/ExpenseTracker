@@ -342,7 +342,7 @@ fun CorbelTransactionTable(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val sourceName = if (txn.sources.contains(SourceChannel.NOTIFICATION)) "Email" else "SMS"
+                                    val sourceName = if (txn.sources.contains(SourceChannel.EMAIL)) "Email" else "SMS"
                                     Text(
                                         text = sourceName,
                                         color = ApexThemeTokens.TextMuted,
