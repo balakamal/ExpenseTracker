@@ -205,29 +205,16 @@ fun MonthlyDashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Brand Icon Mark
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(ApexThemeTokens.RadiusSm)
-                                .background(ApexThemeTokens.BgHighContrast),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "C",
-                                color = ApexThemeTokens.TextHighContrast,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                        }
+                        // Brand Icon Mark (Dual Cash-Flow Arcs with + and -)
+                        ExpenseTrackerLogoMark(modifier = Modifier.size(38.dp))
 
                         Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
                             Text(
-                                text = "CORBEL EXPENSE",
+                                text = "Expense Tracker",
                                 color = ApexThemeTokens.TextPrimary,
-                                fontSize = 15.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.3).sp
                             )
@@ -575,5 +562,79 @@ private fun DetailRow(label: String, value: String) {
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+fun ExpenseTrackerLogoMark(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(ApexThemeTokens.RadiusSm)
+            .background(ApexThemeTokens.BgSurface)
+            .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusSm),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(24.dp)) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = size.width * 0.42f
+            val strokeW = size.width * 0.16f
+            val gap = size.height * 0.08f
+
+            // Upper Cash-Flow Arc (Forest Emerald)
+            drawArc(
+                color = Color(0xFF2D6A4F),
+                startAngle = 186f,
+                sweepAngle = 168f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius - gap / 2f),
+                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokeW,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            )
+
+            // Lower Cash-Flow Arc (Brick Crimson)
+            drawArc(
+                color = Color(0xFF9A3412),
+                startAngle = 6f,
+                sweepAngle = 168f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius + gap / 2f),
+                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokeW,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            )
+
+            // Credit Plus Sign (+) in Crisp White
+            val plusY = center.y - size.height * 0.17f
+            val plusSize = size.width * 0.11f
+            drawLine(
+                color = Color.White,
+                start = Offset(center.x - plusSize, plusY),
+                end = Offset(center.x + plusSize, plusY),
+                strokeWidth = 2.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = Color.White,
+                start = Offset(center.x, plusY - plusSize),
+                end = Offset(center.x, plusY + plusSize),
+                strokeWidth = 2.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+
+            // Debit Minus Sign (-) in Crisp White
+            val minusY = center.y + size.height * 0.17f
+            drawLine(
+                color = Color.White,
+                start = Offset(center.x - plusSize, minusY),
+                end = Offset(center.x + plusSize, minusY),
+                strokeWidth = 2.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        }
     }
 }
