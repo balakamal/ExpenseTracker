@@ -182,11 +182,19 @@ class DashboardViewModel @Inject constructor(
             val currentVersion = BuildConfig.VERSION_NAME
             checkForAppUpdateUseCase(currentVersion)
                 .onSuccess { updateInfo ->
-                    if (updateInfo != null && updateInfo.isUpdateAvailable) {
-                        _updateState.value = UpdateCheckState.Available(updateInfo)
-                        _showUpdateBanner.value = true
+                    if (updateInfo != null) {
+                        if (updateInfo.isUpdateAvailable) {
+                            _updateState.value = UpdateCheckState.Available(updateInfo)
+                            _showUpdateBanner.value = true
+                        } else {
+                            _updateState.value = UpdateCheckState.UpToDate(currentVersion)
+                        }
                     } else {
-                        _updateState.value = UpdateCheckState.UpToDate(currentVersion)
+                        if (manual) {
+                            _updateState.value = UpdateCheckState.Error("No releases published yet on GitHub repository.")
+                        } else {
+                            _updateState.value = UpdateCheckState.Idle
+                        }
                     }
                 }
                 .onFailure { error ->

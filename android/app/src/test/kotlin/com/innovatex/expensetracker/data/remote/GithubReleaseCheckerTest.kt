@@ -46,8 +46,11 @@ class GithubReleaseCheckerTest {
     }
 
     @Test
-    fun `test blank version returns false`() {
-        assertFalse(checker.isNewerVersion(remote = "", local = "1.0.0"))
-        assertFalse(checker.isNewerVersion(remote = "1.0.0", local = ""))
+    fun `test monotonic build run numbers detected correctly`() {
+        assertTrue(checker.isNewerVersion(remote = "1.0.12", local = "1.0.2"))
+        assertTrue(checker.isNewerVersion(remote = "1.0.5", local = "1.0.4"))
+        assertTrue(checker.isNewerVersion(remote = "1.0.100", local = "1.0.99"))
+        assertFalse(checker.isNewerVersion(remote = "1.0.10", local = "1.0.10"))
+        assertFalse(checker.isNewerVersion(remote = "1.0.2", local = "1.0.12"))
     }
 }

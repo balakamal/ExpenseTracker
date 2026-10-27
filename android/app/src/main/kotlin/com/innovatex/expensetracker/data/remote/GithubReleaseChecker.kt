@@ -66,12 +66,26 @@ class GithubReleaseChecker @Inject constructor(
                 var apkDownloadUrl: String? = null
                 val assets = json.optJSONArray("assets")
                 if (assets != null) {
+                    // Priority 1: Match APK containing "ExpenseTracker" or "release"
                     for (i in 0 until assets.length()) {
                         val asset = assets.getJSONObject(i)
                         val assetName = asset.optString("name", "")
-                        if (assetName.endsWith(".apk", ignoreCase = true)) {
+                        if (assetName.endsWith(".apk", ignoreCase = true) &&
+                            (assetName.contains("ExpenseTracker", ignoreCase = true) || assetName.contains("release", ignoreCase = true))
+                        ) {
                             apkDownloadUrl = asset.optString("browser_download_url", null)
                             break
+                        }
+                    }
+                    // Priority 2: Fallback to any attached .apk
+                    if (apkDownloadUrl == null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val assetName = asset.optString("name", "")
+                            if (assetName.endsWith(".apk", ignoreCase = true)) {
+                                apkDownloadUrl = asset.optString("browser_download_url", null)
+                                break
+                            }
                         }
                     }
                 }
