@@ -181,7 +181,7 @@ class DashboardViewModel @Inject constructor(
 
     fun selectMonth(monthKey: String) {
         _selectedMonth.value = monthKey
-        _selectedDateMillis.value = null
+        _selectedDateRange.value = null
     }
 
     fun nextCalendarMonth() {
