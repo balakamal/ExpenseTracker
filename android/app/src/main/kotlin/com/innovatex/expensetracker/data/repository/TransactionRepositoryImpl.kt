@@ -26,6 +26,16 @@ class TransactionRepositoryImpl @Inject constructor(
             .map { list -> list.map { it.toDomain() } }
             .flowOn(ioDispatcher)
 
+    override fun getAllTransactions(): Flow<List<Transaction>> =
+        transactionDao.getAllTransactionsFlow()
+            .map { list -> list.map { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
+    override fun getTransactionsForDate(startTime: Long, endTime: Long): Flow<List<Transaction>> =
+        transactionDao.getTransactionsForDateRange(startTime, endTime)
+            .map { list -> list.map { it.toDomain() } }
+            .flowOn(ioDispatcher)
+
     override fun getRecentTransactions(limit: Int): Flow<List<Transaction>> =
         transactionDao.getRecentTransactions(limit)
             .map { list -> list.map { it.toDomain() } }
@@ -92,6 +102,36 @@ class TransactionRepositoryImpl @Inject constructor(
                 totalCredit = totalCredit,
                 netBalance = totalCredit - totalDebit,
                 budgetLimit = 25000.0, // Default INR monthly budget limit
+                categoryTotals = categoryTotals,
+                transactionCount = transactions.size
+            )
+        }.flowOn(ioDispatcher)
+
+    override fun getOverallSummary(): Flow<MonthlySummary> =
+        getAllTransactions().map { transactions ->
+            var totalDebit = 0.0
+            var totalCredit = 0.0
+            val categoryTotals = mutableMapOf<String, Double>()
+
+            for (txn in transactions) {
+                when (txn.type) {
+                    TransactionType.DEBIT -> {
+                        totalDebit += txn.amount
+                        val currentCategorySum = categoryTotals.getOrDefault(txn.categoryId, 0.0)
+                        categoryTotals[txn.categoryId] = currentCategorySum + txn.amount
+                    }
+                    TransactionType.CREDIT -> {
+                        totalCredit += txn.amount
+                    }
+                }
+            }
+
+            MonthlySummary(
+                monthKey = "ALL",
+                totalDebit = totalDebit,
+                totalCredit = totalCredit,
+                netBalance = totalCredit - totalDebit,
+                budgetLimit = 50000.0,
                 categoryTotals = categoryTotals,
                 transactionCount = transactions.size
             )

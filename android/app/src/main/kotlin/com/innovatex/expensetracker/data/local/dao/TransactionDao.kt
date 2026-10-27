@@ -15,6 +15,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE month_key = :monthKey ORDER BY timestamp DESC")
     fun getTransactionsForMonth(monthKey: String): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    fun getAllTransactionsFlow(): Flow<List<TransactionEntity>>
+
+    @Query("SELECT * FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
+    fun getTransactionsForDateRange(startTime: Long, endTime: Long): Flow<List<TransactionEntity>>
+
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentTransactions(limit: Int = 5): Flow<List<TransactionEntity>>
 

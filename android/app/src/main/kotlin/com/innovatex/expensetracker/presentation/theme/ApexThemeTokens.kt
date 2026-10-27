@@ -13,53 +13,62 @@ import androidx.compose.ui.unit.dp
  */
 @Immutable
 object ApexThemeTokens {
-    // Canvas & Elevation Surfaces
-    val BgCanvas = Color(0xFF090B10)
-    val BgSurface = Color(0xFF12151F)
-    val BgSurfaceElevated = Color(0xFF181C28)
-    val BgSurfaceCard = Color(0xE0121621) // 88% alpha
-    val BgGlassPill = Color(0x0DFFFFFF)   // 5% alpha
-    val BgGlassPillHover = Color(0x17FFFFFF) // 9% alpha
+    // Corbel FinTech Surfaces & Canvas
+    val BgCanvas = Color(0xFF0C1216)            // Deep slate-charcoal canvas
+    val BgSurface = Color(0xFF172129)           // Elevated dark card panel
+    val BgSurfaceElevated = Color(0xFF1A242B)   // Floating toolbars & sheets
+    val BgSurfaceCard = Color(0xFF172129)
+    val BgGlassPill = Color(0x12FFFFFF)         // 7% translucent glass pill
+    val BgGlassPillHover = Color(0x24FFFFFF)    // 14% translucent glass pill
+    val BgHighContrast = Color(0xFFFBFDFE)      // Corbel signature off-white highlight pill
+    val TextHighContrast = Color(0xFF14202A)    // High contrast ink text
 
-    // Strokes & Borders (Micro-Contrast)
-    val StrokeSubtle = Color(0x12FFFFFF)   // 7% alpha
-    val StrokeHighlight = Color(0x24FFFFFF) // 14% alpha
-    val StrokeActive = Color(0x3DFFFFFF)   // 24% alpha
+    // Corbel Ambient Mesh Glows
+    val MeshA = Color(0x33468CC8) // Ocean Sky ambient glow
+    val MeshB = Color(0x262EA080) // Mint Emerald ambient glow
+    val MeshC = Color(0x1FE6785F) // Coral Peach ambient glow
 
-    // Curated Primary Palette: Forest Emerald (Credit, Positive Balance, Wealth)
-    val AccentPrimary = Color(0xFF10B981)
-    val AccentPrimaryHover = Color(0xFF059669)
-    val AccentPrimaryTint = Color(0x1F10B981)   // 12% alpha
-    val AccentPrimaryBorder = Color(0x4710B981) // 28% alpha
+    // Hairline Borders & Dividers
+    val StrokeSubtle = Color(0x16FFFFFF)   // 8.5% subtle hairline border
+    val StrokeHighlight = Color(0x29FFFFFF) // 16% border on active/hover
+    val StrokeActive = Color(0x40FFFFFF)
 
-    // Curated Secondary Palette: Champagne Gold / Amber (Budget Warnings, Targets)
-    val AccentSecondary = Color(0xFFF59E0B)
-    val AccentSecondaryTint = Color(0x1FF59E0B)   // 12% alpha
-    val AccentSecondaryBorder = Color(0x47F59E0B) // 28% alpha
+    // Corbel Mint (Credit, Inflow, Positive Performance)
+    val AccentPrimary = Color(0xFF6FD3B0)
+    val AccentPrimaryHover = Color(0xFF5FCAA8)
+    val AccentPrimaryTint = Color(0x216FD3B0)   // 13% soft badge bg
+    val AccentPrimaryBorder = Color(0x4D6FD3B0) // 30% badge border
 
-    // Royal Cobalt (Actions, Multi-Channel Badges, Analytics)
-    val AccentCobalt = Color(0xFF3B82F6)
-    val AccentCobaltHover = Color(0xFF2563EB)
-    val AccentCobaltTint = Color(0x1F3B82F6)   // 12% alpha
-    val AccentCobaltBorder = Color(0x473B82F6) // 28% alpha
+    // Corbel Lemon / Gold (Highlights, Targets)
+    val AccentSecondary = Color(0xFFE7B552)
+    val AccentSecondaryTint = Color(0x21E7B552)
+    val AccentSecondaryBorder = Color(0x4DE7B552)
 
-    // Muted Rosewood (Debits, Expenses, Outflows)
-    val AccentDanger = Color(0xFFF43F5E)
-    val AccentDangerTint = Color(0x1FF43F5E)   // 12% alpha
-    val AccentDangerBorder = Color(0x42F43F5E) // 26% alpha
+    // Corbel Ocean Sky (Branding, Navigation, Information)
+    val AccentCobalt = Color(0xFF79B6E3)
+    val AccentCobaltHover = Color(0xFF8EC3EA)
+    val AccentCobaltTint = Color(0x2179B6E3)
+    val AccentCobaltBorder = Color(0x4D79B6E3)
 
-    // Neutral Editorial Typography
-    val TextPrimary = Color(0xFFF8FAFC)
-    val TextSecondary = Color(0xFF94A3B8)
-    val TextTertiary = Color(0xFF64748B)
-    val TextMuted = Color(0xFF475569)
+    // Corbel Coral (Debits, Outflows, Expenses)
+    val AccentDanger = Color(0xFFF2937C)
+    val AccentDangerTint = Color(0x21F2937C)
+    val AccentDangerBorder = Color(0x4DF2937C)
 
-    // Material 3 Expressive Squircles & Radii
+    // Corbel Neutral Editorial Typography
+    val TextPrimary = Color(0xFFE8EEF1)
+    val TextSecondary = Color(0xFFA7B3BB)
+    val TextTertiary = Color(0xFF8D9AA3)
+    val TextMuted = Color(0xFF5F6D78)
+
+    // Corbel Squircles & Radii
     val RadiusFull = RoundedCornerShape(9999.dp)
+    val RadiusXs = RoundedCornerShape(8.dp)
     val RadiusSm = RoundedCornerShape(14.dp)
-    val RadiusMd = RoundedCornerShape(20.dp)
-    val RadiusLg = RoundedCornerShape(28.dp)
-    val RadiusSheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val RadiusMd = RoundedCornerShape(18.dp)
+    val RadiusCard = RoundedCornerShape(22.dp)
+    val RadiusLg = RoundedCornerShape(24.dp)
+    val RadiusSheet = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
 
     // Physics-Based Spring Animations
     fun <T> springPhysics() = spring<T>(

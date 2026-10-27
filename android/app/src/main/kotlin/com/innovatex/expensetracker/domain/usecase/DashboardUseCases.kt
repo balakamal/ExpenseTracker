@@ -19,75 +19,153 @@ import java.util.UUID
 import javax.inject.Inject
 
 data class MonthlyDashboardUiState(
-    val monthKey: String,
-    val displayMonth: String,
+    val monthKey: String = "ALL",
+    val displayMonth: String = "Overall Months",
     val totalDebit: Double = 0.0,
     val totalCredit: Double = 0.0,
     val netBalance: Double = 0.0,
-    val budgetLimit: Double = 2500.0,
+    val budgetLimit: Double = 50000.0,
     val budgetProgressPercent: Int = 0,
-    val remainingBudget: Double = 2500.0,
+    val remainingBudget: Double = 50000.0,
+    val creditTransactionCount: Int = 0,
+    val debitTransactionCount: Int = 0,
     val categoryTotals: List<CategorySpendItem> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
+    val allTransactions: List<Transaction> = emptyList(),
     val availableMonths: List<String> = emptyList(),
+    val selectedDateMillis: Long? = null,
+    val selectedDateDisplay: String? = null,
+    val isOverallView: Boolean = true,
     val isLoading: Boolean = false
 )
 
 data class CategorySpendItem(
     val category: Category,
     val totalSpent: Double,
-    val percentageOfTotal: Float
+    val percentageOfTotal: Float,
+    val transactionCount: Int = 0
 )
 
 class GetMonthlyDashboardUseCase @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository
 ) {
-    operator fun invoke(monthKey: String): Flow<MonthlyDashboardUiState> {
-        val summaryFlow = transactionRepository.getMonthlySummary(monthKey)
-        val transactionsFlow = transactionRepository.getTransactionsForMonth(monthKey)
+    operator fun invoke(
+        monthKey: String? = null,
+        selectedDateMillis: Long? = null
+    ): Flow<MonthlyDashboardUiState> {
+        val allTransactionsFlow = transactionRepository.getAllTransactions()
         val categoriesFlow = categoryRepository.getAllCategories()
         val monthsFlow = transactionRepository.getAvailableMonths()
 
         return combine(
-            summaryFlow,
-            transactionsFlow,
+            allTransactionsFlow,
             categoriesFlow,
             monthsFlow
-        ) { summary, transactions, categories, availableMonths ->
+        ) { allTransactions, categories, availableMonths ->
             val categoryMap = categories.associateBy { it.id }
-            val totalDebit = summary.totalDebit
 
-            val spendItems = summary.categoryTotals.mapNotNull { (categoryId, amount) ->
+            // Determine filtered list based on date or month selection
+            val (filteredTransactions, displayTitle, isOverall) = when {
+                selectedDateMillis != null -> {
+                    val (startOfDay, endOfDay) = getDayRange(selectedDateMillis)
+                    val list = allTransactions.filter { it.timestamp in startOfDay..endOfDay }
+                    val dateFormatted = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date(selectedDateMillis))
+                    Triple(list, dateFormatted, false)
+                }
+                monthKey != null && monthKey != "ALL" -> {
+                    val list = allTransactions.filter { it.monthKey == monthKey }
+                    Triple(list, formatMonthDisplay(monthKey), false)
+                }
+                else -> {
+                    Triple(allTransactions, "Overall Ledger", true)
+                }
+            }
+
+            var totalDebit = 0.0
+            var totalCredit = 0.0
+            var creditCount = 0
+            var debitCount = 0
+            val categorySpendMap = mutableMapOf<String, Double>()
+            val categoryCountMap = mutableMapOf<String, Int>()
+
+            for (txn in filteredTransactions) {
+                when (txn.type) {
+                    TransactionType.DEBIT -> {
+                        totalDebit += txn.amount
+                        debitCount++
+                        categorySpendMap[txn.categoryId] = (categorySpendMap[txn.categoryId] ?: 0.0) + txn.amount
+                        categoryCountMap[txn.categoryId] = (categoryCountMap[txn.categoryId] ?: 0) + 1
+                    }
+                    TransactionType.CREDIT -> {
+                        totalCredit += txn.amount
+                        creditCount++
+                        // Also include income categories in the breakdown
+                        categorySpendMap[txn.categoryId] = (categorySpendMap[txn.categoryId] ?: 0.0) + txn.amount
+                        categoryCountMap[txn.categoryId] = (categoryCountMap[txn.categoryId] ?: 0) + 1
+                    }
+                }
+            }
+
+            val totalVolume = totalDebit + totalCredit
+            val spendItems = categorySpendMap.mapNotNull { (categoryId, amount) ->
                 val category = categoryMap[categoryId] ?: Category(
                     id = categoryId,
                     name = categoryId.replaceFirstChar { it.titlecase() },
                     iconName = "more_horizontal",
-                    colorHex = "#64748B"
+                    colorHex = "#79B6E3"
                 )
-                val percent = if (totalDebit > 0) ((amount / totalDebit) * 100).toFloat() else 0f
+                val percent = if (totalVolume > 0) ((amount / totalVolume) * 100).toFloat() else 0f
                 CategorySpendItem(
                     category = category,
                     totalSpent = amount,
-                    percentageOfTotal = percent
+                    percentageOfTotal = percent,
+                    transactionCount = categoryCountMap[categoryId] ?: 0
                 )
             }.sortedByDescending { it.totalSpent }
 
+            val budgetLimit = 50000.0
+            val progressPercent = if (budgetLimit > 0) ((totalDebit / budgetLimit) * 100).toInt() else 0
+
             MonthlyDashboardUiState(
-                monthKey = monthKey,
-                displayMonth = formatMonthDisplay(monthKey),
-                totalDebit = summary.totalDebit,
-                totalCredit = summary.totalCredit,
-                netBalance = summary.netBalance,
-                budgetLimit = summary.budgetLimit,
-                budgetProgressPercent = summary.budgetProgressPercent,
-                remainingBudget = summary.remainingBudget,
+                monthKey = monthKey ?: "ALL",
+                displayMonth = displayTitle,
+                totalDebit = totalDebit,
+                totalCredit = totalCredit,
+                netBalance = totalCredit - totalDebit,
+                budgetLimit = budgetLimit,
+                budgetProgressPercent = progressPercent,
+                remainingBudget = maxOf(0.0, budgetLimit - totalDebit),
+                creditTransactionCount = creditCount,
+                debitTransactionCount = debitCount,
                 categoryTotals = spendItems,
-                transactions = transactions,
-                availableMonths = if (availableMonths.isEmpty()) listOf(monthKey) else availableMonths,
+                transactions = filteredTransactions,
+                allTransactions = allTransactions,
+                availableMonths = availableMonths,
+                selectedDateMillis = selectedDateMillis,
+                selectedDateDisplay = if (selectedDateMillis != null) displayTitle else null,
+                isOverallView = isOverall,
                 isLoading = false
             )
         }
+    }
+
+    private fun getDayRange(timestampMillis: Long): Pair<Long, Long> {
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = timestampMillis
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val startOfDay = cal.timeInMillis
+
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+        cal.set(java.util.Calendar.MINUTE, 59)
+        cal.set(java.util.Calendar.SECOND, 59)
+        cal.set(java.util.Calendar.MILLISECOND, 999)
+        val endOfDay = cal.timeInMillis
+
+        return Pair(startOfDay, endOfDay)
     }
 
     private fun formatMonthDisplay(monthKey: String): String {

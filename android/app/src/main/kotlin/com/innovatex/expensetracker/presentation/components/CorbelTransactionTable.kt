@@ -1,0 +1,450 @@
+package com.innovatex.expensetracker.presentation.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.domain.model.SourceChannel
+import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.domain.usecase.CategorySpendItem
+import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun CorbelTransactionTable(
+    transactions: List<Transaction>,
+    categoryTotals: List<CategorySpendItem>,
+    onTransactionClick: (Transaction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
+
+    val numberFormat = remember {
+        NumberFormat.getNumberInstance(Locale("en", "IN")).apply {
+            minimumFractionDigits = 2
+            maximumFractionDigits = 2
+        }
+    }
+
+    val dateFormatter = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+    val timeFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    // Map Category IDs to Category names and colors
+    val categoryMap = remember(categoryTotals) {
+        categoryTotals.associate { it.category.id to it.category }
+    }
+
+    // Filter transactions based on search and type pill
+    val filteredTransactions = remember(transactions, searchQuery, selectedFilter) {
+        transactions.filter { txn ->
+            val matchesFilter = when (selectedFilter) {
+                TransactionFilter.ALL -> true
+                TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT
+                TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT
+            }
+
+            val matchesSearch = if (searchQuery.isBlank()) true else {
+                txn.merchantClean.contains(searchQuery, ignoreCase = true) ||
+                    txn.merchantRaw.contains(searchQuery, ignoreCase = true) ||
+                    (txn.referenceId?.contains(searchQuery, ignoreCase = true) == true) ||
+                    (txn.accountLast4?.contains(searchQuery) == true)
+            }
+
+            matchesFilter && matchesSearch
+        }
+    }
+
+    val debitCount = remember(transactions) { transactions.count { it.type == TransactionType.DEBIT } }
+    val creditCount = remember(transactions) { transactions.count { it.type == TransactionType.CREDIT } }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(ApexThemeTokens.RadiusCard)
+            .background(ApexThemeTokens.BgSurface)
+            .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
+            .padding(16.dp)
+    ) {
+        Column {
+            // Table Top Toolbar: Title & Search Field
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = "TRANSACTION LEDGER",
+                        color = ApexThemeTokens.TextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${filteredTransactions.size} Records",
+                        color = ApexThemeTokens.TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Search pill input
+                Box(
+                    modifier = Modifier
+                        .width(160.dp)
+                        .height(34.dp)
+                        .clip(ApexThemeTokens.RadiusFull)
+                        .background(ApexThemeTokens.BgGlassPill)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusFull)
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = ApexThemeTokens.TextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search...",
+                                    color = ApexThemeTokens.TextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                cursorBrush = SolidColor(ApexThemeTokens.AccentCobalt),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Clear search",
+                                tint = ApexThemeTokens.TextMuted,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { searchQuery = "" }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Corbel Filter Pills (All, Debits, Credits)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                FilterPill(
+                    label = "All ${transactions.size}",
+                    isSelected = selectedFilter == TransactionFilter.ALL,
+                    onClick = { selectedFilter = TransactionFilter.ALL }
+                )
+                FilterPill(
+                    label = "Debits $debitCount",
+                    isSelected = selectedFilter == TransactionFilter.DEBITS,
+                    activeColor = ApexThemeTokens.AccentDanger,
+                    onClick = { selectedFilter = TransactionFilter.DEBITS }
+                )
+                FilterPill(
+                    label = "Credits $creditCount",
+                    isSelected = selectedFilter == TransactionFilter.CREDITS,
+                    activeColor = ApexThemeTokens.AccentPrimary,
+                    onClick = { selectedFilter = TransactionFilter.CREDITS }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Corbel Table Structure
+            // Table Header Row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ApexThemeTokens.BgGlassPill)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .clip(ApexThemeTokens.RadiusXs)
+            ) {
+                Text(
+                    text = "DATE",
+                    color = ApexThemeTokens.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(55.dp)
+                )
+                Text(
+                    text = "MERCHANT",
+                    color = ApexThemeTokens.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "CATEGORY",
+                    color = ApexThemeTokens.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(90.dp)
+                )
+                Text(
+                    text = "AMOUNT",
+                    color = ApexThemeTokens.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.width(75.dp)
+                )
+            }
+
+            HorizontalDivider(
+                color = ApexThemeTokens.StrokeSubtle,
+                thickness = 1.dp
+            )
+
+            // Table Body Rows or Empty State
+            if (filteredTransactions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.ReceiptLong,
+                            contentDescription = "No Records",
+                            tint = ApexThemeTokens.TextMuted,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No Transactions Found",
+                            color = ApexThemeTokens.TextSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (searchQuery.isNotEmpty()) "Try adjusting your search terms" else "No transactions match this selection",
+                            color = ApexThemeTokens.TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            } else {
+                Column {
+                    filteredTransactions.forEachIndexed { index, txn ->
+                        val date = Date(txn.timestamp)
+                        val dateStr = dateFormatter.format(date)
+                        val timeStr = timeFormatter.format(date)
+                        val isCredit = txn.type == TransactionType.CREDIT
+                        val category = categoryMap[txn.categoryId]
+                        val categoryColor = category?.colorHex?.let {
+                            runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
+                        } ?: if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentCobalt
+
+                        val amountStr = if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
+                        val amountColor = if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onTransactionClick(txn) }
+                                .padding(horizontal = 10.dp, vertical = 11.dp)
+                        ) {
+                            // Column 1: Date & Time
+                            Column(modifier = Modifier.width(55.dp)) {
+                                Text(
+                                    text = dateStr,
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = timeStr,
+                                    color = ApexThemeTokens.TextMuted,
+                                    fontSize = 9.5.sp
+                                )
+                            }
+
+                            // Column 2: Merchant & Source
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 6.dp)
+                            ) {
+                                Text(
+                                    text = txn.merchantClean.ifBlank { "Unknown Merchant" },
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val sourceName = if (txn.sources.contains(SourceChannel.NOTIFICATION)) "Email" else "SMS"
+                                    Text(
+                                        text = sourceName,
+                                        color = ApexThemeTokens.TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                    if (!txn.accountLast4.isNullOrBlank()) {
+                                        Text(
+                                            text = " • ••${txn.accountLast4}",
+                                            color = ApexThemeTokens.TextMuted,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Column 3: Category Pill with colored dot
+                            Box(
+                                modifier = Modifier
+                                    .width(90.dp)
+                                    .clip(ApexThemeTokens.RadiusFull)
+                                    .background(categoryColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(categoryColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() },
+                                        color = categoryColor,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // Column 4: Right-Aligned Amount
+                            Text(
+                                text = amountStr,
+                                color = amountColor,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(75.dp)
+                            )
+                        }
+
+                        if (index < filteredTransactions.lastIndex) {
+                            HorizontalDivider(
+                                color = ApexThemeTokens.StrokeSubtle.copy(alpha = 0.5f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    isSelected: Boolean,
+    activeColor: Color = ApexThemeTokens.TextHighContrast,
+    onClick: () -> Unit
+) {
+    val bg = if (isSelected) ApexThemeTokens.BgHighContrast else ApexThemeTokens.BgGlassPill
+    val textColor = if (isSelected) ApexThemeTokens.TextHighContrast else ApexThemeTokens.TextSecondary
+    val border = if (isSelected) Color.Transparent else ApexThemeTokens.StrokeSubtle
+
+    Box(
+        modifier = Modifier
+            .clip(ApexThemeTokens.RadiusFull)
+            .background(bg)
+            .border(1.dp, border, ApexThemeTokens.RadiusFull)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 11.5.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
+    }
+}
+
+enum class TransactionFilter {
+    ALL,
+    DEBITS,
+    CREDITS
+}

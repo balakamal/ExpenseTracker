@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 interface TransactionRepository {
     fun getTransactionsForMonth(monthKey: String): Flow<List<Transaction>>
+    fun getAllTransactions(): Flow<List<Transaction>>
+    fun getTransactionsForDate(startTime: Long, endTime: Long): Flow<List<Transaction>>
     fun getRecentTransactions(limit: Int = 5): Flow<List<Transaction>>
     suspend fun getTransactionById(id: String): Transaction?
     suspend fun saveTransaction(transaction: Transaction): String
@@ -20,5 +22,6 @@ interface TransactionRepository {
     ): List<Transaction>
     fun getAvailableMonths(): Flow<List<String>>
     fun getMonthlySummary(monthKey: String): Flow<MonthlySummary>
+    fun getOverallSummary(): Flow<MonthlySummary>
     suspend fun purgeDuplicates(): Int
 }

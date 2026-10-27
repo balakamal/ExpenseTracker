@@ -39,9 +39,15 @@ class DashboardViewModel @Inject constructor(
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase
 ) : ViewModel() {
 
-    private val currentMonthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
-    private val _selectedMonth = MutableStateFlow(currentMonthKey)
+    private val _selectedMonth = MutableStateFlow("ALL")
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
+
+    private val _selectedDateMillis = MutableStateFlow<Long?>(null)
+    val selectedDateMillis: StateFlow<Long?> = _selectedDateMillis.asStateFlow()
+
+    // Current displayed calendar month (timestamp millis of the 1st of that month)
+    private val _calendarMonthMillis = MutableStateFlow(getStartOfCurrentMonth())
+    val calendarMonthMillis: StateFlow<Long> = _calendarMonthMillis.asStateFlow()
 
     private val _updateState = MutableStateFlow<UpdateCheckState>(UpdateCheckState.Idle)
     val updateState: StateFlow<UpdateCheckState> = _updateState.asStateFlow()
@@ -62,18 +68,62 @@ class DashboardViewModel @Inject constructor(
     val settings: StateFlow<AppSettings> = preferencesDataStore.appSettingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 
-    val uiState: StateFlow<MonthlyDashboardUiState> = _selectedMonth
-        .flatMapLatest { monthKey ->
-            getMonthlyDashboardUseCase(monthKey)
+    val uiState: StateFlow<MonthlyDashboardUiState> = kotlinx.coroutines.flow.combine(
+        _selectedMonth,
+        _selectedDateMillis
+    ) { monthKey, dateMillis ->
+        Pair(monthKey, dateMillis)
+    }.flatMapLatest { (monthKey, dateMillis) ->
+        getMonthlyDashboardUseCase(monthKey = if (monthKey == "ALL") null else monthKey, selectedDateMillis = dateMillis)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        MonthlyDashboardUiState(monthKey = "ALL", displayMonth = "Overall Ledger", isLoading = true)
+    )
+
+    fun selectDate(timestampMillis: Long) {
+        if (_selectedDateMillis.value == timestampMillis) {
+            // Re-clicking selected date resets to overall
+            _selectedDateMillis.value = null
+        } else {
+            _selectedDateMillis.value = timestampMillis
         }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            MonthlyDashboardUiState(monthKey = currentMonthKey, displayMonth = "Loading...", isLoading = true)
-        )
+    }
+
+    fun clearDateFilter() {
+        _selectedDateMillis.value = null
+    }
 
     fun selectMonth(monthKey: String) {
         _selectedMonth.value = monthKey
+        _selectedDateMillis.value = null
+    }
+
+    fun nextCalendarMonth() {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = _calendarMonthMillis.value
+            add(java.util.Calendar.MONTH, 1)
+        }
+        _calendarMonthMillis.value = cal.timeInMillis
+    }
+
+    fun previousCalendarMonth() {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = _calendarMonthMillis.value
+            add(java.util.Calendar.MONTH, -1)
+        }
+        _calendarMonthMillis.value = cal.timeInMillis
+    }
+
+    private fun getStartOfCurrentMonth(): Long {
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        return cal.timeInMillis
     }
 
     fun triggerHistoricalScan(context: Context) {

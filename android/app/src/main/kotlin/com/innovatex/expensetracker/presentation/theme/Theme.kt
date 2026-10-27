@@ -59,6 +59,7 @@ fun ApexExpenseTrackerTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = CorbelTypography,
         content = content
     )
 }
