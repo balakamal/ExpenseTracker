@@ -17,21 +17,29 @@ object ApexThemeTokens {
     val BgCanvas = Color(0xFF0C1216)            // Deep slate-charcoal canvas
     val BgSurface = Color(0xFF172129)           // Elevated dark card panel
     val BgSurfaceElevated = Color(0xFF1A242B)   // Floating toolbars & sheets
-    val BgSurfaceCard = Color(0xFF172129)
+    val BgSurfaceCard = Color(0xDF141D24)       // Translucent frosted glass card (reveals ambient mesh glow)
     val BgGlassPill = Color(0x12FFFFFF)         // 7% translucent glass pill
     val BgGlassPillHover = Color(0x24FFFFFF)    // 14% translucent glass pill
     val BgHighContrast = Color(0xFFFBFDFE)      // Corbel signature off-white highlight pill
     val TextHighContrast = Color(0xFF14202A)    // High contrast ink text
 
+    // Corbel Live Status Badge
+    val BgLive = Color(0xFF6FD3B0)              // Corbel solid mint live pill
+    val TextLive = Color(0xFF14202A)            // Corbel deep ink text on live pill
+
     // Corbel Ambient Mesh Glows
-    val MeshA = Color(0x33468CC8) // Ocean Sky ambient glow
-    val MeshB = Color(0x262EA080) // Mint Emerald ambient glow
-    val MeshC = Color(0x1FE6785F) // Coral Peach ambient glow
+    val MeshA = Color(0x38468CC8) // Ocean Sky ambient glow
+    val MeshB = Color(0x302EA080) // Mint Emerald ambient glow
+    val MeshC = Color(0x26E6785F) // Coral Peach ambient glow
 
     // Hairline Borders & Dividers
-    val StrokeSubtle = Color(0x16FFFFFF)   // 8.5% subtle hairline border
-    val StrokeHighlight = Color(0x29FFFFFF) // 16% border on active/hover
+    val StrokeSubtle = Color(0x18FFFFFF)   // Subtle hairline frosted glass rim
+    val StrokeHighlight = Color(0x2EFFFFFF) // Active/hover border
     val StrokeActive = Color(0x40FFFFFF)
+
+    // Calendar Range Highlight Connectors
+    val RangeConnectorBg = Color(0x2B79B6E3)    // Soft sky connecting range band
+    val RangeConnectorMint = Color(0x2B6FD3B0)  // Soft mint connecting range band
 
     // Corbel Mint (Credit, Inflow, Positive Performance)
     val AccentPrimary = Color(0xFF6FD3B0)

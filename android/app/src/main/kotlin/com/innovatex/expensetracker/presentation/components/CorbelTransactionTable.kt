@@ -89,7 +89,8 @@ fun CorbelTransactionTable(
                 txn.merchantClean.contains(searchQuery, ignoreCase = true) ||
                     txn.merchantRaw.contains(searchQuery, ignoreCase = true) ||
                     (txn.referenceId?.contains(searchQuery, ignoreCase = true) == true) ||
-                    (txn.accountLast4?.contains(searchQuery) == true)
+                    (txn.accountLast4?.contains(searchQuery) == true) ||
+                    txn.paymentMedium.displayName.contains(searchQuery, ignoreCase = true)
             }
 
             matchesFilter && matchesSearch
@@ -103,7 +104,7 @@ fun CorbelTransactionTable(
         modifier = modifier
             .fillMaxWidth()
             .clip(ApexThemeTokens.RadiusCard)
-            .background(ApexThemeTokens.BgSurface)
+            .background(ApexThemeTokens.BgSurfaceCard)
             .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
             .padding(16.dp)
     ) {
@@ -342,6 +343,8 @@ fun CorbelTransactionTable(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
+                                    PaymentMediumBadge(medium = txn.paymentMedium)
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     val sourceName = if (txn.sources.contains(SourceChannel.EMAIL)) "Email" else "SMS"
                                     Text(
                                         text = sourceName,

@@ -125,6 +125,11 @@ fun TransactionRow(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
+                    // Payment Medium Badge (UPI / Card / NetBanking / etc.)
+                    PaymentMediumBadge(medium = transaction.paymentMedium)
+
+                    Spacer(modifier = Modifier.width(5.dp))
+
                     // Source Badge (SMS / Email / SMS+Email)
                     SourceBadge(sources = transaction.sources, isDeduplicated = transaction.isDeduplicated)
                 }

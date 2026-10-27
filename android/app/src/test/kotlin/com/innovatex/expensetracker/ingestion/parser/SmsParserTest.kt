@@ -1,5 +1,7 @@
 package com.innovatex.expensetracker.ingestion.parser
 
+import com.innovatex.expensetracker.domain.model.PaymentMedium
+import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -184,4 +186,91 @@ class SmsParserTest {
         assertEquals("9876", result.accountLast4)
         assertEquals("99887766", result.referenceId)
     }
+
+    @Test
+    fun `test loan EMI debit is not falsely ignored as loan marketing`() {
+        val sms = "Home Loan EMI of Rs. 25,000.00 debited from A/C XX1234 on 05-Oct-24. Avl Bal: INR 80,000. Ref: 88776655"
+        assertTrue(parser.isFinancialAlert(sms, sender = "AX-HDFCBK"))
+
+        val result = parser.parse(sms, sender = "AX-HDFCBK")
+        assertNotNull(result)
+        assertEquals(25000.00, result!!.amount)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("1234", result.accountLast4)
+        assertEquals("88776655", result.referenceId)
+
+        val medium = PaymentMedium.detect(sms, result.merchantRaw, result.referenceId)
+        assertEquals(PaymentMedium.BANK_ACCOUNT, medium)
+    }
+
+    @Test
+    fun `test utility bill paid transaction is not falsely ignored as bill due reminder`() {
+        val sms = "Paid Rs 1,450.00 towards electricity bill from A/c XX5678 on 22-Oct. Ref: TXN12345"
+        assertTrue(parser.isFinancialAlert(sms, sender = "VM-SBIBNK"))
+
+        val result = parser.parse(sms, sender = "VM-SBIBNK")
+        assertNotNull(result)
+        assertEquals(1450.00, result!!.amount)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("5678", result.accountLast4)
+        assertEquals("TXN12345", result.referenceId)
+    }
+
+    @Test
+    fun `test credit card purchase alert extraction and medium detection`() {
+        val sms = "Spent INR 2,499.00 on your ICICI Bank Credit Card ending 9012 at Reliance Digital on 25-Oct-24. Avl Lmt: INR 95,000. Ref 11223344."
+        assertTrue(parser.isFinancialAlert(sms, sender = "BP-ICICIB"))
+
+        val result = parser.parse(sms, sender = "BP-ICICIB")
+        assertNotNull(result)
+        assertEquals(2499.00, result!!.amount)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("9012", result.accountLast4)
+        assertEquals("11223344", result.referenceId)
+
+        val medium = PaymentMedium.detect(sms, result.merchantRaw, result.referenceId)
+        assertEquals(PaymentMedium.CARD, medium)
+    }
+
+    @Test
+    fun `test UPI VPA payment extraction with merchant cleanup and medium detection`() {
+        val sms = "Paid Rs. 280.00 to swiggy@icici via PhonePe on 23-Oct. UPI Ref 33445566."
+        assertTrue(parser.isFinancialAlert(sms, sender = "AD-YESBNK"))
+
+        val result = parser.parse(sms, sender = "AD-YESBNK")
+        assertNotNull(result)
+        assertEquals(280.00, result!!.amount)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("Swiggy", result.cleanMerchant)
+        assertEquals("33445566", result.referenceId)
+
+        val medium = PaymentMedium.detect(sms, result.merchantRaw, result.referenceId)
+        assertEquals(PaymentMedium.UPI, medium)
+    }
+
+    @Test
+    fun `test ATM cash withdrawal extraction and medium detection`() {
+        val sms = "Rs. 2,000.00 withdrawn from ATM using Debit Card XX7788 on 21-Oct. Avl Bal: Rs 15,200. Txn: 556677"
+        assertTrue(parser.isFinancialAlert(sms, sender = "VM-KOTAKB"))
+
+        val result = parser.parse(sms, sender = "VM-KOTAKB")
+        assertNotNull(result)
+        assertEquals(2000.00, result!!.amount)
+        assertEquals(TransactionType.DEBIT, result.type)
+        assertEquals("7788", result.accountLast4)
+        assertEquals("556677", result.referenceId)
+
+        val medium = PaymentMedium.detect(sms, result.merchantRaw, result.referenceId)
+        assertEquals(PaymentMedium.ATM, medium)
+    }
+
+    @Test
+    fun `test Netbanking and Wallet medium detections`() {
+        val netbankingText = "Transferred Rs. 10,000 via IMPS netbanking to Amit Sharma. Ref IMPS889900."
+        assertEquals(PaymentMedium.NETBANKING, PaymentMedium.detect(netbankingText, null, "IMPS889900"))
+
+        val walletText = "Paid Rs. 150.00 using Paytm Wallet to Cafe Coffee Day."
+        assertEquals(PaymentMedium.WALLET, PaymentMedium.detect(walletText, "Cafe Coffee Day", null))
+    }
 }
+

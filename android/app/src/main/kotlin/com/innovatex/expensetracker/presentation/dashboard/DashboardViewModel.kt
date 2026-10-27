@@ -42,8 +42,8 @@ class DashboardViewModel @Inject constructor(
     private val _selectedMonth = MutableStateFlow("ALL")
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
 
-    private val _selectedDateMillis = MutableStateFlow<Long?>(null)
-    val selectedDateMillis: StateFlow<Long?> = _selectedDateMillis.asStateFlow()
+    private val _selectedDateRange = MutableStateFlow<Pair<Long, Long>?>(null)
+    val selectedDateRange: StateFlow<Pair<Long, Long>?> = _selectedDateRange.asStateFlow()
 
     // Current displayed calendar month (timestamp millis of the 1st of that month)
     private val _calendarMonthMillis = MutableStateFlow(getStartOfCurrentMonth())
@@ -77,28 +77,97 @@ class DashboardViewModel @Inject constructor(
 
     val uiState: StateFlow<MonthlyDashboardUiState> = kotlinx.coroutines.flow.combine(
         _selectedMonth,
-        _selectedDateMillis
-    ) { monthKey, dateMillis ->
-        Pair(monthKey, dateMillis)
-    }.flatMapLatest { (monthKey, dateMillis) ->
-        getMonthlyDashboardUseCase(monthKey = if (monthKey == "ALL") null else monthKey, selectedDateMillis = dateMillis)
+        _selectedDateRange
+    ) { monthKey, dateRange ->
+        Pair(monthKey, dateRange)
+    }.flatMapLatest { (monthKey, dateRange) ->
+        getMonthlyDashboardUseCase(
+            monthKey = if (monthKey == "ALL") null else monthKey,
+            startDateMillis = dateRange?.first,
+            endDateMillis = dateRange?.second
+        )
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         MonthlyDashboardUiState(monthKey = "ALL", displayMonth = "Overall Ledger", isLoading = true)
     )
 
-    fun selectDate(timestampMillis: Long) {
-        if (_selectedDateMillis.value == timestampMillis) {
-            // Re-clicking selected date resets to overall
-            _selectedDateMillis.value = null
+    fun onDayTapped(timestampMillis: Long) {
+        val current = _selectedDateRange.value
+        if (current == null) {
+            // First tap: start single day range [timestamp, timestamp]
+            _selectedDateRange.value = Pair(timestampMillis, timestampMillis)
         } else {
-            _selectedDateMillis.value = timestampMillis
+            val (start, end) = current
+            if (start == end && isSameDay(start, timestampMillis)) {
+                // Tapping the same single day toggles selection off
+                _selectedDateRange.value = null
+            } else if (start == end) {
+                // Second tap: expand single day into range
+                if (timestampMillis >= start) {
+                    _selectedDateRange.value = Pair(start, timestampMillis)
+                } else {
+                    _selectedDateRange.value = Pair(timestampMillis, start)
+                }
+            } else {
+                // Already a range: tapping starts a fresh single-day selection
+                _selectedDateRange.value = Pair(timestampMillis, timestampMillis)
+            }
         }
     }
 
+    fun selectDate(timestampMillis: Long) {
+        onDayTapped(timestampMillis)
+    }
+
+    fun selectDateRange(startMillis: Long, endMillis: Long) {
+        val sortedStart = minOf(startMillis, endMillis)
+        val sortedEnd = maxOf(startMillis, endMillis)
+        _selectedDateRange.value = Pair(sortedStart, sortedEnd)
+    }
+
     fun clearDateFilter() {
-        _selectedDateMillis.value = null
+        _selectedDateRange.value = null
+    }
+
+    fun selectPreset(preset: DateRangePreset) {
+        val now = System.currentTimeMillis()
+        when (preset) {
+            DateRangePreset.ALL -> {
+                _selectedDateRange.value = null
+            }
+            DateRangePreset.TODAY -> {
+                _selectedDateRange.value = Pair(now, now)
+            }
+            DateRangePreset.LAST_7_DAYS -> {
+                val cal = java.util.Calendar.getInstance().apply {
+                    timeInMillis = now
+                    add(java.util.Calendar.DAY_OF_YEAR, -6)
+                }
+                _selectedDateRange.value = Pair(cal.timeInMillis, now)
+            }
+            DateRangePreset.THIS_MONTH -> {
+                val calStart = java.util.Calendar.getInstance().apply {
+                    timeInMillis = now
+                    set(java.util.Calendar.DAY_OF_MONTH, 1)
+                }
+                _selectedDateRange.value = Pair(calStart.timeInMillis, now)
+            }
+            DateRangePreset.LAST_30_DAYS -> {
+                val cal = java.util.Calendar.getInstance().apply {
+                    timeInMillis = now
+                    add(java.util.Calendar.DAY_OF_YEAR, -29)
+                }
+                _selectedDateRange.value = Pair(cal.timeInMillis, now)
+            }
+        }
+    }
+
+    private fun isSameDay(timeA: Long, timeB: Long): Boolean {
+        val calA = java.util.Calendar.getInstance().apply { timeInMillis = timeA }
+        val calB = java.util.Calendar.getInstance().apply { timeInMillis = timeB }
+        return calA.get(java.util.Calendar.YEAR) == calB.get(java.util.Calendar.YEAR) &&
+            calA.get(java.util.Calendar.DAY_OF_YEAR) == calB.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
     fun selectMonth(monthKey: String) {
@@ -237,4 +306,12 @@ class DashboardViewModel @Inject constructor(
     fun clearCleanSpamStatus() {
         _cleanSpamStatus.value = null
     }
+}
+
+enum class DateRangePreset(val label: String) {
+    ALL("All"),
+    TODAY("Today"),
+    LAST_7_DAYS("7D"),
+    THIS_MONTH("This Month"),
+    LAST_30_DAYS("30D")
 }

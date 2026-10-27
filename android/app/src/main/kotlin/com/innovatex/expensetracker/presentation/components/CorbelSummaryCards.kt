@@ -58,14 +58,18 @@ fun CorbelTwoSummaryCards(
     val formattedCredit = "$currencySymbol${numberFormat.format(totalCredit)}"
     val formattedDebit = "$currencySymbol${numberFormat.format(totalDebit)}"
 
+    val isRange = selectedDateDisplay?.contains("–") == true
+
     val creditSubtitle = when {
         isOverallView -> "$creditCount deposits recorded"
+        isRange -> "$creditCount deposits in range"
         selectedDateDisplay != null -> "$creditCount deposits on this date"
         else -> "$creditCount deposits"
     }
 
     val debitSubtitle = when {
         isOverallView -> "$debitCount expenses recorded"
+        isRange -> "$debitCount expenses in range"
         selectedDateDisplay != null -> "$debitCount expenses on this date"
         else -> "$debitCount expenses"
     }
@@ -79,7 +83,7 @@ fun CorbelTwoSummaryCards(
             modifier = Modifier
                 .weight(1f)
                 .clip(ApexThemeTokens.RadiusCard)
-                .background(ApexThemeTokens.BgSurface)
+                .background(ApexThemeTokens.BgSurfaceCard)
                 .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
                 .padding(18.dp)
         ) {
@@ -126,7 +130,7 @@ fun CorbelTwoSummaryCards(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = if (isOverallView) "Total Inflow" else "Credited Amount",
+                    text = if (isOverallView) "Total Inflow" else if (isRange) "Range Inflow" else "Credited Amount",
                     color = ApexThemeTokens.TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
@@ -163,7 +167,7 @@ fun CorbelTwoSummaryCards(
             modifier = Modifier
                 .weight(1f)
                 .clip(ApexThemeTokens.RadiusCard)
-                .background(ApexThemeTokens.BgSurface)
+                .background(ApexThemeTokens.BgSurfaceCard)
                 .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
                 .padding(18.dp)
         ) {

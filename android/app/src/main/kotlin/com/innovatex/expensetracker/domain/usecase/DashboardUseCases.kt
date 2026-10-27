@@ -33,7 +33,9 @@ data class MonthlyDashboardUiState(
     val transactions: List<Transaction> = emptyList(),
     val allTransactions: List<Transaction> = emptyList(),
     val availableMonths: List<String> = emptyList(),
-    val selectedDateMillis: Long? = null,
+    val startDateMillis: Long? = null,
+    val endDateMillis: Long? = null,
+    val selectedDateMillis: Long? = startDateMillis,
     val selectedDateDisplay: String? = null,
     val isOverallView: Boolean = true,
     val isLoading: Boolean = false
@@ -52,7 +54,8 @@ class GetMonthlyDashboardUseCase @Inject constructor(
 ) {
     operator fun invoke(
         monthKey: String? = null,
-        selectedDateMillis: Long? = null
+        startDateMillis: Long? = null,
+        endDateMillis: Long? = null
     ): Flow<MonthlyDashboardUiState> {
         val allTransactionsFlow = transactionRepository.getAllTransactions()
         val categoriesFlow = categoryRepository.getAllCategories()
@@ -65,13 +68,22 @@ class GetMonthlyDashboardUseCase @Inject constructor(
         ) { allTransactions, categories, availableMonths ->
             val categoryMap = categories.associateBy { it.id }
 
-            // Determine filtered list based on date or month selection
+            // Determine filtered list based on date range or month selection
             val (filteredTransactions, displayTitle, isOverall) = when {
-                selectedDateMillis != null -> {
-                    val (startOfDay, endOfDay) = getDayRange(selectedDateMillis)
-                    val list = allTransactions.filter { it.timestamp in startOfDay..endOfDay }
-                    val dateFormatted = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date(selectedDateMillis))
-                    Triple(list, dateFormatted, false)
+                startDateMillis != null -> {
+                    val endMillis = endDateMillis ?: startDateMillis
+                    val (startOfRange, _) = getDayRange(startDateMillis)
+                    val (_, endOfRange) = getDayRange(endMillis)
+                    val list = allTransactions.filter { it.timestamp in startOfRange..endOfRange }
+
+                    val title = if (isSameDay(startDateMillis, endMillis)) {
+                        SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date(startDateMillis))
+                    } else {
+                        val startFmt = SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(startDateMillis))
+                        val endFmt = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(endMillis))
+                        "$startFmt – $endFmt"
+                    }
+                    Triple(list, title, false)
                 }
                 monthKey != null && monthKey != "ALL" -> {
                     val list = allTransactions.filter { it.monthKey == monthKey }
@@ -142,12 +154,21 @@ class GetMonthlyDashboardUseCase @Inject constructor(
                 transactions = filteredTransactions,
                 allTransactions = allTransactions,
                 availableMonths = availableMonths,
-                selectedDateMillis = selectedDateMillis,
-                selectedDateDisplay = if (selectedDateMillis != null) displayTitle else null,
+                startDateMillis = startDateMillis,
+                endDateMillis = endDateMillis ?: startDateMillis,
+                selectedDateMillis = startDateMillis,
+                selectedDateDisplay = if (startDateMillis != null) displayTitle else null,
                 isOverallView = isOverall,
                 isLoading = false
             )
         }
+    }
+
+    private fun isSameDay(timeA: Long, timeB: Long): Boolean {
+        val calA = java.util.Calendar.getInstance().apply { timeInMillis = timeA }
+        val calB = java.util.Calendar.getInstance().apply { timeInMillis = timeB }
+        return calA.get(java.util.Calendar.YEAR) == calB.get(java.util.Calendar.YEAR) &&
+            calA.get(java.util.Calendar.DAY_OF_YEAR) == calB.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
     private fun getDayRange(timestampMillis: Long): Pair<Long, Long> {

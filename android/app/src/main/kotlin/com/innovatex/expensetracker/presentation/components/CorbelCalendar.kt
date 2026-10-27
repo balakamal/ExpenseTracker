@@ -1,26 +1,26 @@
 package com.innovatex.expensetracker.presentation.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,18 +41,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.presentation.dashboard.DateRangePreset
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+data class CalendarCell(
+    val dayNumber: Int,
+    val monthOffset: Int, // -1 = prev, 0 = current, 1 = next
+    val timestampMillis: Long,
+    val isCurrentMonth: Boolean
+)
+
 @Composable
 fun CorbelCalendar(
     currentMonthMillis: Long,
-    selectedDateMillis: Long?,
+    selectedDateRange: Pair<Long, Long>?,
     allTransactions: List<Transaction>,
-    onDateSelected: (Long) -> Unit,
+    onDateTapped: (Long) -> Unit,
+    onPresetSelected: (DateRangePreset) -> Unit,
     onClearDateSelection: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -63,65 +71,64 @@ fun CorbelCalendar(
         SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(currentMonthMillis))
     }
 
-    // Days grid preparation
-    val calendarDays = remember(currentMonthMillis) {
-        getCalendarDaysForMonth(currentMonthMillis)
+    // Complete 35 or 42 grid of calendar days (including trailing & leading days)
+    val calendarCells = remember(currentMonthMillis) {
+        getCalendarCellsForMonth(currentMonthMillis)
     }
 
-    // Map days with transaction activity (Credits and Debits)
+    // Map each day with transaction activity (Credits and Debits)
     val dayActivityMap = remember(allTransactions, currentMonthMillis) {
-        val map = mutableMapOf<Int, Pair<Boolean, Boolean>>() // Day -> (hasCredit, hasDebit)
+        val map = mutableMapOf<Long, Pair<Boolean, Boolean>>() // DayStartMillis -> (hasCredit, hasDebit)
         val cal = Calendar.getInstance()
-        val curCal = Calendar.getInstance().apply { timeInMillis = currentMonthMillis }
-        val curYear = curCal.get(Calendar.YEAR)
-        val curMonth = curCal.get(Calendar.MONTH)
 
         for (txn in allTransactions) {
             cal.timeInMillis = txn.timestamp
-            if (cal.get(Calendar.YEAR) == curYear && cal.get(Calendar.MONTH) == curMonth) {
-                val day = cal.get(Calendar.DAY_OF_MONTH)
-                val existing = map.getOrDefault(day, Pair(false, false))
-                val isCredit = txn.type == TransactionType.CREDIT
-                map[day] = Pair(existing.first || isCredit, existing.second || !isCredit)
-            }
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val dayStart = cal.timeInMillis
+
+            val existing = map.getOrDefault(dayStart, Pair(false, false))
+            val isCredit = txn.type == TransactionType.CREDIT
+            map[dayStart] = Pair(existing.first || isCredit, existing.second || !isCredit)
         }
         map
     }
 
-    // Check currently selected day in this month
-    val selectedDayInMonth = remember(selectedDateMillis, currentMonthMillis) {
-        if (selectedDateMillis == null) null
+    // Range boundaries normalized to startOfDay and endOfDay
+    val rangeNormalized = remember(selectedDateRange) {
+        if (selectedDateRange == null) null
         else {
-            val selCal = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
-            val curCal = Calendar.getInstance().apply { timeInMillis = currentMonthMillis }
-            if (selCal.get(Calendar.YEAR) == curCal.get(Calendar.YEAR) &&
-                selCal.get(Calendar.MONTH) == curCal.get(Calendar.MONTH)
-            ) {
-                selCal.get(Calendar.DAY_OF_MONTH)
-            } else null
+            val startDay = getStartOfDay(selectedDateRange.first)
+            val endDay = getEndOfDay(selectedDateRange.second)
+            Pair(startDay, endDay)
         }
     }
 
-    val todayDayInMonth = remember(currentMonthMillis) {
-        val today = Calendar.getInstance()
-        val curCal = Calendar.getInstance().apply { timeInMillis = currentMonthMillis }
-        if (today.get(Calendar.YEAR) == curCal.get(Calendar.YEAR) &&
-            today.get(Calendar.MONTH) == curCal.get(Calendar.MONTH)
-        ) {
-            today.get(Calendar.DAY_OF_MONTH)
-        } else null
+    val isSingleDaySelection = remember(selectedDateRange) {
+        selectedDateRange != null && isSameDay(selectedDateRange.first, selectedDateRange.second)
+    }
+
+    val todayMillis = remember {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(ApexThemeTokens.RadiusCard)
-            .background(ApexThemeTokens.BgSurface)
+            .background(ApexThemeTokens.BgSurfaceCard)
             .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
             .padding(16.dp)
     ) {
         Column {
-            // Header Row: Month title, Controls, and Overall toggle
+            // Header Row: Month title, Chevrons & Active Filter Status Pill
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -146,15 +153,15 @@ fun CorbelCalendar(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Overall Months vs Date Selected Status Pill
-                val isOverall = selectedDateMillis == null
+                // Status Pill: Shows active range or "Overall"
+                val isOverall = selectedDateRange == null
                 Box(
                     modifier = Modifier
                         .clip(ApexThemeTokens.RadiusFull)
-                        .background(if (isOverall) ApexThemeTokens.AccentCobaltTint else ApexThemeTokens.BgGlassPill)
+                        .background(if (isOverall) ApexThemeTokens.AccentCobaltTint else ApexThemeTokens.BgGlassPillHover)
                         .border(
                             1.dp,
-                            if (isOverall) ApexThemeTokens.AccentCobaltBorder else ApexThemeTokens.StrokeSubtle,
+                            if (isOverall) ApexThemeTokens.AccentCobaltBorder else ApexThemeTokens.StrokeHighlight,
                             ApexThemeTokens.RadiusFull
                         )
                         .clickable(onClick = onClearDateSelection)
@@ -165,12 +172,12 @@ fun CorbelCalendar(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(if (isOverall) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextSecondary)
+                                .background(if (isOverall) ApexThemeTokens.AccentCobalt else ApexThemeTokens.AccentPrimary)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isOverall) "All Months" else "Clear Filter",
-                            color = if (isOverall) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextSecondary,
+                            text = if (isOverall) "All Ledger" else "Reset Filter",
+                            color = if (isOverall) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -222,6 +229,44 @@ fun CorbelCalendar(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Quick Range Preset Pills: All, Today, 7D, This Month, 30D
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                DateRangePreset.values().forEach { preset ->
+                    val isPresetActive = when (preset) {
+                        DateRangePreset.ALL -> selectedDateRange == null
+                        DateRangePreset.TODAY -> isSingleDaySelection && isSameDay(selectedDateRange!!.first, System.currentTimeMillis())
+                        else -> false
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(ApexThemeTokens.RadiusFull)
+                            .background(if (isPresetActive) ApexThemeTokens.BgHighContrast else ApexThemeTokens.BgGlassPill)
+                            .border(
+                                1.dp,
+                                if (isPresetActive) Color.Transparent else ApexThemeTokens.StrokeSubtle,
+                                ApexThemeTokens.RadiusFull
+                            )
+                            .clickable { onPresetSelected(preset) }
+                            .padding(horizontal = 11.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = preset.label,
+                            color = if (isPresetActive) ApexThemeTokens.TextHighContrast else ApexThemeTokens.TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (isPresetActive) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Weekday Headers (M, T, W, T, F, S, S)
@@ -242,114 +287,150 @@ fun CorbelCalendar(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Day Grid Rows
-            val totalWeeks = (calendarDays.size + 6) / 7
+            // Day Grid Rows with Connected Range Highlights
+            val totalWeeks = calendarCells.size / 7
             for (weekIndex in 0 until totalWeeks) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp),
+                        .height(38.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     for (dayOfWeek in 0..6) {
-                        val dayIndex = weekIndex * 7 + dayOfWeek
-                        val dayNumber = calendarDays.getOrNull(dayIndex)
+                        val cellIndex = weekIndex * 7 + dayOfWeek
+                        val cell = calendarCells[cellIndex]
 
-                        if (dayNumber != null) {
-                            val isSelected = selectedDayInMonth == dayNumber
-                            val isToday = todayDayInMonth == dayNumber
-                            val activity = dayActivityMap[dayNumber]
-                            val hasCredit = activity?.first == true
-                            val hasDebit = activity?.second == true
+                        val cellStartMillis = remember(cell.timestampMillis) { getStartOfDay(cell.timestampMillis) }
+                        val isToday = cellStartMillis == todayMillis
 
-                            val cellBg by animateColorAsState(
-                                targetValue = when {
-                                    isSelected -> ApexThemeTokens.BgHighContrast
-                                    isToday -> ApexThemeTokens.BgGlassPillHover
-                                    else -> Color.Transparent
+                        val isStart = selectedDateRange != null && isSameDay(cell.timestampMillis, selectedDateRange.first)
+                        val isEnd = selectedDateRange != null && isSameDay(cell.timestampMillis, selectedDateRange.second)
+                        val isBetween = rangeNormalized != null &&
+                            cellStartMillis > rangeNormalized.first &&
+                            cellStartMillis < rangeNormalized.second &&
+                            !isStart && !isEnd
+
+                        val isSelected = isStart || isEnd || isBetween
+                        val isSingle = isStart && isEnd
+
+                        val activity = dayActivityMap[cellStartMillis]
+                        val hasCredit = activity?.first == true
+                        val hasDebit = activity?.second == true
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable {
+                                    if (cell.monthOffset == -1) onPreviousMonth()
+                                    if (cell.monthOffset == 1) onNextMonth()
+                                    onDateTapped(cell.timestampMillis)
                                 },
-                                label = "cellBg"
-                            )
-
-                            val cellText = when {
-                                isSelected -> ApexThemeTokens.TextHighContrast
-                                isToday -> ApexThemeTokens.AccentCobalt
-                                else -> ApexThemeTokens.TextPrimary
-                            }
-
-                            val cellScale by animateFloatAsState(
-                                targetValue = if (isSelected) 1.05f else 1.0f,
-                                label = "cellScale"
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .scale(cellScale)
-                                    .clip(ApexThemeTokens.RadiusSm)
-                                    .background(cellBg)
-                                    .border(
-                                        width = if (isSelected) 0.dp else if (isToday) 1.dp else 0.dp,
-                                        color = if (isToday) ApexThemeTokens.AccentCobaltBorder else Color.Transparent,
-                                        shape = ApexThemeTokens.RadiusSm
-                                    )
-                                    .clickable {
-                                        val cal = Calendar.getInstance().apply {
-                                            timeInMillis = currentMonthMillis
-                                            set(Calendar.DAY_OF_MONTH, dayNumber)
-                                            set(Calendar.HOUR_OF_DAY, 12)
-                                            set(Calendar.MINUTE, 0)
-                                            set(Calendar.SECOND, 0)
-                                            set(Calendar.MILLISECOND, 0)
-                                        }
-                                        onDateSelected(cal.timeInMillis)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = dayNumber.toString(),
-                                        color = cellText,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium
-                                    )
-
-                                    // Tiny transaction activity indicator dots (Mint for credit, Coral for debit)
-                                    if (hasCredit || hasDebit) {
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (hasCredit) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(3.5.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (isSelected) ApexThemeTokens.TextHighContrast else ApexThemeTokens.AccentPrimary)
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // 1. Background Connector Band for Multi-Day Ranges (No overlapping borders!)
+                            if (!isSingle && isSelected) {
+                                when {
+                                    isStart -> {
+                                        // Connector extending from center to right edge
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(30.dp)
+                                                .padding(start = 15.dp)
+                                                .background(
+                                                    ApexThemeTokens.RangeConnectorBg,
+                                                    shape = if (dayOfWeek == 6) RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp) else RoundedCornerShape(0.dp)
                                                 )
-                                            }
-                                            if (hasDebit) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(3.5.dp)
-                                                        .clip(CircleShape)
-                                                        .background(if (isSelected) ApexThemeTokens.AccentDanger else ApexThemeTokens.AccentDanger)
+                                        )
+                                    }
+                                    isEnd -> {
+                                        // Connector extending from left edge to center
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(30.dp)
+                                                .padding(end = 15.dp)
+                                                .background(
+                                                    ApexThemeTokens.RangeConnectorBg,
+                                                    shape = if (dayOfWeek == 0) RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp) else RoundedCornerShape(0.dp)
                                                 )
-                                            }
+                                        )
+                                    }
+                                    isBetween -> {
+                                        // Continuous full-width connector band
+                                        val shape = when (dayOfWeek) {
+                                            0 -> RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+                                            6 -> RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+                                            else -> RoundedCornerShape(0.dp)
                                         }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(30.dp)
+                                                .background(ApexThemeTokens.RangeConnectorBg, shape = shape)
+                                        )
                                     }
                                 }
                             }
-                        } else {
-                            // Blank cell outside month bounds
-                            Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+
+                            // 2. Focused Date Squircle Pill for Start, End, or Today
+                            val pillModifier = Modifier.size(32.dp)
+                            when {
+                                isStart || isEnd -> {
+                                    Box(
+                                        modifier = pillModifier
+                                            .clip(ApexThemeTokens.RadiusSm)
+                                            .background(ApexThemeTokens.BgHighContrast),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        DayContent(
+                                            dayNumber = cell.dayNumber,
+                                            textColor = ApexThemeTokens.TextHighContrast,
+                                            isBold = true,
+                                            hasCredit = hasCredit,
+                                            hasDebit = hasDebit,
+                                            isPillSelected = true
+                                        )
+                                    }
+                                }
+                                isToday && !isSelected -> {
+                                    Box(
+                                        modifier = pillModifier
+                                            .clip(ApexThemeTokens.RadiusSm)
+                                            .background(ApexThemeTokens.BgGlassPillHover)
+                                            .border(1.dp, ApexThemeTokens.AccentCobaltBorder, ApexThemeTokens.RadiusSm),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        DayContent(
+                                            dayNumber = cell.dayNumber,
+                                            textColor = ApexThemeTokens.AccentCobalt,
+                                            isBold = true,
+                                            hasCredit = hasCredit,
+                                            hasDebit = hasDebit,
+                                            isPillSelected = false
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    // Regular unselected day
+                                    val textColor = when {
+                                        isBetween -> ApexThemeTokens.AccentCobalt
+                                        !cell.isCurrentMonth -> ApexThemeTokens.TextMuted.copy(alpha = 0.35f)
+                                        else -> ApexThemeTokens.TextPrimary
+                                    }
+                                    DayContent(
+                                        dayNumber = cell.dayNumber,
+                                        textColor = textColor,
+                                        isBold = isBetween,
+                                        hasCredit = hasCredit,
+                                        hasDebit = hasDebit,
+                                        isPillSelected = false
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -358,21 +439,131 @@ fun CorbelCalendar(
     }
 }
 
-private fun getCalendarDaysForMonth(monthMillis: Long): List<Int?> {
+@Composable
+private fun DayContent(
+    dayNumber: Int,
+    textColor: Color,
+    isBold: Boolean,
+    hasCredit: Boolean,
+    hasDebit: Boolean,
+    isPillSelected: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = dayNumber.toString(),
+            color = textColor,
+            fontSize = 11.5.sp,
+            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Medium
+        )
+
+        // Activity indicator dots (Mint for credit, Coral for debit)
+        if (hasCredit || hasDebit) {
+            Spacer(modifier = Modifier.height(1.5.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (hasCredit) {
+                    Box(
+                        modifier = Modifier
+                            .size(3.dp)
+                            .clip(CircleShape)
+                            .background(if (isPillSelected) ApexThemeTokens.TextHighContrast else ApexThemeTokens.AccentPrimary)
+                    )
+                }
+                if (hasDebit) {
+                    Box(
+                        modifier = Modifier
+                            .size(3.dp)
+                            .clip(CircleShape)
+                            .background(ApexThemeTokens.AccentDanger)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun getCalendarCellsForMonth(monthMillis: Long): List<CalendarCell> {
     val cal = Calendar.getInstance().apply {
         timeInMillis = monthMillis
         set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 12)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
     }
-    val maxDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    // Sunday is 1, Monday is 2 in Calendar; convert so Monday = 0, Sunday = 6
-    val firstDayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+    val daysInCurrentMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstDayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday = 0 .. Sunday = 6
 
-    val list = mutableListOf<Int?>()
-    for (i in 0 until firstDayOfWeek) {
-        list.add(null)
+    val prevCal = (cal.clone() as Calendar).apply {
+        add(Calendar.MONTH, -1)
     }
-    for (day in 1..maxDays) {
-        list.add(day)
+    val daysInPrevMonth = prevCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+    val cells = mutableListOf<CalendarCell>()
+
+    // 1. Trailing days of previous month
+    for (i in firstDayOfWeek - 1 downTo 0) {
+        val dayNum = daysInPrevMonth - i
+        val dayCal = (prevCal.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, dayNum)
+        }
+        cells.add(CalendarCell(dayNum, -1, dayCal.timeInMillis, false))
     }
-    return list
+
+    // 2. Days of current month
+    for (dayNum in 1..daysInCurrentMonth) {
+        val dayCal = (cal.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, dayNum)
+        }
+        cells.add(CalendarCell(dayNum, 0, dayCal.timeInMillis, true))
+    }
+
+    // 3. Leading days of next month to complete the grid to multiple of 7
+    val nextCal = (cal.clone() as Calendar).apply {
+        add(Calendar.MONTH, 1)
+    }
+    var nextMonthDay = 1
+    while (cells.size % 7 != 0 || cells.size < 35) {
+        val dayCal = (nextCal.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, nextMonthDay)
+        }
+        cells.add(CalendarCell(nextMonthDay, 1, dayCal.timeInMillis, false))
+        nextMonthDay++
+    }
+
+    return cells
+}
+
+private fun getStartOfDay(timestampMillis: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = timestampMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    return cal.timeInMillis
+}
+
+private fun getEndOfDay(timestampMillis: Long): Long {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = timestampMillis
+        set(Calendar.HOUR_OF_DAY, 23)
+        set(Calendar.MINUTE, 59)
+        set(Calendar.SECOND, 59)
+        set(Calendar.MILLISECOND, 999)
+    }
+    return cal.timeInMillis
+}
+
+private fun isSameDay(timeA: Long, timeB: Long): Boolean {
+    val calA = Calendar.getInstance().apply { timeInMillis = timeA }
+    val calB = Calendar.getInstance().apply { timeInMillis = timeB }
+    return calA.get(Calendar.YEAR) == calB.get(Calendar.YEAR) &&
+        calA.get(Calendar.DAY_OF_YEAR) == calB.get(Calendar.DAY_OF_YEAR)
 }

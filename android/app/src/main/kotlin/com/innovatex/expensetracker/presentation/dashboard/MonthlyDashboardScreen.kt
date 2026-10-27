@@ -228,13 +228,12 @@ fun MonthlyDashboardScreen(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        // Corbel "live now" indicator pill
+                        // Corbel "live now" indicator pill (Signature Corbel solid mint badge with ink text)
                         Box(
                             modifier = Modifier
                                 .clip(ApexThemeTokens.RadiusFull)
-                                .background(ApexThemeTokens.AccentPrimaryTint)
-                                .border(1.dp, ApexThemeTokens.AccentPrimaryBorder, ApexThemeTokens.RadiusFull)
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                                .background(ApexThemeTokens.BgLive)
+                                .padding(horizontal = 9.dp, vertical = 4.5.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
@@ -244,19 +243,19 @@ fun MonthlyDashboardScreen(
                                     // Animated ping ring
                                     Canvas(modifier = Modifier.size(14.dp)) {
                                         drawCircle(
-                                            color = ApexThemeTokens.AccentPrimary.copy(alpha = pingAlpha),
+                                            color = ApexThemeTokens.TextLive.copy(alpha = pingAlpha * 0.4f),
                                             radius = (size.minDimension / 2) * pingScale
                                         )
                                         drawCircle(
-                                            color = ApexThemeTokens.AccentPrimary,
-                                            radius = 3.5.dp.toPx()
+                                            color = ApexThemeTokens.TextLive,
+                                            radius = 3.dp.toPx()
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "live",
-                                    color = ApexThemeTokens.AccentPrimary,
+                                    color = ApexThemeTokens.TextLive,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -310,13 +309,19 @@ fun MonthlyDashboardScreen(
                     }
                 }
 
-                // 1. Corbel Interactive Financial Calendar
+                // 1. Corbel Interactive Financial Calendar (Range-aware, Overlap-free)
                 item {
+                    val dateRange = remember(uiState.startDateMillis, uiState.endDateMillis) {
+                        if (uiState.startDateMillis != null) {
+                            Pair(uiState.startDateMillis!!, uiState.endDateMillis ?: uiState.startDateMillis!!)
+                        } else null
+                    }
                     CorbelCalendar(
                         currentMonthMillis = calendarMonthMillis,
-                        selectedDateMillis = uiState.selectedDateMillis,
+                        selectedDateRange = dateRange,
                         allTransactions = uiState.allTransactions,
-                        onDateSelected = { timestamp -> viewModel.selectDate(timestamp) },
+                        onDateTapped = { timestamp -> viewModel.onDayTapped(timestamp) },
+                        onPresetSelected = { preset -> viewModel.selectPreset(preset) },
                         onClearDateSelection = { viewModel.clearDateFilter() },
                         onPreviousMonth = { viewModel.previousCalendarMonth() },
                         onNextMonth = { viewModel.nextCalendarMonth() }
@@ -423,6 +428,7 @@ fun MonthlyDashboardScreen(
 
                 // Detail Rows
                 DetailRow(label = "Date & Time", value = dateFormatter.format(Date(txn.timestamp)))
+                DetailRow(label = "Payment Medium", value = txn.paymentMedium.displayName)
                 DetailRow(label = "Category", value = category?.name ?: txn.categoryId.replaceFirstChar { it.titlecase() })
                 DetailRow(label = "Channel", value = if (txn.sources.contains(SourceChannel.EMAIL)) "Email Notification" else "SMS Ingestion")
                 if (!txn.accountLast4.isNullOrBlank()) {
@@ -573,7 +579,7 @@ fun ExpenseTrackerLogoMark(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(ApexThemeTokens.RadiusSm)
-            .background(ApexThemeTokens.BgSurface)
+            .background(ApexThemeTokens.BgSurfaceCard)
             .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusSm),
         contentAlignment = Alignment.Center
     ) {
@@ -583,9 +589,9 @@ fun ExpenseTrackerLogoMark(modifier: Modifier = Modifier) {
             val strokeW = size.width * 0.16f
             val gap = size.height * 0.08f
 
-            // Upper Cash-Flow Arc (Forest Emerald)
+            // Upper Cash-Flow Arc (Corbel Mint Inflow)
             drawArc(
-                color = Color(0xFF2D6A4F),
+                color = ApexThemeTokens.AccentPrimary,
                 startAngle = 186f,
                 sweepAngle = 168f,
                 useCenter = false,
@@ -597,9 +603,9 @@ fun ExpenseTrackerLogoMark(modifier: Modifier = Modifier) {
                 )
             )
 
-            // Lower Cash-Flow Arc (Brick Crimson)
+            // Lower Cash-Flow Arc (Corbel Coral Outflow)
             drawArc(
-                color = Color(0xFF9A3412),
+                color = ApexThemeTokens.AccentDanger,
                 startAngle = 6f,
                 sweepAngle = 168f,
                 useCenter = false,

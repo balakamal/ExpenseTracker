@@ -72,7 +72,7 @@ fun CorbelCategoryBreakdown(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(ApexThemeTokens.RadiusCard)
-                    .background(ApexThemeTokens.BgSurface)
+                    .background(ApexThemeTokens.BgSurfaceCard)
                     .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
                     .padding(20.dp),
                 contentAlignment = Alignment.Center
@@ -101,7 +101,7 @@ fun CorbelCategoryBreakdown(
                         modifier = Modifier
                             .width(170.dp)
                             .clip(ApexThemeTokens.RadiusCard)
-                            .background(ApexThemeTokens.BgSurface)
+                            .background(ApexThemeTokens.BgSurfaceCard)
                             .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusCard)
                             .padding(14.dp)
                     ) {

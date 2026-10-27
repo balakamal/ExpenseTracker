@@ -27,9 +27,9 @@ class SmsParserEngine @Inject constructor() {
         "(?i)(?:\\b(?:otp|one[-\\s]?time[-\\s]?password|verification[-\\s]?code|security[-\\s]?code)\\b|(?:is|use)\\s+code\\s+\\d{4,8}|\\bcode\\s+is\\s+\\d{4,8})"
     )
 
-    // 2. Pre-approved loans, credit limit increase, CIBIL score marketing
+    // 2. Pre-approved loans, credit limit increase, CIBIL score marketing (excluding executed EMI debits)
     private val loanMarketingPattern = Pattern.compile(
-        "(?i)\\b(?:pre-approved|pre\\s+approved|pre-qualified|pre\\s+qualified|instant\\s+loan|personal\\s+loan|home\\s+loan|car\\s+loan|business\\s+loan|loan\\s+offer|loan\\s+of|apply\\s+now|apply\\s+for\\s+(?:a\\s+)?loan|check\\s+eligibility|eligible\\s+for\\s+(?:a\\s+)?(?:loan|credit\\s+card)|credit\\s+limit\\s+(?:is|increased|enhanced)|limit\\s+increased\\s+to|enhance\\s+your\\s+limit|credit\\s+score|cibil\\s+score|instant\\s+cash|disbursed\\s+to\\s+(?:your\\s+)?(?:offer\\s+)?wallet)\\b"
+        "(?i)\\b(?:pre-approved|pre\\s+approved|pre-qualified|pre\\s+qualified|loan\\s+offer|apply\\s+now|apply\\s+for\\s+(?:a\\s+)?loan|check\\s+eligibility|eligible\\s+for\\s+(?:a\\s+)?(?:loan|credit\\s+card)|credit\\s+limit\\s+(?:is|increased|enhanced)|limit\\s+increased\\s+to|enhance\\s+your\\s+limit|credit\\s+score|cibil\\s+score|instant\\s+cash\\s+loan|disbursed\\s+to\\s+(?:your\\s+)?(?:offer\\s+)?wallet|avail\\s+loan\\s+up\\s+to)\\b"
     )
 
     // 3. Promotional offers, discounts, coupons, cashback schemes, gaming/lottery
@@ -39,7 +39,7 @@ class SmsParserEngine @Inject constructor() {
 
     // 4. Bill due / Upcoming payment demands (Prospective/unpaid notices)
     private val billDuePattern = Pattern.compile(
-        "(?i)\\b(?:bill\\s+is\\s+due|payment\\s+due|due\\s+date|due\\s+on\\s+\\d|pay\\s+before|pay\\s+by\\s+\\d|to\\s+avoid\\s+(?:late\\s+fee|disconnection|interruption)|minimum\\s+amount\\s+due|min\\s+due|total\\s+amount\\s+due|unpaid\\s+bill|bill\\s+generated|statement\\s+generated)\\b"
+        "(?i)\\b(?:bill\\s+is\\s+due|payment\\s+due|due\\s+date|due\\s+on\\s+\\d|pay\\s+before|pay\\s+by\\s+\\d|to\\s+avoid\\s+(?:late\\s+fee|disconnection|interruption)|minimum\\s+amount\\s+due|min\\s+due|total\\s+amount\\s+due|unpaid\\s+bill)\\b"
     )
 
     // 5. Payment requests / Mandate scheduling (Not completed executions)
@@ -57,24 +57,24 @@ class SmsParserEngine @Inject constructor() {
         "(?i)(balance as of|statement available|e-statement|login detected|password changed|account blocked|card blocked|kyc update|update your kyc)"
     )
 
-    // Specific Debit patterns: completed past-tense action
+    // Debit patterns: past-tense or completed execution verbs across UPI, Bank, Cards, ATM
     private val debitKeywords = Pattern.compile(
-        "(?i)\\b(debited|spent|paid|withdrawn|charged|sent\\s+to|deducted|transfer\\s+to|transferred\\s+to|auto-debited|auto\\s+debit|autopay|dr\\.?\\s+with|dr\\.?\\s+of|dr\\b)\\b"
+        "(?i)\\b(debited|debit|spent|paid|withdrawn|charged|sent|deducted|transfer|transferred|purchase|purchased|txn|payment|auto-debited|auto\\s+debit|autopay|card\\s+used|used\\s+for|used\\s+at|dr\\.?\\s+with|dr\\.?\\s+of|dr\\b)\\b"
     )
 
-    // Specific Credit patterns: completed past-tense action
+    // Credit patterns: past-tense or completed inward transfer verbs
     private val creditKeywords = Pattern.compile(
-        "(?i)\\b(credited|deposited|refunded|received\\s+from|added\\s+to\\s+(?:your\\s+)?(?:account|a/c|wallet)|salary\\s+credited|cr\\.?\\s+with|cr\\.?\\s+of|cr\\b)\\b"
+        "(?i)\\b(credited|credit|deposited|refunded|received|added|salary|cashback|inward|cr\\.?\\s+with|cr\\.?\\s+of|cr\\b)\\b"
     )
 
     // Amount patterns ($12.50, USD 42.00, Rs. 500, INR 1,200.50, ₹500, 500/-, etc.)
     private val amountPattern = Pattern.compile(
-        "(?i)(?:([$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?))|([0-9,]+(?:\\.[0-9]{1,2})?)\\s*(USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?|/-)|(?:(?:debited|credited|paid|sent|spent)\\s+(?:by|for|with|of)?\\s*(?:([$€£₹]|Rs\\.?|INR\\.?)\\s*)?([0-9,]+(?:\\.[0-9]{1,2})?))"
+        "(?i)(?:([$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?))|([0-9,]+(?:\\.[0-9]{1,2})?)\\s*(USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?|/-)|(?:(?:debited|credited|paid|sent|spent|transfer|txn)\\s+(?:by|for|with|of)?\\s*(?:([$€£₹]|Rs\\.?|INR\\.?)\\s*)?([0-9,]+(?:\\.[0-9]{1,2})?))"
     )
 
-    // Merchant extraction following prepositions
+    // Merchant extraction following prepositions (at Starbucks, to Whole Foods, for Uber, from Amazon, towards Swiggy, to VPA)
     private val merchantPrepositionPattern = Pattern.compile(
-        "(?i)\\b(?:at|in|vpa|from|towards|(?:for(?!\\s*(?:[$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?|\\d)))|(?:to(?!\\s*(?:acct|a/c|account|card|\\*\\*|xx|\\d))))\\s+([A-Za-z0-9\\s\\.\\&\\*\\-]{2,30}?)(?:\\s+(?:on|using|via|ref|rrn|utr|bal|avbl|acct|ending|card)\\b|[.,;]|$)"
+        "(?i)\\b(?:at|in|vpa|from|towards|(?:for(?!\\s*(?:[$€£₹]|USD|EUR|GBP|INR|CAD|AUD|Rs\\.?|INR\\.?|\\d)))|(?:to(?!\\s*(?:acct|a/c|account|card|\\*\\*|xx|\\d))))\\s+([A-Za-z0-9\\s\\.\\&\\*\\-@]{2,35}?)(?:\\s+(?:on|using|via|ref|rrn|utr|bal|avbl|acct|ending|card|upi)\\b|[.,;]|$)"
     )
 
     // Account last 4 digits (ending 1234, acct XX1234, card **1234, A/c ...4321, etc.)
@@ -84,12 +84,12 @@ class SmsParserEngine @Inject constructor() {
 
     // Transaction reference ID / UTR / UPI Ref / RRN
     private val referencePattern = Pattern.compile(
-        "(?i)(?:ref|rrn|utr|txn|upi\\s*ref)[\\s:#]*([A-Za-z0-9]{6,25})"
+        "(?i)(?:ref|rrn|utr|txn|upi\\s*ref|invoice|order\\s*id)[\\s:#]*([A-Za-z0-9]{6,25})"
     )
 
-    // Banking entity identifier
+    // Comprehensive Banking & Payment Gateways (India + Global + UPI + Wallets + Cards)
     private val bankingEntityPattern = Pattern.compile(
-        "(?i)\\b(bank|hdfc|sbi|icici|axis|kotak|idfc|paytm|gpay|phonepe|cred|amex|citi|pnb|boi|canara|yes\\s*bank|indusind|chase|wellsfargo|bofa|barclays|paypal|vpa|wallet|upi)\\b"
+        "(?i)\\b(bank|hdfc|sbi|icici|axis|kotak|idfc|pnb|boi|bob|canara|union\\s*bank|yes\\s*bank|indusind|federal\\s*bank|rbl|central\\s*bank|indian\\s*bank|idbi|uco\\s*bank|south\\s*indian\\s*bank|karur\\s*vysya|bandhan|au\\s*small\\s*finance|dbs|standard\\s*chartered|hsbc|citi|amex|upi|vpa|phonepe|gpay|google\\s*pay|paytm|cred|bhim|amazon\\s*pay|slice|uni|onecard|jupiter|fi\\s*money|navi|supermoney|mobikwik|freecharge|chase|wellsfargo|bofa|barclays|monzo|revolut|paypal|venmo|cashapp|apple\\s*pay|zelle|capital\\s*one|discover|stripe|wallet|card|atm)\\b"
     )
 
     fun isPersonalPhoneNumber(sender: String?): Boolean {
@@ -103,14 +103,20 @@ class SmsParserEngine @Inject constructor() {
         if (body.isBlank()) return false
         if (otpPattern.matcher(body).find()) return false
 
-        // 1. Reject if sender is a personal mobile number
-        if (isPersonalPhoneNumber(sender)) return false
+        // 1. Definite Marketing Filters (excluding executed payments/EMIs)
+        val hasCompletedPaymentVerb = body.containsAny("debited", "spent", "paid", "withdrawn", "credited", "deposited", "transferred", "auto-debited")
+        
+        // Loan marketing filter: only drop if it's NOT an executed EMI or loan debit
+        if (loanMarketingPattern.matcher(body).find() && !hasCompletedPaymentVerb) return false
 
-        // 2. Reject definitive non-transactional marketing / notices
-        if (loanMarketingPattern.matcher(body).find()) return false
-        if (billDuePattern.matcher(body).find()) return false
-        if (paymentRequestPattern.matcher(body).find()) return false
-        if (telecomPattern.matcher(body).find()) return false
+        // Bill due filter: only drop if it is NOT an executed payment
+        if (billDuePattern.matcher(body).find() && !hasCompletedPaymentVerb) return false
+
+        // Unexecuted collect requests / mandate registrations
+        if (paymentRequestPattern.matcher(body).find() && !hasCompletedPaymentVerb) return false
+
+        // Telecom recharge promos
+        if (telecomPattern.matcher(body).find() && !hasCompletedPaymentVerb) return false
 
         val hasAmount = amountPattern.matcher(body).find()
         val hasDebit = debitKeywords.matcher(body).find()
@@ -119,23 +125,28 @@ class SmsParserEngine @Inject constructor() {
 
         if (!hasAmount || !hasType) return false
 
-        // 3. Balance checks without genuine debit/credit verbs are dropped
+        // Balance checks without genuine debit/credit verbs are dropped
         if (balanceCheckPattern.matcher(body).find() && !hasDebit && !hasCredit) return false
 
-        // 4. Financial Anchor Verification:
-        // A genuine transaction must possess an account mask, a transaction reference ID,
-        // or a known banking sender entity.
+        // 2. Financial Anchor Verification:
         val hasAccount = accountLast4Pattern.matcher(body).find()
         val hasRef = referencePattern.matcher(body).find()
         val hasBankEntity = bankingEntityPattern.matcher(body).find() ||
             (sender != null && bankingEntityPattern.matcher(sender).find())
+        val hasUpiHandle = body.contains(Regex("(?i)[a-zA-Z0-9\\.\\-_]+@(okhdfcbank|okaxis|okicici|oksbi|paytm|ybl|ibl|axl|apl|upi)"))
 
-        val hasAnchor = hasAccount || hasRef || hasBankEntity
+        val hasAnchor = hasAccount || hasRef || hasBankEntity || hasUpiHandle
 
-        // If message has promotional keywords, it MUST have strong anchors (account or ref)
+        // If sender is a personal mobile number, require at least one strong anchor (A/C, Ref, or Bank/UPI)
+        // to avoid conversational messages like "I sent you 500 yesterday"
+        if (isPersonalPhoneNumber(sender) && !hasAccount && !hasRef && !hasUpiHandle) {
+            return false
+        }
+
+        // If message has promotional keywords, it MUST have strong anchors (account or ref or bank entity)
         // to be recognized as a genuine bank transaction with a promo footer.
         if (promoPattern.matcher(body).find()) {
-            if (!hasAccount && !hasRef) return false
+            if (!hasAccount && !hasRef && !hasUpiHandle) return false
         }
 
         return hasAnchor
@@ -236,9 +247,19 @@ class SmsParserEngine @Inject constructor() {
     private fun cleanMerchantName(raw: String): String {
         // Strip trailing punctuation and common boilerplate
         var cleaned = raw.replace(Regex("[.,;:#\\*]+$"), "").trim()
+        
+        // Handle VPA handles cleanly: e.g. swiggy@icici -> Swiggy, zomato@hdfcbank -> Zomato
+        if (cleaned.contains("@")) {
+            val prefix = cleaned.substringBefore("@").trim()
+            if (prefix.length in 2..20 && !prefix.matches(Regex("^\\d+$"))) {
+                cleaned = prefix
+            }
+        }
+
         if (cleaned.isBlank() || cleaned.equals("Unknown Merchant", ignoreCase = true)) {
             return "General Purchase"
         }
+
         // If ALL-CAPS, convert to Title Case (e.g. STARBUCKS -> Starbucks)
         if (cleaned.all { it.isUpperCase() || !it.isLetter() }) {
             cleaned = cleaned.lowercase().split(" ").joinToString(" ") { word ->
@@ -247,4 +268,7 @@ class SmsParserEngine @Inject constructor() {
         }
         return cleaned
     }
+
+    private fun String.containsAny(vararg keywords: String): Boolean =
+        keywords.any { this.contains(it, ignoreCase = true) }
 }
