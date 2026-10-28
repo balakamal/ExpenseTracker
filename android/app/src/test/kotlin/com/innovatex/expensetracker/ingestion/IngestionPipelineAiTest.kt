@@ -67,7 +67,8 @@ class IngestionPipelineAiTest {
                 smsTrackingEnabled = true,
                 emailTrackingEnabled = true,
                 deduplicationWindowMinutes = 10,
-                aiClassificationEnabled = true
+                aiClassificationEnabled = true,
+                aiSpamDetectionEnabled = true
             )
         )
         coEvery { mockPreferencesDataStore.isSpamSender(any()) } returns false
@@ -194,6 +195,35 @@ class IngestionPipelineAiTest {
         val inserted = (result as DeduplicationResult.Inserted).transaction
         assertEquals("food_dining", inserted.categoryId)
         assertNull(inserted.aiClassification)
+    }
+
+    @Test
+    fun `test pipeline does not drop AI spam when aiSpamDetectionEnabled is false (Local mode)`() = runTest {
+        every { mockPreferencesDataStore.appSettingsFlow } returns flowOf(
+            AppSettings(
+                smsTrackingEnabled = true,
+                emailTrackingEnabled = true,
+                deduplicationWindowMinutes = 10,
+                aiClassificationEnabled = true,
+                aiSpamDetectionEnabled = false
+            )
+        )
+        val sms = "Instant loan approved! Apply bit.ly"
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
+        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
+            authenticityLabel = AuthenticityLabel.SPAM_PROMO,
+            authenticityConfidence = 0.95f,
+            categoryId = null,
+            categoryConfidence = null
+        )
+        coEvery { mockDeduplicateUseCase(any(), any()) } answers {
+            val txn = firstArg<Transaction>()
+            DeduplicationResult.Inserted(txn)
+        }
+
+        val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
+        assertNotNull(result)
+        coVerify(exactly = 1) { mockDeduplicateUseCase(any(), any()) }
     }
 }
 

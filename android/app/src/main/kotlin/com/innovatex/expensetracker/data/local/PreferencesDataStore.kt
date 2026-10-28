@@ -27,7 +27,8 @@ data class AppSettings(
     val isHistoricalScanCompleted: Boolean = false,
     val deduplicationWindowMinutes: Int = 10,
     val autoCheckUpdates: Boolean = true,
-    val aiClassificationEnabled: Boolean = true
+    val aiClassificationEnabled: Boolean = true,
+    val aiSpamDetectionEnabled: Boolean = true
 )
 
 @Singleton
@@ -47,6 +48,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_SPAM_SENDERS = stringSetPreferencesKey("key_spam_senders")
         val KEY_TRUSTED_SENDERS = stringSetPreferencesKey("key_trusted_senders")
         val KEY_AI_CLASSIFICATION_ENABLED = booleanPreferencesKey("key_ai_classification_enabled")
+        val KEY_AI_SPAM_DETECTION_ENABLED = booleanPreferencesKey("key_ai_spam_detection_enabled")
     }
 
     val spamSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
@@ -120,7 +122,8 @@ class PreferencesDataStore @Inject constructor(
             isHistoricalScanCompleted = preferences[KEY_HISTORICAL_SCAN_DONE] ?: false,
             deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10,
             autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true,
-            aiClassificationEnabled = preferences[KEY_AI_CLASSIFICATION_ENABLED] ?: true
+            aiClassificationEnabled = preferences[KEY_AI_CLASSIFICATION_ENABLED] ?: true,
+            aiSpamDetectionEnabled = preferences[KEY_AI_SPAM_DETECTION_ENABLED] ?: true
         )
     }
 
@@ -154,5 +157,9 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setAiClassificationEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_AI_CLASSIFICATION_ENABLED] = enabled }
+    }
+
+    suspend fun setAiSpamDetectionEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_AI_SPAM_DETECTION_ENABLED] = enabled }
     }
 }

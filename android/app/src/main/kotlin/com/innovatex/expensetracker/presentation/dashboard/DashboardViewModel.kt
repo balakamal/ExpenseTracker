@@ -476,6 +476,13 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun toggleAiSpamDetection(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataStore.setAiSpamDetectionEnabled(enabled)
+            refreshSuspectedSpam()
+        }
+    }
+
     fun toggleAiClassification(enabled: Boolean) {
         viewModelScope.launch {
             preferencesDataStore.setAiClassificationEnabled(enabled)

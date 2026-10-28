@@ -682,6 +682,7 @@ fun MonthlyDashboardScreen(
             onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
             onDeleteAiModel = { viewModel.deleteAiModel() },
             onToggleAiClassification = { viewModel.toggleAiClassification(it) },
+            onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
             onOpenReviewSpam = {
                 showSettingsSheet = false

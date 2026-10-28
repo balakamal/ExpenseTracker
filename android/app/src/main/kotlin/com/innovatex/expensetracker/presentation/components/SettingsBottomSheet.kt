@@ -3,6 +3,7 @@ package com.innovatex.expensetracker.presentation.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,7 @@ fun SettingsBottomSheet(
     onCancelDownloadAiModel: () -> Unit = {},
     onDeleteAiModel: () -> Unit = {},
     onToggleAiClassification: (Boolean) -> Unit = {},
+    onToggleAiSpamDetection: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -210,6 +212,115 @@ fun SettingsBottomSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Spam Detection Mode: Local vs AI
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ApexThemeTokens.RadiusMd)
+                        .background(ApexThemeTokens.BgSurfaceElevated)
+                        .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                        .padding(14.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(if (settings.aiSpamDetectionEnabled && isAiModelReady) ApexThemeTokens.AccentCobaltTint else ApexThemeTokens.AccentSecondaryTint),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = if (settings.aiSpamDetectionEnabled && isAiModelReady) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Spam Detection Mode",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (settings.aiSpamDetectionEnabled && isAiModelReady) "AI Neural Model" else "Local Rules (Regex)",
+                                        color = if (settings.aiSpamDetectionEnabled && isAiModelReady) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextTertiary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            // Toggle Pills: [ Local ] [ AI ]
+                            Row(
+                                modifier = Modifier
+                                    .clip(ApexThemeTokens.RadiusFull)
+                                    .background(ApexThemeTokens.BgGlassPill)
+                                    .border(1.dp, ApexThemeTokens.StrokeHighlight, ApexThemeTokens.RadiusFull)
+                                    .padding(2.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(if (!settings.aiSpamDetectionEnabled || !isAiModelReady) ApexThemeTokens.AccentSecondary else Color.Transparent)
+                                        .clickable { onToggleAiSpamDetection(false) }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        text = "Local",
+                                        color = if (!settings.aiSpamDetectionEnabled || !isAiModelReady) Color.Black else ApexThemeTokens.TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(if (settings.aiSpamDetectionEnabled && isAiModelReady) ApexThemeTokens.AccentCobalt else Color.Transparent)
+                                        .clickable {
+                                            if (isAiModelReady) {
+                                                onToggleAiSpamDetection(true)
+                                            } else {
+                                                onDownloadAiModel()
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        text = "AI Model",
+                                        color = if (settings.aiSpamDetectionEnabled && isAiModelReady) Color.White else ApexThemeTokens.TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (settings.aiSpamDetectionEnabled && isAiModelReady)
+                                "On-device BERT model evaluates context to drop promotional offers, lottery spam, and unpaid reminders."
+                            else if (!isAiModelReady)
+                                "Local regex & keyword filters active. Tap 'AI Model' to download model for neural spam detection."
+                            else
+                                "Deterministic local keyword heuristics & regex filters active. Zero machine learning used for spam decisions.",
+                            color = ApexThemeTokens.TextTertiary,
+                            fontSize = 10.5.sp,
+                            lineHeight = 14.5.sp
+                        )
+                    }
+                }
+
                 // 1. Review Suspected Spam
                 Box(
                     modifier = Modifier
@@ -573,7 +684,7 @@ fun SettingsBottomSheet(
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = "Augments regex parser with contextual machine learning",
+                                    text = "Categorizes expenses and infers credit/debit using BERT",
                                     color = ApexThemeTokens.TextTertiary,
                                     fontSize = 11.sp
                                 )
@@ -582,6 +693,38 @@ fun SettingsBottomSheet(
                             Switch(
                                 checked = settings.aiClassificationEnabled,
                                 onCheckedChange = onToggleAiClassification,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "AI Spam & Reminder Filter",
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Automatically drops promotional and unpaid reminder alerts",
+                                    color = ApexThemeTokens.TextTertiary,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Switch(
+                                checked = settings.aiSpamDetectionEnabled,
+                                onCheckedChange = onToggleAiSpamDetection,
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = ApexThemeTokens.BgCanvas,
                                     checkedTrackColor = ApexThemeTokens.AccentCobalt,

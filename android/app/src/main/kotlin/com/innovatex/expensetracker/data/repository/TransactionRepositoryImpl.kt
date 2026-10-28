@@ -4,6 +4,7 @@ import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.di.IoDispatcher
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
@@ -192,6 +193,7 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getSuspectedSpamItems(): List<SuspectedSpamItem> = withContext(ioDispatcher) {
+        val settings = preferencesDataStore.appSettingsFlow.first()
         val allEntities = transactionDao.getAllTransactions()
         val trustedSenders = preferencesDataStore.trustedSendersFlow.first()
         val spamSenders = preferencesDataStore.spamSendersFlow.first()
@@ -212,7 +214,14 @@ class TransactionRepositoryImpl @Inject constructor(
             val snippet = entity.rawSnippet?.lowercase() ?: ""
             val merchant = entity.merchantClean.lowercase()
 
+            val aiAuth = if (settings.aiSpamDetectionEnabled) domain.aiClassification?.authenticityLabel else null
+            val aiConf = if (settings.aiSpamDetectionEnabled) domain.aiClassification?.authenticityConfidence ?: 0f else 0f
+
             val reason = when {
+                aiAuth == AuthenticityLabel.SPAM_PROMO && aiConf >= 0.70f ->
+                    "AI Detected Promotion (${(aiConf * 100).toInt()}% conf)"
+                aiAuth == AuthenticityLabel.PAYMENT_REMINDER && aiConf >= 0.70f ->
+                    "AI Detected Payment Reminder (${(aiConf * 100).toInt()}% conf)"
                 snippet.containsAny("loan", "pre-approved", "pre approved", "eligible for a loan", "instant cash") ||
                     merchant.containsAny("loan", "pre-approved") -> "Pre-approved loan promotion"
                 snippet.containsAny("rummy", "win cash", "jackpot", "lottery", "bonus points") ||

@@ -50,17 +50,17 @@ class IngestionPipeline @Inject constructor(
             null
         }
 
-        // Step 3: Handle Authenticity
-        if (aiResult != null) {
+        // Step 3: Handle Authenticity (AI-based vs Local-based spam filtering)
+        if (settings.aiSpamDetectionEnabled && aiResult != null) {
             if (aiResult.authenticityLabel == AuthenticityLabel.SPAM_PROMO &&
                 aiResult.authenticityConfidence >= AI_SPAM_DROP_THRESHOLD
             ) {
-                return null // High confidence promotional/spam alert dropped
+                return null // High confidence promotional/spam alert dropped by AI
             }
             if (aiResult.authenticityLabel == AuthenticityLabel.PAYMENT_REMINDER &&
                 aiResult.authenticityConfidence >= AI_REMINDER_DROP_THRESHOLD
             ) {
-                return null // Prospective payment reminder dropped
+                return null // Prospective payment reminder dropped by AI
             }
         }
 

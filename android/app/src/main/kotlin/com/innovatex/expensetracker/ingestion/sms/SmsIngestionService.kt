@@ -12,6 +12,7 @@ import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.domain.usecase.DeduplicateTransactionUseCase
 import com.innovatex.expensetracker.domain.usecase.ParseTransactionUseCase
 import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
+import com.innovatex.expensetracker.ingestion.IngestionPipeline
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,9 @@ import javax.inject.Singleton
 
 @AndroidEntryPoint
 class SmsBroadcastReceiver : BroadcastReceiver() {
+
+    @Inject
+    lateinit var ingestionPipeline: IngestionPipeline
 
     @Inject
     lateinit var parseTransactionUseCase: ParseTransactionUseCase
@@ -55,7 +59,13 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             try {
                 val settings = preferencesDataStore.appSettingsFlow.first()
                 if (settings.smsTrackingEnabled) {
-                    if (preferencesDataStore.isSpamSender(sender)) {
+                    ingestionPipeline.processIncomingMessage(
+                        body = fullBody,
+                        timestamp = timestamp,
+                        source = SourceChannel.SMS,
+                        sender = sender
+                    )
+                    return@launch
                         return@launch
                     }
                     val parsedTxn = parseTransactionUseCase.parse(
@@ -114,7 +124,13 @@ class HistoricalSmsScanner @Inject constructor(
                             val body = cursor.getString(bodyIndex) ?: continue
                             val date = cursor.getLong(dateIndex)
                             val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
-                            if (preferencesDataStore.isSpamSender(sender)) {
+                            ingestionPipeline.processIncomingMessage(
+                        body = fullBody,
+                        timestamp = timestamp,
+                        source = SourceChannel.SMS,
+                        sender = sender
+                    )
+                    return@launch
                                 continue
                             }
 
