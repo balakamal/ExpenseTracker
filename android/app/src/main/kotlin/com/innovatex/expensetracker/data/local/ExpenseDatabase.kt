@@ -3,6 +3,7 @@ package com.innovatex.expensetracker.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.innovatex.expensetracker.data.local.dao.CategoryDao
 import com.innovatex.expensetracker.data.local.dao.MerchantRuleDao
@@ -18,7 +19,7 @@ import com.innovatex.expensetracker.data.local.entity.TransactionEntity
         CategoryEntity::class,
         MerchantRuleEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -29,6 +30,12 @@ abstract class ExpenseDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "expense_tracker.db"
+
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN ai_classification_json TEXT DEFAULT NULL")
+            }
+        }
 
         val PREPOPULATED_CATEGORIES = listOf(
             CategoryEntity("food_dining", "Food & Dining", "utensils", "#F59E0B", isSystemDefault = true, sortOrder = 1),

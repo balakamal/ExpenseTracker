@@ -6,6 +6,8 @@ import com.innovatex.expensetracker.domain.model.TransactionType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import io.mockk.mockk
+import io.mockk.verify
 
 class RoomMigrationTest {
 
@@ -44,5 +46,14 @@ class RoomMigrationTest {
         assertTrue(categories.any { it.id == "food_dining" })
         assertTrue(categories.any { it.id == "groceries" })
         assertTrue(categories.any { it.id == "income" })
+    }
+
+    @Test
+    fun `test migration 1 to 2 executes alter table for ai_classification_json`() {
+        val mockDb = mockk<androidx.sqlite.db.SupportSQLiteDatabase>(relaxed = true)
+        ExpenseDatabase.MIGRATION_1_2.migrate(mockDb)
+        verify {
+            mockDb.execSQL("ALTER TABLE transactions ADD COLUMN ai_classification_json TEXT DEFAULT NULL")
+        }
     }
 }

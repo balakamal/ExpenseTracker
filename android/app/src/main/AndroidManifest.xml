@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- SMS permissions for local financial alert parsing -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -8,7 +9,7 @@
     <!-- Notification permission for Android 13+ (budget alerts & live updates) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Internet permission for GitHub App update release checking (zero telemetry) -->
+    <!-- Internet permission for GitHub App update release checking & user-initiated AI model download (zero telemetry) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Storage Access Framework handles exports without external storage permissions -->
@@ -21,6 +22,18 @@
         android:roundIcon="@mipmap/ic_launcher_expense_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ApexExpenseTracker">
+
+        <!-- Disable default WorkManagerInitializer so ExpenseApplication can provide HiltWorkerFactory -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <!-- Main Activity -->
         <activity

@@ -109,6 +109,8 @@ fun MonthlyDashboardScreen(
     val suspectedSpamItems by viewModel.suspectedSpamItems.collectAsState()
     val spamSenders by viewModel.spamSenders.collectAsState()
     val trustedSenders by viewModel.trustedSenders.collectAsState()
+    val isAiModelReady by viewModel.isAiModelReady.collectAsState()
+    val aiModelSizeBytes by viewModel.aiModelSizeBytes.collectAsState()
     val context = LocalContext.current
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -668,6 +670,11 @@ fun MonthlyDashboardScreen(
             suspectedSpamCount = suspectedSpamItems.size,
             blockedSendersCount = spamSenders.size,
             trustedSendersCount = trustedSenders.size,
+            isAiModelReady = isAiModelReady,
+            aiModelSizeBytes = aiModelSizeBytes,
+            onDownloadAiModel = { viewModel.downloadAiModel(context) },
+            onDeleteAiModel = { viewModel.deleteAiModel() },
+            onToggleAiClassification = { viewModel.toggleAiClassification(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
             onOpenReviewSpam = {
                 showSettingsSheet = false

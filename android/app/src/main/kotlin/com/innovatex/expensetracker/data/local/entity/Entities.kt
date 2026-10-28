@@ -6,6 +6,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import com.innovatex.expensetracker.domain.model.AiClassificationResult
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MerchantRule
 import com.innovatex.expensetracker.domain.model.SourceChannel
@@ -129,6 +131,9 @@ data class TransactionEntity(
     @ColumnInfo(name = "notes")
     val notes: String? = null,
 
+    @ColumnInfo(name = "ai_classification_json")
+    val aiClassificationJson: String? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 ) {
@@ -148,6 +153,7 @@ data class TransactionEntity(
         accountLast4 = accountLast4,
         rawSnippet = rawSnippet,
         notes = notes,
+        aiClassification = parseAiClassificationJson(aiClassificationJson),
         createdAt = createdAt
     )
 
@@ -168,8 +174,25 @@ data class TransactionEntity(
             accountLast4 = domain.accountLast4,
             rawSnippet = domain.rawSnippet,
             notes = domain.notes,
+            aiClassificationJson = domain.aiClassification?.toJson(),
             createdAt = domain.createdAt
         )
+
+        private fun parseAiClassificationJson(raw: String?): AiClassificationResult? {
+            val parts = raw?.split('|') ?: return null
+            if (parts.size < 5) return null
+            return AiClassificationResult(
+                authenticityLabel = runCatching { AuthenticityLabel.valueOf(parts[0]) }.getOrDefault(AuthenticityLabel.REAL_TRANSACTION),
+                authenticityConfidence = parts[1].toFloatOrNull() ?: 0f,
+                categoryId = parts[2].ifBlank { null },
+                categoryConfidence = parts[3].toFloatOrNull(),
+                impliedTransactionType = parts[4].ifBlank { null }?.let { runCatching { TransactionType.valueOf(it) }.getOrNull() },
+                ranByAi = true
+            )
+        }
+
+        private fun AiClassificationResult.toJson(): String =
+            "${authenticityLabel.name}|$authenticityConfidence|${categoryId ?: ""}|$categoryConfidence|${impliedTransactionType?.name ?: ""}"
     }
 }
 

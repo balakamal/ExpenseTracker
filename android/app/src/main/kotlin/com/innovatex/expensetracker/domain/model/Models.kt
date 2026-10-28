@@ -137,6 +137,7 @@ data class Transaction(
     val accountLast4: String? = null,
     val rawSnippet: String? = null,
     val notes: String? = null,
+    val aiClassification: AiClassificationResult? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val paymentMedium: PaymentMedium

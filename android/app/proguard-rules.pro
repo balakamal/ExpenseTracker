@@ -21,3 +21,12 @@
 # Android BroadcastReceivers and NotificationListenerService
 -keep class com.innovatex.expensetracker.ingestion.sms.SmsBroadcastReceiver { *; }
 -keep class com.innovatex.expensetracker.ingestion.notification.EmailNotificationListenerService { *; }
+
+# ONNX Runtime Android (Local AI)
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+
+# WorkManager & Hilt Worker
+-keep class * extends androidx.work.Worker
+-keep class * extends androidx.work.ListenableWorker
+-keep class * extends androidx.hilt.work.HiltWorkerFactory

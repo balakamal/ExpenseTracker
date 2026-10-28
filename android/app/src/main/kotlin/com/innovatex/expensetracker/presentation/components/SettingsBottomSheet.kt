@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
@@ -33,6 +35,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +61,11 @@ fun SettingsBottomSheet(
     onCleanSpam: () -> Unit = {},
     onOpenReviewSpam: () -> Unit = {},
     onOpenManageSenders: () -> Unit = {},
+    isAiModelReady: Boolean = false,
+    aiModelSizeBytes: Long = 0L,
+    onDownloadAiModel: () -> Unit = {},
+    onDeleteAiModel: () -> Unit = {},
+    onToggleAiClassification: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -67,6 +75,13 @@ fun SettingsBottomSheet(
     onOpenNotificationSettings: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val formattedModelSize = remember(aiModelSizeBytes) {
+        if (aiModelSizeBytes > 0) {
+            "%.1f MB".format(aiModelSizeBytes / (1024.0 * 1024.0))
+        } else {
+            "4.8 MB"
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -334,6 +349,154 @@ fun SettingsBottomSheet(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // On-Device AI Engine Section
+            Text(
+                text = "ON-DEVICE AI ENGINE (OFFLINE & SANDBOXED)",
+                color = ApexThemeTokens.TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ApexThemeTokens.RadiusMd)
+                    .background(ApexThemeTokens.BgSurfaceElevated)
+                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "BERT-Tiny Engine",
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ApexThemeTokens.RadiusFull)
+                                        .background(
+                                            if (isAiModelReady) ApexThemeTokens.AccentPrimaryTint
+                                            else ApexThemeTokens.AccentSecondaryTint
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (isAiModelReady) "Ready ($formattedModelSize)" else "Not Downloaded",
+                                        color = if (isAiModelReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "100% offline inference in app sandbox. Classifies real vs. spam/reminder and expense categories.",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (!isAiModelReady) {
+                        Button(
+                            onClick = onDownloadAiModel,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ApexThemeTokens.AccentCobalt,
+                                contentColor = Color.White
+                            ),
+                            shape = ApexThemeTokens.RadiusSm,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Download AI Model (4.8 MB)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Enable AI Classification",
+                                    color = ApexThemeTokens.TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Augments regex parser with contextual machine learning",
+                                    color = ApexThemeTokens.TextTertiary,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Switch(
+                                checked = settings.aiClassificationEnabled,
+                                onCheckedChange = onToggleAiClassification,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = onDeleteAiModel,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = ApexThemeTokens.AccentDanger
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(ApexThemeTokens.AccentDangerBorder)
+                            ),
+                            shape = ApexThemeTokens.RadiusSm,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Delete Downloaded Model",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
 

@@ -6,12 +6,12 @@ import com.innovatex.expensetracker.data.local.ExpenseDatabase
 import com.innovatex.expensetracker.data.local.dao.CategoryDao
 import com.innovatex.expensetracker.data.local.dao.MerchantRuleDao
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
+import com.innovatex.expensetracker.data.remote.GithubReleaseChecker
 import com.innovatex.expensetracker.data.repository.CategoryRepositoryImpl
 import com.innovatex.expensetracker.data.repository.TransactionRepositoryImpl
+import com.innovatex.expensetracker.domain.repository.AppUpdateRepository
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
-import com.innovatex.expensetracker.data.remote.GithubReleaseChecker
-import com.innovatex.expensetracker.domain.repository.AppUpdateRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -44,6 +44,7 @@ object DatabaseModule {
         ExpenseDatabase::class.java,
         ExpenseDatabase.DATABASE_NAME
     )
+        .addMigrations(ExpenseDatabase.MIGRATION_1_2)
         .addCallback(ExpenseDatabase.createCallback())
         .build()
 

@@ -3,6 +3,8 @@ package com.innovatex.expensetracker.presentation.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.innovatex.expensetracker.ai.AiModelStore
+import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
@@ -37,8 +39,15 @@ class DashboardViewModel @Inject constructor(
     private val preferencesDataStore: PreferencesDataStore,
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
-    private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase
+    private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
+    private val aiModelStore: AiModelStore
 ) : ViewModel() {
+
+    private val _isAiModelReady = MutableStateFlow(aiModelStore.isModelReady())
+    val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
+
+    private val _aiModelSizeBytes = MutableStateFlow(aiModelStore.getModelSizeBytes())
+    val aiModelSizeBytes: StateFlow<Long> = _aiModelSizeBytes.asStateFlow()
 
     private val _selectedMonth = MutableStateFlow("ALL")
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
@@ -386,6 +395,29 @@ class DashboardViewModel @Inject constructor(
             preferencesDataStore.markSenderAsTrusted(sender)
             _cleanSpamStatus.value = "Added $sender to trusted senders."
             refreshSuspectedSpam()
+        }
+    }
+
+    fun refreshAiModelState() {
+        _isAiModelReady.value = aiModelStore.isModelReady()
+        _aiModelSizeBytes.value = aiModelStore.getModelSizeBytes()
+    }
+
+    fun downloadAiModel(context: Context) {
+        ModelDownloadWorker.enqueue(context)
+    }
+
+    fun deleteAiModel() {
+        aiModelStore.deleteModel()
+        refreshAiModelState()
+        viewModelScope.launch {
+            preferencesDataStore.setAiClassificationEnabled(false)
+        }
+    }
+
+    fun toggleAiClassification(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataStore.setAiClassificationEnabled(enabled)
         }
     }
 

@@ -26,7 +26,8 @@ data class AppSettings(
     val defaultMonthlyBudget: Double = 25000.0,
     val isHistoricalScanCompleted: Boolean = false,
     val deduplicationWindowMinutes: Int = 10,
-    val autoCheckUpdates: Boolean = true
+    val autoCheckUpdates: Boolean = true,
+    val aiClassificationEnabled: Boolean = true
 )
 
 @Singleton
@@ -45,6 +46,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("key_auto_check_updates")
         val KEY_SPAM_SENDERS = stringSetPreferencesKey("key_spam_senders")
         val KEY_TRUSTED_SENDERS = stringSetPreferencesKey("key_trusted_senders")
+        val KEY_AI_CLASSIFICATION_ENABLED = booleanPreferencesKey("key_ai_classification_enabled")
     }
 
     val spamSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
@@ -68,14 +70,6 @@ class PreferencesDataStore @Inject constructor(
         }
     }
 
-    suspend fun removeSenderFromSpam(sender: String) {
-        val normalized = sender.trim().uppercase()
-        dataStore.edit { preferences ->
-            val current = preferences[KEY_SPAM_SENDERS] ?: emptySet()
-            preferences[KEY_SPAM_SENDERS] = current - normalized
-        }
-    }
-
     suspend fun markSenderAsTrusted(sender: String) {
         val normalized = sender.trim().uppercase()
         if (normalized.isBlank()) return
@@ -89,13 +83,19 @@ class PreferencesDataStore @Inject constructor(
         }
     }
 
-    suspend fun removeSenderFromTrusted(sender: String) {
+    suspend fun removeSenderFromSpamAndTrusted(sender: String) {
         val normalized = sender.trim().uppercase()
+        if (normalized.isBlank()) return
         dataStore.edit { preferences ->
-            val current = preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
-            preferences[KEY_TRUSTED_SENDERS] = current - normalized
+            val currentSpam = preferences[KEY_SPAM_SENDERS] ?: emptySet()
+            preferences[KEY_SPAM_SENDERS] = currentSpam - normalized
+            val currentTrusted = preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
+            preferences[KEY_TRUSTED_SENDERS] = currentTrusted - normalized
         }
     }
+
+    suspend fun removeSenderFromSpam(sender: String) = removeSenderFromSpamAndTrusted(sender)
+    suspend fun removeSenderFromTrusted(sender: String) = removeSenderFromSpamAndTrusted(sender)
 
     suspend fun isSpamSender(sender: String?): Boolean {
         if (sender.isNullOrBlank()) return false
@@ -119,7 +119,8 @@ class PreferencesDataStore @Inject constructor(
             defaultMonthlyBudget = preferences[KEY_DEFAULT_BUDGET] ?: 25000.0,
             isHistoricalScanCompleted = preferences[KEY_HISTORICAL_SCAN_DONE] ?: false,
             deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10,
-            autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true
+            autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true,
+            aiClassificationEnabled = preferences[KEY_AI_CLASSIFICATION_ENABLED] ?: true
         )
     }
 
@@ -149,5 +150,9 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setAutoCheckUpdates(enabled: Boolean) {
         dataStore.edit { it[KEY_AUTO_CHECK_UPDATES] = enabled }
+    }
+
+    suspend fun setAiClassificationEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_AI_CLASSIFICATION_ENABLED] = enabled }
     }
 }
