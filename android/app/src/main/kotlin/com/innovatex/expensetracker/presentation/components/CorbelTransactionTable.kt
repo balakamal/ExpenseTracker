@@ -523,8 +523,9 @@ fun CorbelTransactionTable(
                                 runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
                             } ?: if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentCobalt
 
-                            val amountStr = if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
-                            val amountColor = if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
+                            val isPromo = !txn.isValidTransaction
+                            val amountStr = if (isPromo) "₹${numberFormat.format(txn.amount)}" else if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
+                            val amountColor = if (isPromo) ApexThemeTokens.TextMuted else if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
