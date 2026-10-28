@@ -11,12 +11,11 @@ import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.domain.usecase.DeduplicateTransactionUseCase
 import com.innovatex.expensetracker.domain.usecase.ParseTransactionUseCase
-import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import com.innovatex.expensetracker.ingestion.IngestionPipeline
+import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -27,21 +26,6 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var ingestionPipeline: IngestionPipeline
-
-    @Inject
-    lateinit var parseTransactionUseCase: ParseTransactionUseCase
-
-    @Inject
-    lateinit var deduplicateTransactionUseCase: DeduplicateTransactionUseCase
-
-    @Inject
-    lateinit var transactionRepository: TransactionRepository
-
-    @Inject
-    lateinit var preferencesDataStore: PreferencesDataStore
-
-    @Inject
-    lateinit var widgetSyncManager: ExpenseWidgetSyncManager
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -57,28 +41,12 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val settings = preferencesDataStore.appSettingsFlow.first()
-                if (settings.smsTrackingEnabled) {
-                    ingestionPipeline.processIncomingMessage(
-                        body = fullBody,
-                        timestamp = timestamp,
-                        source = SourceChannel.SMS,
-                        sender = sender
-                    )
-                    return@launch
-                        return@launch
-                    }
-                    val parsedTxn = parseTransactionUseCase.parse(
-                        body = fullBody,
-                        timestamp = timestamp,
-                        source = SourceChannel.SMS,
-                        sender = sender
-                    )
-                    if (parsedTxn != null) {
-                        deduplicateTransactionUseCase(parsedTxn)
-                        widgetSyncManager.notifyDataChanged(context)
-                    }
-                }
+                ingestionPipeline.processIncomingMessage(
+                    body = fullBody,
+                    timestamp = timestamp,
+                    source = SourceChannel.SMS,
+                    sender = sender
+                )
             } catch (e: Exception) {
                 Log.e("SmsReceiver", "Error processing incoming SMS", e)
             } finally {
@@ -124,13 +92,7 @@ class HistoricalSmsScanner @Inject constructor(
                             val body = cursor.getString(bodyIndex) ?: continue
                             val date = cursor.getLong(dateIndex)
                             val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
-                            ingestionPipeline.processIncomingMessage(
-                        body = fullBody,
-                        timestamp = timestamp,
-                        source = SourceChannel.SMS,
-                        sender = sender
-                    )
-                    return@launch
+                            if (preferencesDataStore.isSpamSender(sender)) {
                                 continue
                             }
 
