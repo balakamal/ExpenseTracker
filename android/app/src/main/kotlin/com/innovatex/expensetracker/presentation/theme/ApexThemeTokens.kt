@@ -62,6 +62,7 @@ object ApexThemeTokens {
     val AccentDanger = Color(0xFFF2937C)
     val AccentDangerTint = Color(0x21F2937C)
     val AccentDangerBorder = Color(0x4DF2937C)
+    val AccentExpense = AccentDanger
 
     // Corbel Neutral Editorial Typography
     val TextPrimary = Color(0xFFE8EEF1)

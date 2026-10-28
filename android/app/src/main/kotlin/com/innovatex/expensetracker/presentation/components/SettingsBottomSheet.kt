@@ -611,13 +611,13 @@ fun SettingsBottomSheet(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(ApexThemeTokens.AccentExpense.copy(alpha = 0.12f), ApexThemeTokens.RadiusSm)
-                                            .border(1.dp, ApexThemeTokens.AccentExpense.copy(alpha = 0.3f), ApexThemeTokens.RadiusSm)
+                                            .background(ApexThemeTokens.AccentDanger.copy(alpha = 0.12f), ApexThemeTokens.RadiusSm)
+                                            .border(1.dp, ApexThemeTokens.AccentDanger.copy(alpha = 0.3f), ApexThemeTokens.RadiusSm)
                                             .padding(10.dp)
                                     ) {
                                         Text(
                                             text = "Download failed: ${downloadState.errorMessage}",
-                                            color = ApexThemeTokens.AccentExpense,
+                                            color = ApexThemeTokens.AccentDanger,
                                             fontSize = 11.sp
                                         )
                                     }
