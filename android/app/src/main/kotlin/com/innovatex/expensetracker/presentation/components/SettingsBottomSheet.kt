@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.domain.model.AppUpdateInfo
+import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
 import com.innovatex.expensetracker.presentation.dashboard.UpdateCheckState
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 
@@ -63,7 +64,9 @@ fun SettingsBottomSheet(
     onOpenManageSenders: () -> Unit = {},
     isAiModelReady: Boolean = false,
     aiModelSizeBytes: Long = 0L,
+    downloadState: ModelDownloadUiState = ModelDownloadUiState.Idle,
     onDownloadAiModel: () -> Unit = {},
+    onCancelDownloadAiModel: () -> Unit = {},
     onDeleteAiModel: () -> Unit = {},
     onToggleAiClassification: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
@@ -399,8 +402,12 @@ fun SettingsBottomSheet(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (isAiModelReady) "Ready ($formattedModelSize)" else "Not Downloaded",
-                                        color = if (isAiModelReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                                        text = if (isAiModelReady) "Ready ($formattedModelSize)"
+                                            else if (downloadState is ModelDownloadUiState.Downloading) "Downloading (${downloadState.progressPercent}%)"
+                                            else "Not Downloaded",
+                                        color = if (isAiModelReady) ApexThemeTokens.AccentPrimary
+                                            else if (downloadState is ModelDownloadUiState.Downloading) ApexThemeTokens.AccentCobalt
+                                            else ApexThemeTokens.AccentSecondary,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -419,26 +426,139 @@ fun SettingsBottomSheet(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     if (!isAiModelReady) {
-                        Button(
-                            onClick = onDownloadAiModel,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = ApexThemeTokens.AccentCobalt,
-                                contentColor = Color.White
-                            ),
-                            shape = ApexThemeTokens.RadiusSm,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Download AI Model (4.8 MB)",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        when (downloadState) {
+                            is ModelDownloadUiState.Downloading -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(ApexThemeTokens.BgGlassPill, ApexThemeTokens.RadiusSm)
+                                        .border(1.dp, ApexThemeTokens.StrokeHighlight, ApexThemeTokens.RadiusSm)
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = ApexThemeTokens.AccentCobalt
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = downloadState.statusText,
+                                                color = ApexThemeTokens.TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                        Text(
+                                            text = "${downloadState.progressPercent}%",
+                                            color = ApexThemeTokens.AccentCobalt,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { downloadState.progressPercent / 100f },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(ApexThemeTokens.RadiusFull),
+                                        color = ApexThemeTokens.AccentCobalt,
+                                        trackColor = ApexThemeTokens.StrokeHighlight
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    OutlinedButton(
+                                        onClick = onCancelDownloadAiModel,
+                                        shape = ApexThemeTokens.RadiusSm,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(32.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                    ) {
+                                        Text(
+                                            text = "Cancel Download",
+                                            fontSize = 11.sp,
+                                            color = ApexThemeTokens.TextSecondary
+                                        )
+                                    }
+                                }
+                            }
+                            is ModelDownloadUiState.Failed -> {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(ApexThemeTokens.AccentExpense.copy(alpha = 0.12f), ApexThemeTokens.RadiusSm)
+                                            .border(1.dp, ApexThemeTokens.AccentExpense.copy(alpha = 0.3f), ApexThemeTokens.RadiusSm)
+                                            .padding(10.dp)
+                                    ) {
+                                        Text(
+                                            text = "Download failed: ${downloadState.errorMessage}",
+                                            color = ApexThemeTokens.AccentExpense,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Button(
+                                        onClick = onDownloadAiModel,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = ApexThemeTokens.AccentCobalt,
+                                            contentColor = Color.White
+                                        ),
+                                        shape = ApexThemeTokens.RadiusSm,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Retry Download (4.8 MB)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {
+                                Button(
+                                    onClick = onDownloadAiModel,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = ApexThemeTokens.AccentCobalt,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = ApexThemeTokens.RadiusSm,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Download AI Model (4.8 MB)",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     } else {
                         Row(

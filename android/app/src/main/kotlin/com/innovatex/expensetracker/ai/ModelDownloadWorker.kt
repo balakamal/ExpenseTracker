@@ -1,7 +1,6 @@
 package com.innovatex.expensetracker.ai
 
 import android.content.Context
-import androidx.hilt.work.HiltWorker
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -12,8 +11,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -22,120 +19,177 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.TimeUnit
-import java.util.zip.ZipInputStream
 
-@HiltWorker
-class ModelDownloadWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
-    private val modelStore: AiModelStore,
-    private val preferencesDataStore: PreferencesDataStore
+class ModelDownloadWorker(
+    appContext: Context,
+    params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
+
+    private val modelStore = AiModelStore(appContext)
+    private val preferencesDataStore = PreferencesDataStore(appContext)
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         if (modelStore.isModelReady()) {
             preferencesDataStore.setAiClassificationEnabled(true)
-            return@withContext Result.success(workDataOf(KEY_PROGRESS to 100))
+            setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Model already downloaded"))
+            return@withContext Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Model ready"))
         }
 
         val targetDir = modelStore.ensureDirectoryExists()
-        val tempZipFile = File(targetDir, "model_bundle_temp.zip")
+        val tempModelFile = File(targetDir, "model_temp.onnx")
+        val tempVocabFile = File(targetDir, "vocab_temp.txt")
 
         try {
-            setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting..."))
+            // Step 1: Download INT8 Quantized Model (~4.5 MB)
+            setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to Hugging Face..."))
 
-            val url = URL(DEFAULT_MODEL_BUNDLE_URL)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000
-                readTimeout = 30000
-                instanceFollowRedirects = true
+            downloadFileWithRedirects(
+                urlString = MODEL_ONNX_URL,
+                destination = tempModelFile,
+                startPercent = 5,
+                endPercent = 85,
+                taskLabel = "Downloading AI model (4.5 MB)"
+            )
+
+            if (isStopped) {
+                tempModelFile.delete()
+                return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
             }
 
-            val responseCode = connection.responseCode
-            if (responseCode !in 200..299) {
-                return@withContext Result.retry()
+            // Step 2: Download Vocabulary (~220 KB)
+            setProgress(workDataOf(KEY_PROGRESS to 85, KEY_STATUS to "Downloading vocabulary (220 KB)..."))
+
+            downloadFileWithRedirects(
+                urlString = VOCAB_URL,
+                destination = tempVocabFile,
+                startPercent = 85,
+                endPercent = 95,
+                taskLabel = "Downloading vocabulary"
+            )
+
+            if (isStopped) {
+                tempModelFile.delete()
+                tempVocabFile.delete()
+                return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
             }
 
-            val contentLength = connection.contentLengthLong
+            setProgress(workDataOf(KEY_PROGRESS to 95, KEY_STATUS to "Verifying model files..."))
+
+            // Step 3: Atomic install
+            if (tempModelFile.exists() && tempModelFile.length() > 0 &&
+                tempVocabFile.exists() && tempVocabFile.length() > 0
+            ) {
+                // Delete existing destination files if any
+                if (modelStore.modelFile.exists()) modelStore.modelFile.delete()
+                if (modelStore.vocabFile.exists()) modelStore.vocabFile.delete()
+
+                val modelMoved = tempModelFile.renameTo(modelStore.modelFile)
+                val vocabMoved = tempVocabFile.renameTo(modelStore.vocabFile)
+
+                if (!modelMoved || !vocabMoved) {
+                    tempModelFile.delete()
+                    tempVocabFile.delete()
+                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Failed to install model files into app storage"))
+                }
+            } else {
+                tempModelFile.delete()
+                tempVocabFile.delete()
+                return@withContext Result.failure(workDataOf(KEY_STATUS to "Downloaded files were empty"))
+            }
+
+            if (modelStore.isModelReady()) {
+                preferencesDataStore.setAiClassificationEnabled(true)
+                setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Ready"))
+                Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Success"))
+            } else {
+                modelStore.deleteModel()
+                Result.failure(workDataOf(KEY_STATUS to "Model installation verification failed"))
+            }
+        } catch (e: Exception) {
+            tempModelFile.delete()
+            tempVocabFile.delete()
+            val errorMsg = e.localizedMessage ?: e.message ?: "Network error during download"
+            Result.failure(workDataOf(KEY_STATUS to errorMsg))
+        }
+    }
+
+    private suspend fun downloadFileWithRedirects(
+        urlString: String,
+        destination: File,
+        startPercent: Int,
+        endPercent: Int,
+        taskLabel: String
+    ) {
+        var currentUrl = urlString
+        var redirects = 0
+        val maxRedirects = 5
+        var connection: HttpURLConnection? = null
+
+        try {
+            while (redirects < maxRedirects) {
+                val url = URL(currentUrl)
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 20000
+                    readTimeout = 45000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "ExpenseTracker-Android/1.0")
+                }
+
+                val code = connection.responseCode
+                if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                    code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                    code == HttpURLConnection.HTTP_SEE_OTHER ||
+                    code == 307 || code == 308
+                ) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw java.io.IOException("Redirect with no Location header from $currentUrl")
+                    connection.disconnect()
+                    currentUrl = if (location.startsWith("http")) location else URL(url, location).toString()
+                    redirects++
+                } else if (code in 200..299) {
+                    break
+                } else {
+                    throw java.io.IOException("HTTP $code ${connection.responseMessage} for $currentUrl")
+                }
+            }
+
+            if (redirects >= maxRedirects) {
+                throw java.io.IOException("Too many redirects ($redirects) for $urlString")
+            }
+
+            val conn = connection ?: throw java.io.IOException("Failed to connect to $urlString")
+            val totalBytes = conn.contentLengthLong
             var downloadedBytes = 0L
 
-            BufferedInputStream(connection.inputStream).use { input ->
-                FileOutputStream(tempZipFile).use { output ->
+            BufferedInputStream(conn.inputStream).use { input ->
+                FileOutputStream(destination).use { output ->
                     val buffer = ByteArray(8192)
                     var count: Int
-                    var lastReportedPercent = 5
+                    var lastPercent = startPercent
 
                     while (input.read(buffer).also { count = it } != -1) {
                         if (isStopped) {
-                            tempZipFile.delete()
-                            return@withContext Result.failure()
+                            return
                         }
                         output.write(buffer, 0, count)
                         downloadedBytes += count
 
-                        if (contentLength > 0) {
-                            val percent = (5 + ((downloadedBytes * 85) / contentLength)).toInt()
-                            if (percent - lastReportedPercent >= 3) {
-                                lastReportedPercent = percent
+                        if (totalBytes > 0) {
+                            val range = endPercent - startPercent
+                            val percent = startPercent + ((downloadedBytes * range) / totalBytes).toInt()
+                            if (percent - lastPercent >= 3) {
+                                lastPercent = percent
                                 setProgress(workDataOf(
                                     KEY_PROGRESS to percent,
-                                    KEY_STATUS to "Downloading ($percent%)..."
+                                    KEY_STATUS to "$taskLabel ($percent%)..."
                                 ))
                             }
                         }
                     }
                 }
             }
-
-            setProgress(workDataOf(KEY_PROGRESS to 90, KEY_STATUS to "Extracting files..."))
-
-            // Extract ZIP contents
-            extractZip(tempZipFile, targetDir)
-            tempZipFile.delete()
-
-            if (modelStore.isModelReady()) {
-                preferencesDataStore.setAiClassificationEnabled(true)
-                setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Complete"))
-                Result.success(workDataOf(KEY_PROGRESS to 100))
-            } else {
-                modelStore.deleteModel()
-                Result.failure(workDataOf(KEY_STATUS to "Downloaded bundle missing model or vocab files"))
-            }
-        } catch (e: Exception) {
-            tempZipFile.delete()
-            if (runAttemptCount < 3) {
-                Result.retry()
-            } else {
-                Result.failure(workDataOf(KEY_STATUS to (e.message ?: "Download failed")))
-            }
-        }
-    }
-
-    private fun extractZip(zipFile: File, outputDir: File) {
-        ZipInputStream(BufferedInputStream(zipFile.inputStream())).use { zis ->
-            var entry = zis.nextEntry
-            while (entry != null) {
-                val outFile = File(outputDir, entry.name)
-                // Security check against Zip Slip path traversal
-                if (!outFile.canonicalPath.startsWith(outputDir.canonicalPath)) {
-                    throw SecurityException("Invalid zip entry: ${entry.name}")
-                }
-
-                if (entry.isDirectory) {
-                    outFile.mkdirs()
-                } else {
-                    outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { fos ->
-                        val buffer = ByteArray(8192)
-                        var len: Int
-                        while (zis.read(buffer).also { len = it } != -1) {
-                            fos.write(buffer, 0, len)
-                        }
-                    }
-                }
-                zis.closeEntry()
-                entry = zis.nextEntry
-            }
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -144,9 +198,11 @@ class ModelDownloadWorker @AssistedInject constructor(
         const val KEY_PROGRESS = "progress"
         const val KEY_STATUS = "status"
 
-        // Canonical public hosted release / Hugging Face model bundle
-        const val DEFAULT_MODEL_BUNDLE_URL =
-            "https://huggingface.co/innovatex-expense/expense-bert-tiny-multihead/resolve/main/model_bundle.zip"
+        // Canonical Hugging Face public repository for quantized BERT-Tiny ONNX
+        const val MODEL_ONNX_URL =
+            "https://huggingface.co/onnx-community/bert-tiny-ONNX/resolve/main/onnx/model_quantized.onnx"
+        const val VOCAB_URL =
+            "https://huggingface.co/onnx-community/bert-tiny-ONNX/resolve/main/vocab.txt"
 
         fun enqueue(context: Context) {
             val constraints = Constraints.Builder()
@@ -155,7 +211,7 @@ class ModelDownloadWorker @AssistedInject constructor(
 
             val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
                 .setConstraints(constraints)
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
                 .addTag(WORK_NAME)
                 .build()
 
@@ -171,4 +227,3 @@ class ModelDownloadWorker @AssistedInject constructor(
         }
     }
 }
-

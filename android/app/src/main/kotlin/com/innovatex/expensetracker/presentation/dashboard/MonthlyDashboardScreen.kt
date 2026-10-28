@@ -111,7 +111,12 @@ fun MonthlyDashboardScreen(
     val trustedSenders by viewModel.trustedSenders.collectAsState()
     val isAiModelReady by viewModel.isAiModelReady.collectAsState()
     val aiModelSizeBytes by viewModel.aiModelSizeBytes.collectAsState()
+    val modelDownloadState by viewModel.modelDownloadState.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.observeModelDownloadWork(context)
+    }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showSpamReviewSheet by remember { mutableStateOf(false) }
@@ -672,7 +677,9 @@ fun MonthlyDashboardScreen(
             trustedSendersCount = trustedSenders.size,
             isAiModelReady = isAiModelReady,
             aiModelSizeBytes = aiModelSizeBytes,
+            downloadState = modelDownloadState,
             onDownloadAiModel = { viewModel.downloadAiModel(context) },
+            onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
             onDeleteAiModel = { viewModel.deleteAiModel() },
             onToggleAiClassification = { viewModel.toggleAiClassification(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },

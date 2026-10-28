@@ -3,6 +3,9 @@ package com.innovatex.expensetracker.presentation.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import kotlinx.coroutines.Job
 import com.innovatex.expensetracker.ai.AiModelStore
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
@@ -48,6 +51,11 @@ class DashboardViewModel @Inject constructor(
 
     private val _aiModelSizeBytes = MutableStateFlow(aiModelStore.getModelSizeBytes())
     val aiModelSizeBytes: StateFlow<Long> = _aiModelSizeBytes.asStateFlow()
+
+    private val _modelDownloadState = MutableStateFlow<ModelDownloadUiState>(ModelDownloadUiState.Idle)
+    val modelDownloadState: StateFlow<ModelDownloadUiState> = _modelDownloadState.asStateFlow()
+
+    private var downloadJob: Job? = null
 
     private val _selectedMonth = MutableStateFlow("ALL")
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
@@ -405,6 +413,59 @@ class DashboardViewModel @Inject constructor(
 
     fun downloadAiModel(context: Context) {
         ModelDownloadWorker.enqueue(context)
+        observeModelDownloadWork(context)
+    }
+
+    fun cancelDownloadAiModel(context: Context) {
+        ModelDownloadWorker.cancel(context)
+        downloadJob?.cancel()
+        downloadJob = null
+        _modelDownloadState.value = ModelDownloadUiState.Idle
+    }
+
+    fun observeModelDownloadWork(context: Context) {
+        downloadJob?.cancel()
+        downloadJob = viewModelScope.launch {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkFlow(ModelDownloadWorker.WORK_NAME)
+                .collect { workInfos ->
+                    val workInfo = workInfos.firstOrNull() ?: return@collect
+                    when (workInfo.state) {
+                        WorkInfo.State.ENQUEUED -> {
+                            _modelDownloadState.value = ModelDownloadUiState.Downloading(
+                                progressPercent = 5,
+                                statusText = "Connecting..."
+                            )
+                        }
+                        WorkInfo.State.RUNNING -> {
+                            val progress = workInfo.progress.getInt(ModelDownloadWorker.KEY_PROGRESS, 10)
+                            val status = workInfo.progress.getString(ModelDownloadWorker.KEY_STATUS) ?: "Downloading..."
+                            _modelDownloadState.value = ModelDownloadUiState.Downloading(
+                                progressPercent = progress,
+                                statusText = status
+                            )
+                        }
+                        WorkInfo.State.SUCCEEDED -> {
+                            refreshAiModelState()
+                            _modelDownloadState.value = ModelDownloadUiState.Success
+                        }
+                        WorkInfo.State.FAILED -> {
+                            val error = workInfo.outputData.getString(ModelDownloadWorker.KEY_STATUS)
+                                ?: "Download failed. Please check network connection."
+                            _modelDownloadState.value = ModelDownloadUiState.Failed(error)
+                        }
+                        WorkInfo.State.CANCELLED -> {
+                            _modelDownloadState.value = ModelDownloadUiState.Idle
+                        }
+                        WorkInfo.State.BLOCKED -> {
+                            _modelDownloadState.value = ModelDownloadUiState.Downloading(
+                                progressPercent = 0,
+                                statusText = "Waiting for network..."
+                            )
+                        }
+                    }
+                }
+        }
     }
 
     fun deleteAiModel() {
@@ -428,6 +489,13 @@ class DashboardViewModel @Inject constructor(
             refreshSuspectedSpam()
         }
     }
+}
+
+sealed interface ModelDownloadUiState {
+    object Idle : ModelDownloadUiState
+    data class Downloading(val progressPercent: Int, val statusText: String) : ModelDownloadUiState
+    object Success : ModelDownloadUiState
+    data class Failed(val errorMessage: String) : ModelDownloadUiState
 }
 
 enum class DateRangePreset(val label: String) {
