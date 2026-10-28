@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
@@ -578,7 +579,89 @@ fun MonthlyDashboardScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                // Authenticity & Validity Status Banner
+                val isValid = txn.isValidTransaction
+                Spacer(modifier = Modifier.height(14.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ApexThemeTokens.RadiusSm)
+                        .background(if (isValid) ApexThemeTokens.AccentPrimaryTint else ApexThemeTokens.AccentSecondaryTint)
+                        .border(1.dp, if (isValid) ApexThemeTokens.AccentPrimaryBorder else ApexThemeTokens.AccentSecondaryBorder, ApexThemeTokens.RadiusSm)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = if (isValid) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = if (isValid) "AUTHENTIC TRANSACTION" else "PROMOTIONAL / MARKETING ALERT",
+                                color = if (isValid) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isValid) "Included in dashboard balance & summary cards" else "Excluded from dashboard calculation cards",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Toggle Authenticity Button (Valid vs Promo/Spam)
+                if (!isValid) {
+                    Button(
+                        onClick = {
+                            viewModel.markTransactionAsValid(txn.id)
+                            selectedTransactionForDetail = null
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ApexThemeTokens.AccentPrimary,
+                            contentColor = ApexThemeTokens.TextHighContrast
+                        ),
+                        shape = ApexThemeTokens.RadiusFull,
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Mark as Valid Transaction (Include in Totals)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.markTransactionAsSpam(txn.id)
+                            selectedTransactionForDetail = null
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = ApexThemeTokens.AccentSecondary
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.AccentSecondaryBorder),
+                        shape = ApexThemeTokens.RadiusFull,
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Mark as Promotion / Spam (Exclude from Totals)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Action Buttons: Edit Category, Delete
                 Row(

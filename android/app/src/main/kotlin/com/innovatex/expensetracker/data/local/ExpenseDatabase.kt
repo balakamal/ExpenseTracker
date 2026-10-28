@@ -8,18 +8,21 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.innovatex.expensetracker.data.local.dao.CategoryDao
 import com.innovatex.expensetracker.data.local.dao.MerchantRuleDao
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
+import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
 import com.innovatex.expensetracker.data.local.entity.CategoryEntity
 import com.innovatex.expensetracker.data.local.entity.Converters
 import com.innovatex.expensetracker.data.local.entity.MerchantRuleEntity
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
+import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
 
 @Database(
     entities = [
         TransactionEntity::class,
         CategoryEntity::class,
-        MerchantRuleEntity::class
+        MerchantRuleEntity::class,
+        UserFeedbackExemplarEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -27,6 +30,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun categoryDao(): CategoryDao
     abstract fun merchantRuleDao(): MerchantRuleDao
+    abstract fun userFeedbackDao(): UserFeedbackDao
 
     companion object {
         const val DATABASE_NAME = "expense_tracker.db"
@@ -34,6 +38,26 @@ abstract class ExpenseDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN ai_classification_json TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN user_override_valid INTEGER DEFAULT NULL")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_feedback_exemplars (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sender TEXT,
+                        merchant_clean TEXT NOT NULL,
+                        raw_snippet TEXT,
+                        assigned_label TEXT NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_user_feedback_exemplars_sender ON user_feedback_exemplars (sender)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_user_feedback_exemplars_merchant_clean ON user_feedback_exemplars (merchant_clean)")
             }
         }
 

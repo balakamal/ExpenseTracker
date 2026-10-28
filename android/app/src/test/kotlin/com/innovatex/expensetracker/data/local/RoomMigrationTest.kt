@@ -56,4 +56,14 @@ class RoomMigrationTest {
             mockDb.execSQL("ALTER TABLE transactions ADD COLUMN ai_classification_json TEXT DEFAULT NULL")
         }
     }
+
+    @Test
+    fun `test migration 2 to 3 executes alter table and creates user_feedback_exemplars`() {
+        val mockDb = mockk<androidx.sqlite.db.SupportSQLiteDatabase>(relaxed = true)
+        ExpenseDatabase.MIGRATION_2_3.migrate(mockDb)
+        verify {
+            mockDb.execSQL("ALTER TABLE transactions ADD COLUMN user_override_valid INTEGER DEFAULT NULL")
+            mockDb.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS user_feedback_exemplars") })
+        }
+    }
 }

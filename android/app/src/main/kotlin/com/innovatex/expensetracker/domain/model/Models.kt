@@ -138,8 +138,23 @@ data class Transaction(
     val rawSnippet: String? = null,
     val notes: String? = null,
     val aiClassification: AiClassificationResult? = null,
+    val userOverrideValid: Boolean? = null,
     val createdAt: Long = System.currentTimeMillis()
 ) {
+    val isValidTransaction: Boolean
+        get() = when (userOverrideValid) {
+            true -> true
+            false -> false
+            null -> {
+                val label = aiClassification?.authenticityLabel
+                if (label != null) {
+                    label == AuthenticityLabel.REAL_TRANSACTION
+                } else {
+                    true
+                }
+            }
+        }
+
     val paymentMedium: PaymentMedium
         get() = PaymentMedium.detect(rawSnippet, merchantRaw, accountLast4, referenceId)
 

@@ -11,6 +11,7 @@ import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MerchantRule
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
@@ -256,6 +257,33 @@ class DashboardViewModel @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    fun markTransactionAsValid(transactionId: String) {
+        viewModelScope.launch {
+            val txn = transactionRepository.getTransactionById(transactionId) ?: return@launch
+            transactionRepository.setTransactionValidity(transactionId, true)
+            transactionRepository.recordUserFeedback(
+                sender = txn.sender,
+                merchantClean = txn.merchantClean,
+                rawSnippet = txn.rawSnippet,
+                label = AuthenticityLabel.REAL_TRANSACTION
+            )
+            txn.sender?.let { preferencesDataStore.markSenderAsTrusted(it) }
+        }
+    }
+
+    fun markTransactionAsSpam(transactionId: String) {
+        viewModelScope.launch {
+            val txn = transactionRepository.getTransactionById(transactionId) ?: return@launch
+            transactionRepository.setTransactionValidity(transactionId, false)
+            transactionRepository.recordUserFeedback(
+                sender = txn.sender,
+                merchantClean = txn.merchantClean,
+                rawSnippet = txn.rawSnippet,
+                label = AuthenticityLabel.SPAM_PROMO
+            )
         }
     }
 

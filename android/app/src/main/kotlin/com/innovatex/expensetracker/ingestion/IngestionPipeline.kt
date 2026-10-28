@@ -45,24 +45,14 @@ class IngestionPipeline @Inject constructor(
 
         // Step 2: AI Classification (runs if model downloaded and enabled)
         val aiResult = if (settings.aiClassificationEnabled) {
-            localAiClassifier.classify(body, candidate.merchantClean)
+            localAiClassifier.classify(body, candidate.merchantClean, sender)
         } else {
             null
         }
 
-        // Step 3: Handle Authenticity (AI-based vs Local-based spam filtering)
-        if (settings.aiSpamDetectionEnabled && aiResult != null) {
-            if (aiResult.authenticityLabel == AuthenticityLabel.SPAM_PROMO &&
-                aiResult.authenticityConfidence >= AI_SPAM_DROP_THRESHOLD
-            ) {
-                return null // High confidence promotional/spam alert dropped by AI
-            }
-            if (aiResult.authenticityLabel == AuthenticityLabel.PAYMENT_REMINDER &&
-                aiResult.authenticityConfidence >= AI_REMINDER_DROP_THRESHOLD
-            ) {
-                return null // Prospective payment reminder dropped by AI
-            }
-        }
+        // Step 3: Handle Authenticity
+        // Promotional/spam messages are retained in the transaction ledger with an authenticity badge,
+        // but excluded from financial summary cards and budgets unless marked valid by user.
 
         // Step 4: Resolve Category and Type via Priority Chain:
         // Priority 1: User's explicit MerchantRule

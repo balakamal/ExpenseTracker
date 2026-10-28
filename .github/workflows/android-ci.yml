@@ -83,14 +83,14 @@ jobs:
       - name: Prepare Release APK Named Asset
         working-directory: android
         run: |
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/ExpenseTracker-${{ steps.versioning.outputs.release_tag }}.apk
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/ExpenseTracker-${{ steps.versioning.outputs.release_tag }}.apk
 
       - name: Upload Release APK Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: expense-tracker-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/ExpenseTracker-*.apk
           retention-days: 30
           if-no-files-found: warn
 
@@ -102,7 +102,6 @@ jobs:
           name: "Expense Tracker ${{ steps.versioning.outputs.release_tag }}"
           files: |
             android/app/build/outputs/apk/release/ExpenseTracker-${{ steps.versioning.outputs.release_tag }}.apk
-            android/app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
           draft: false
           prerelease: false

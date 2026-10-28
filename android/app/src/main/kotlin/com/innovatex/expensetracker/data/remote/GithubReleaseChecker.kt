@@ -23,7 +23,7 @@ class GithubReleaseChecker @Inject constructor(
         private const val GITHUB_REPO_NAME = "ExpenseTracker"
         private const val LATEST_RELEASE_API =
             "https://api.github.com/repos/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/latest"
-        private const val TIMEOUT_MS = 6000
+        private const val TIMEOUT_MS = 12000
     }
 
     override suspend fun checkForUpdate(currentVersion: String): Result<AppUpdateInfo?> = withContext(ioDispatcher) {
@@ -33,6 +33,7 @@ class GithubReleaseChecker @Inject constructor(
                 requestMethod = "GET"
                 connectTimeout = TIMEOUT_MS
                 readTimeout = TIMEOUT_MS
+                instanceFollowRedirects = true
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
                 setRequestProperty("User-Agent", "ApexExpenseTracker-Android")
             }

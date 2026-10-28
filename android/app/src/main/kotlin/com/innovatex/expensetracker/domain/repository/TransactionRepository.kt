@@ -1,5 +1,6 @@
 package com.innovatex.expensetracker.domain.repository
 
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
@@ -30,4 +31,6 @@ interface TransactionRepository {
     suspend fun confirmSpam(sender: String, transactionIds: List<String>)
     suspend fun trustSender(sender: String)
     suspend fun deleteTransactionsBySender(sender: String): Int
+    suspend fun setTransactionValidity(id: String, isValid: Boolean)
+    suspend fun recordUserFeedback(sender: String?, merchantClean: String, rawSnippet: String?, label: AuthenticityLabel)
 }

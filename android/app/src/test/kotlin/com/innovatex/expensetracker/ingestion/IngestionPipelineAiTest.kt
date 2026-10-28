@@ -22,8 +22,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -86,35 +88,47 @@ class IngestionPipelineAiTest {
     }
 
     @Test
-    fun `test pipeline drops high-confidence spam identified by AI`() = runTest {
+    fun `test pipeline retains promotional alerts in ledger tagged as SPAM_PROMO with isValidTransaction false`() = runTest {
         val sms = "Congratulations! Instant pre-approved loan of Rs 50000! Apply bit.ly"
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.SPAM_PROMO,
             authenticityConfidence = 0.95f,
             categoryId = null,
             categoryConfidence = null
         )
+        coEvery { mockDeduplicateUseCase(any(), any()) } answers {
+            val txn = firstArg<Transaction>()
+            DeduplicationResult.Inserted(txn)
+        }
 
         val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
-        assertNull(result)
-        coVerify(exactly = 0) { mockDeduplicateUseCase(any(), any()) }
+        assertNotNull(result)
+        val inserted = (result as DeduplicationResult.Inserted).transaction
+        assertEquals(AuthenticityLabel.SPAM_PROMO, inserted.aiClassification?.authenticityLabel)
+        assertFalse(inserted.isValidTransaction)
     }
 
     @Test
-    fun `test pipeline drops payment reminders identified by AI`() = runTest {
+    fun `test pipeline retains payment reminders in ledger tagged as PAYMENT_REMINDER with isValidTransaction false`() = runTest {
         val sms = "Your postpaid bill of Rs 499 is due on 28-Oct. Pay now."
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.PAYMENT_REMINDER,
             authenticityConfidence = 0.90f,
             categoryId = null,
             categoryConfidence = null
         )
+        coEvery { mockDeduplicateUseCase(any(), any()) } answers {
+            val txn = firstArg<Transaction>()
+            DeduplicationResult.Inserted(txn)
+        }
 
         val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
-        assertNull(result)
-        coVerify(exactly = 0) { mockDeduplicateUseCase(any(), any()) }
+        assertNotNull(result)
+        val inserted = (result as DeduplicationResult.Inserted).transaction
+        assertEquals(AuthenticityLabel.PAYMENT_REMINDER, inserted.aiClassification?.authenticityLabel)
+        assertFalse(inserted.isValidTransaction)
     }
 
     @Test
@@ -126,14 +140,13 @@ class IngestionPipelineAiTest {
             type = TransactionType.DEBIT
         )
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns unclassifiedCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.98f,
             categoryId = "income",
             categoryConfidence = 0.92f,
             impliedTransactionType = TransactionType.CREDIT
         )
-
         coEvery { mockDeduplicateUseCase(any(), any()) } answers {
             val txn = firstArg<Transaction>()
             DeduplicationResult.Inserted(txn)
@@ -144,29 +157,32 @@ class IngestionPipelineAiTest {
         val inserted = (result as DeduplicationResult.Inserted).transaction
         assertEquals("income", inserted.categoryId)
         assertEquals(TransactionType.CREDIT, inserted.type)
+        assertTrue(inserted.isValidTransaction)
     }
 
     @Test
-    fun `test user explicit MerchantRule takes precedence over AI classification`() = runTest {
-        val sms = "INR 1200 spent on Amazon India"
-        coEvery { mockCategoryRepository.getAllRules() } returns flowOf(
-            listOf(
-                MerchantRule(
-                    pattern = "Swiggy",
-                    categoryId = "groceries", // User explicit custom category
-                    isRegex = false
-                )
-            )
+    fun `test user merchant rules take precedence over AI category prediction`() = runTest {
+        val sms = "Paid Rs 300 to Star Supermarket on 28-Oct."
+        val userRule = MerchantRule(
+            pattern = "Star Supermarket",
+            categoryId = "custom_supermarket",
+            isRegex = false,
+            priority = 100
         )
-        val userRuleCandidate = sampleCandidate.copy(categoryId = "groceries")
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns userRuleCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
-            authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
-            authenticityConfidence = 0.99f,
-            categoryId = "food_dining", // AI says food_dining
-            categoryConfidence = 0.95f
-        )
+        coEvery { mockCategoryRepository.getAllRules() } returns flowOf(listOf(userRule))
 
+        val candidate = sampleCandidate.copy(
+            merchantClean = "Star Supermarket",
+            categoryId = "general"
+        )
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns candidate
+        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
+            authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
+            authenticityConfidence = 0.95f,
+            categoryId = "groceries",
+            categoryConfidence = 0.99f,
+            impliedTransactionType = TransactionType.DEBIT
+        )
         coEvery { mockDeduplicateUseCase(any(), any()) } answers {
             val txn = firstArg<Transaction>()
             DeduplicationResult.Inserted(txn)
@@ -175,16 +191,15 @@ class IngestionPipelineAiTest {
         val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
         assertNotNull(result)
         val inserted = (result as DeduplicationResult.Inserted).transaction
-        // Since user rule matched, candidate's rule category ("groceries") is preserved and not overwritten by AI ("food_dining")
-        assertEquals("groceries", inserted.categoryId)
+        // AI category "groceries" must be ignored because user rule matches
+        assertEquals("general", inserted.categoryId)
     }
 
     @Test
-    fun `test pipeline gracefully falls back to regex when AI returns null or is unavailable`() = runTest {
-        val sms = "INR 500 debited from A/c XX1234 at McDonald's"
+    fun `test pipeline handles null AI classification gracefully`() = runTest {
+        val sms = "Paid Rs 250 to Uber on 28-Oct."
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns null // AI model not ready
-
+        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns null // AI model not ready
         coEvery { mockDeduplicateUseCase(any(), any()) } answers {
             val txn = firstArg<Transaction>()
             DeduplicationResult.Inserted(txn)
@@ -195,35 +210,22 @@ class IngestionPipelineAiTest {
         val inserted = (result as DeduplicationResult.Inserted).transaction
         assertEquals("food_dining", inserted.categoryId)
         assertNull(inserted.aiClassification)
+        assertTrue(inserted.isValidTransaction)
     }
 
     @Test
-    fun `test pipeline does not drop AI spam when aiSpamDetectionEnabled is false (Local mode)`() = runTest {
-        every { mockPreferencesDataStore.appSettingsFlow } returns flowOf(
-            AppSettings(
-                smsTrackingEnabled = true,
-                emailTrackingEnabled = true,
-                deduplicationWindowMinutes = 10,
-                aiClassificationEnabled = true,
-                aiSpamDetectionEnabled = false
+    fun `test user override on promotional alert makes it valid`() {
+        val promoTxn = sampleCandidate.copy(
+            aiClassification = AiClassificationResult(
+                authenticityLabel = AuthenticityLabel.SPAM_PROMO,
+                authenticityConfidence = 0.95f,
+                categoryId = null,
+                categoryConfidence = null
             )
         )
-        val sms = "Instant loan approved! Apply bit.ly"
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
-            authenticityLabel = AuthenticityLabel.SPAM_PROMO,
-            authenticityConfidence = 0.95f,
-            categoryId = null,
-            categoryConfidence = null
-        )
-        coEvery { mockDeduplicateUseCase(any(), any()) } answers {
-            val txn = firstArg<Transaction>()
-            DeduplicationResult.Inserted(txn)
-        }
+        assertFalse(promoTxn.isValidTransaction)
 
-        val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
-        assertNotNull(result)
-        coVerify(exactly = 1) { mockDeduplicateUseCase(any(), any()) }
+        val overriddenTxn = promoTxn.copy(userOverrideValid = true)
+        assertTrue(overriddenTxn.isValidTransaction)
     }
 }
-

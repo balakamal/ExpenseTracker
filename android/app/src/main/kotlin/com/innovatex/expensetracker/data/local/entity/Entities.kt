@@ -134,6 +134,9 @@ data class TransactionEntity(
     @ColumnInfo(name = "ai_classification_json")
     val aiClassificationJson: String? = null,
 
+    @ColumnInfo(name = "user_override_valid", defaultValue = "NULL")
+    val userOverrideValid: Boolean? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 ) {
@@ -154,6 +157,7 @@ data class TransactionEntity(
         rawSnippet = rawSnippet,
         notes = notes,
         aiClassification = parseAiClassificationJson(aiClassificationJson),
+        userOverrideValid = userOverrideValid,
         createdAt = createdAt
     )
 
@@ -175,6 +179,7 @@ data class TransactionEntity(
             rawSnippet = domain.rawSnippet,
             notes = domain.notes,
             aiClassificationJson = domain.aiClassification?.toJson(),
+            userOverrideValid = domain.userOverrideValid,
             createdAt = domain.createdAt
         )
 
@@ -271,4 +276,40 @@ class Converters {
         else value.split(",").mapNotNull { name ->
             runCatching { SourceChannel.valueOf(name.trim()) }.getOrNull()
         }
+
+    @TypeConverter
+    fun fromAuthenticityLabel(label: AuthenticityLabel): String = label.name
+
+    @TypeConverter
+    fun toAuthenticityLabel(value: String): AuthenticityLabel = runCatching {
+        AuthenticityLabel.valueOf(value)
+    }.getOrDefault(AuthenticityLabel.REAL_TRANSACTION)
 }
+
+@Entity(
+    tableName = "user_feedback_exemplars",
+    indices = [
+        Index(value = ["sender"]),
+        Index(value = ["merchant_clean"])
+    ]
+)
+data class UserFeedbackExemplarEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "sender")
+    val sender: String? = null,
+
+    @ColumnInfo(name = "merchant_clean")
+    val merchantClean: String,
+
+    @ColumnInfo(name = "raw_snippet")
+    val rawSnippet: String? = null,
+
+    @ColumnInfo(name = "assigned_label")
+    val assignedLabel: AuthenticityLabel,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)

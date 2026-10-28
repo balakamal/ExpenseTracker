@@ -83,8 +83,9 @@ fun CorbelTransactionTable(
         transactions.filter { txn ->
             val matchesFilter = when (selectedFilter) {
                 TransactionFilter.ALL -> true
-                TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT
-                TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT
+                TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT && txn.isValidTransaction
+                TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT && txn.isValidTransaction
+                TransactionFilter.PROMO_SPAM -> !txn.isValidTransaction
             }
 
             val matchesSearch = if (searchQuery.isBlank()) true else {
@@ -100,8 +101,9 @@ fun CorbelTransactionTable(
         }
     }
 
-    val debitCount = remember(transactions) { transactions.count { it.type == TransactionType.DEBIT } }
-    val creditCount = remember(transactions) { transactions.count { it.type == TransactionType.CREDIT } }
+    val debitCount = remember(transactions) { transactions.count { it.type == TransactionType.DEBIT && it.isValidTransaction } }
+    val creditCount = remember(transactions) { transactions.count { it.type == TransactionType.CREDIT && it.isValidTransaction } }
+    val promoSpamCount = remember(transactions) { transactions.count { !it.isValidTransaction } }
 
     Box(
         modifier = modifier
@@ -218,6 +220,14 @@ fun CorbelTransactionTable(
                         activeColor = ApexThemeTokens.AccentPrimary,
                         onClick = { selectedFilter = TransactionFilter.CREDITS }
                     )
+                    if (promoSpamCount > 0) {
+                        FilterPill(
+                            label = "Promo $promoSpamCount",
+                            isSelected = selectedFilter == TransactionFilter.PROMO_SPAM,
+                            activeColor = ApexThemeTokens.AccentSecondary,
+                            onClick = { selectedFilter = TransactionFilter.PROMO_SPAM }
+                        )
+                    }
                 }
 
                 // Corbel Segmented View Switcher: Cards vs Table
@@ -308,8 +318,9 @@ fun CorbelTransactionTable(
                             runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
                         } ?: if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentCobalt
 
-                        val amountStr = if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
-                        val amountColor = if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
+                        val isPromo = !txn.isValidTransaction
+                        val amountStr = if (isPromo) "₹${numberFormat.format(txn.amount)}" else if (isCredit) "+₹${numberFormat.format(txn.amount)}" else "-₹${numberFormat.format(txn.amount)}"
+                        val amountColor = if (isPromo) ApexThemeTokens.TextMuted else if (isCredit) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextPrimary
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -380,6 +391,23 @@ fun CorbelTransactionTable(
 
                                     Spacer(modifier = Modifier.width(6.dp))
 
+                                    if (isPromo) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(ApexThemeTokens.RadiusFull)
+                                                .background(ApexThemeTokens.AccentSecondaryTint)
+                                                .border(0.5.dp, ApexThemeTokens.AccentSecondaryBorder, ApexThemeTokens.RadiusFull)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "PROMO",
+                                                color = ApexThemeTokens.AccentSecondary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
                                     PaymentMediumBadge(medium = txn.paymentMedium)
 
                                     if (!txn.accountLast4.isNullOrBlank()) {
@@ -404,6 +432,15 @@ fun CorbelTransactionTable(
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.End
                                 )
+                                if (isPromo) {
+                                    Text(
+                                        text = "Excluded from totals",
+                                        color = ApexThemeTokens.AccentSecondary,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.End
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "$dateStr, $timeStr",
@@ -527,7 +564,24 @@ fun CorbelTransactionTable(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        PaymentMediumBadge(medium = txn.paymentMedium)
+                                        if (isPromo) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(ApexThemeTokens.RadiusFull)
+                                                .background(ApexThemeTokens.AccentSecondaryTint)
+                                                .border(0.5.dp, ApexThemeTokens.AccentSecondaryBorder, ApexThemeTokens.RadiusFull)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "PROMO",
+                                                color = ApexThemeTokens.AccentSecondary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    PaymentMediumBadge(medium = txn.paymentMedium)
                                         if (!txn.accountLast4.isNullOrBlank()) {
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
@@ -628,5 +682,6 @@ private fun FilterPill(
 enum class TransactionFilter {
     ALL,
     DEBITS,
-    CREDITS
+    CREDITS,
+    PROMO_SPAM
 }

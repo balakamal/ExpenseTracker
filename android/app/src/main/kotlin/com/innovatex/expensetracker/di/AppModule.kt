@@ -6,6 +6,7 @@ import com.innovatex.expensetracker.data.local.ExpenseDatabase
 import com.innovatex.expensetracker.data.local.dao.CategoryDao
 import com.innovatex.expensetracker.data.local.dao.MerchantRuleDao
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
+import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
 import com.innovatex.expensetracker.data.remote.GithubReleaseChecker
 import com.innovatex.expensetracker.data.repository.CategoryRepositoryImpl
 import com.innovatex.expensetracker.data.repository.TransactionRepositoryImpl
@@ -44,7 +45,7 @@ object DatabaseModule {
         ExpenseDatabase::class.java,
         ExpenseDatabase.DATABASE_NAME
     )
-        .addMigrations(ExpenseDatabase.MIGRATION_1_2)
+        .addMigrations(ExpenseDatabase.MIGRATION_1_2, ExpenseDatabase.MIGRATION_2_3)
         .addCallback(ExpenseDatabase.createCallback())
         .build()
 
@@ -56,6 +57,9 @@ object DatabaseModule {
 
     @Provides
     fun provideMerchantRuleDao(database: ExpenseDatabase): MerchantRuleDao = database.merchantRuleDao()
+
+    @Provides
+    fun provideUserFeedbackDao(database: ExpenseDatabase): UserFeedbackDao = database.userFeedbackDao()
 
     @Provides
     @IoDispatcher

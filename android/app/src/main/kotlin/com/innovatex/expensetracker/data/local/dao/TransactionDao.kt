@@ -65,4 +65,7 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions WHERE id IN (:ids)")
     suspend fun deleteTransactionsByIds(ids: List<String>)
+
+    @Query("UPDATE transactions SET user_override_valid = :isValid WHERE id = :id")
+    suspend fun updateTransactionValidity(id: String, isValid: Boolean?)
 }

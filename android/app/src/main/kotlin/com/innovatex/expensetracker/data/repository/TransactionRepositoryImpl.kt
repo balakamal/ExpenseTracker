@@ -2,7 +2,9 @@ package com.innovatex.expensetracker.data.repository
 
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
+import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
+import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MonthlySummary
@@ -23,6 +25,7 @@ import javax.inject.Singleton
 @Singleton
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
+    private val userFeedbackDao: UserFeedbackDao,
     private val smsParserEngine: SmsParserEngine,
     private val preferencesDataStore: PreferencesDataStore,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -58,16 +61,17 @@ class TransactionRepositoryImpl @Inject constructor(
         transaction.id
     }
 
-    override suspend fun saveTransactions(transactions: List<Transaction>) = withContext(ioDispatcher) {
+    override suspend fun saveTransactions(transactions: List<Transaction>): Unit = withContext(ioDispatcher) {
         val entities = transactions.map { TransactionEntity.fromDomain(it) }
         transactionDao.insertTransactions(entities)
     }
 
-    override suspend fun updateTransaction(transaction: Transaction) = withContext(ioDispatcher) {
-        transactionDao.updateTransaction(TransactionEntity.fromDomain(transaction))
+    override suspend fun updateTransaction(transaction: Transaction): Unit = withContext(ioDispatcher) {
+        val entity = TransactionEntity.fromDomain(transaction)
+        transactionDao.updateTransaction(entity)
     }
 
-    override suspend fun deleteTransaction(id: String) = withContext(ioDispatcher) {
+    override suspend fun deleteTransaction(id: String): Unit = withContext(ioDispatcher) {
         transactionDao.deleteTransactionById(id)
     }
 
@@ -90,7 +94,10 @@ class TransactionRepositoryImpl @Inject constructor(
             var totalCredit = 0.0
             val categoryTotals = mutableMapOf<String, Double>()
 
-            for (txn in transactions) {
+            // Strictly compute dashboard totals from genuine/valid transactions only
+            val validTransactions = transactions.filter { it.isValidTransaction }
+
+            for (txn in validTransactions) {
                 when (txn.type) {
                     TransactionType.DEBIT -> {
                         totalDebit += txn.amount
@@ -110,7 +117,7 @@ class TransactionRepositoryImpl @Inject constructor(
                 netBalance = totalCredit - totalDebit,
                 budgetLimit = 25000.0, // Default INR monthly budget limit
                 categoryTotals = categoryTotals,
-                transactionCount = transactions.size
+                transactionCount = validTransactions.size
             )
         }.flowOn(ioDispatcher)
 
@@ -120,7 +127,9 @@ class TransactionRepositoryImpl @Inject constructor(
             var totalCredit = 0.0
             val categoryTotals = mutableMapOf<String, Double>()
 
-            for (txn in transactions) {
+            val validTransactions = transactions.filter { it.isValidTransaction }
+
+            for (txn in validTransactions) {
                 when (txn.type) {
                     TransactionType.DEBIT -> {
                         totalDebit += txn.amount
@@ -140,7 +149,7 @@ class TransactionRepositoryImpl @Inject constructor(
                 netBalance = totalCredit - totalDebit,
                 budgetLimit = 50000.0,
                 categoryTotals = categoryTotals,
-                transactionCount = transactions.size
+                transactionCount = validTransactions.size
             )
         }.flowOn(ioDispatcher)
 
@@ -150,13 +159,14 @@ class TransactionRepositoryImpl @Inject constructor(
         val duplicateIds = mutableListOf<String>()
 
         for (entity in allEntities) {
-            val key = if (!entity.referenceId.isNullOrBlank()) {
-                "ref_${entity.referenceId.trim().lowercase()}_${entity.amount}_${entity.type.name}"
+            val domain = entity.toDomain()
+            val senderKey = domain.sender?.trim()?.uppercase() ?: ""
+            val timeBucket = domain.timestamp / (30 * 60 * 1000L) // 30-minute bucket
+            val refKey = domain.referenceId?.trim()?.lowercase() ?: ""
+            val key = if (refKey.isNotBlank()) {
+                "REF_${domain.amount}_$refKey"
             } else {
-                val timeBucket = entity.timestamp / (2 * 60 * 1000L) // 2-minute bucket
-                val amountInt = (entity.amount * 100).toLong()
-                val cleanMerchant = entity.merchantClean.trim().lowercase()
-                "bucket_${timeBucket}_${amountInt}_${entity.type.name}_$cleanMerchant"
+                "SENDER_${domain.amount}_${domain.merchantClean.lowercase()}_${senderKey}_$timeBucket"
             }
 
             if (seenKeys.contains(key)) {
@@ -174,14 +184,19 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun purgeSpamTransactions(): Int = withContext(ioDispatcher) {
         val allEntities = transactionDao.getAllTransactions()
-        val spamSenders = preferencesDataStore.spamSendersFlow.first()
         val spamIds = mutableListOf<String>()
 
         for (entity in allEntities) {
             val domain = entity.toDomain()
-            val senderKey = domain.sender?.uppercase()
-            // Only purge transactions whose sender has been confirmed as spam by user
-            if (senderKey != null && spamSenders.contains(senderKey)) {
+            val sender = domain.sender
+            val rawSnippet = domain.rawSnippet ?: ""
+            val merchantRaw = domain.merchantRaw
+
+            val isSpam = preferencesDataStore.isSpamSender(sender) ||
+                rawSnippet.containsAny("loan", "pre-approved", "apply now", "credit limit", "insurance", "casino", "lottery", "win") ||
+                merchantRaw.containsAny("loan", "pre-approved", "apply now")
+
+            if (isSpam) {
                 spamIds.add(entity.id)
             }
         }
@@ -193,46 +208,37 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getSuspectedSpamItems(): List<SuspectedSpamItem> = withContext(ioDispatcher) {
-        val settings = preferencesDataStore.appSettingsFlow.first()
         val allEntities = transactionDao.getAllTransactions()
-        val trustedSenders = preferencesDataStore.trustedSendersFlow.first()
-        val spamSenders = preferencesDataStore.spamSendersFlow.first()
-
+        val settings = preferencesDataStore.appSettingsFlow.first()
         val suspectedBySender = mutableMapOf<String, MutableList<TransactionEntity>>()
         val senderReasons = mutableMapOf<String, String>()
 
         for (entity in allEntities) {
             val domain = entity.toDomain()
-            val sender = domain.sender ?: "Unknown Sender"
-            val senderKey = sender.uppercase()
+            val sender = domain.sender ?: "Unknown"
 
-            // If user explicitly trusted this sender, skip
-            if (trustedSenders.contains(senderKey)) continue
-            // If already confirmed as spam, it is already accounted for
-            if (spamSenders.contains(senderKey)) continue
+            if (preferencesDataStore.isTrustedSender(sender)) {
+                continue
+            }
 
-            val snippet = entity.rawSnippet?.lowercase() ?: ""
-            val merchant = entity.merchantClean.lowercase()
+            val rawSnippet = domain.rawSnippet ?: ""
+            val merchantRaw = domain.merchantRaw
+            var reason: String? = null
 
-            val aiAuth = if (settings.aiSpamDetectionEnabled) domain.aiClassification?.authenticityLabel else null
-            val aiConf = if (settings.aiSpamDetectionEnabled) domain.aiClassification?.authenticityConfidence ?: 0f else 0f
-
-            val reason = when {
-                aiAuth == AuthenticityLabel.SPAM_PROMO && aiConf >= 0.70f ->
-                    "AI Detected Promotion (${(aiConf * 100).toInt()}% conf)"
-                aiAuth == AuthenticityLabel.PAYMENT_REMINDER && aiConf >= 0.70f ->
-                    "AI Detected Payment Reminder (${(aiConf * 100).toInt()}% conf)"
-                snippet.containsAny("loan", "pre-approved", "pre approved", "eligible for a loan", "instant cash") ||
-                    merchant.containsAny("loan", "pre-approved") -> "Pre-approved loan promotion"
-                snippet.containsAny("rummy", "win cash", "jackpot", "lottery", "bonus points") ||
-                    merchant.containsAny("rummy", "dream11") -> "Gaming or lottery advertisement"
-                snippet.containsAny("coupon", "promo code", "flat 50%", "flat 20%", "claim reward", "use code") ||
-                    merchant.containsAny("discount", "coupon") -> "Promotional discount or voucher"
-                snippet.containsAny("recharge now", "recharge with", "daily data", "unlimited calls") ||
-                    merchant.containsAny("recharge") -> "Telecom recharge promotion"
-                snippet.containsAny("bill is due", "due on", "avoid late fee", "pay before") -> "Unpaid bill due reminder"
-                !smsParserEngine.isFinancialAlert(entity.rawSnippet ?: "", sender) -> "Unverified financial notification"
-                else -> null
+            if (preferencesDataStore.isSpamSender(sender)) {
+                reason = "Marked as spam sender"
+            } else if (rawSnippet.containsAny("loan", "pre-approved", "apply now", "credit limit", "congratulations", "win cash", "voucher")) {
+                reason = "Contains promotional/marketing keywords"
+            } else if (merchantRaw.containsAny("loan", "pre-approved", "apply now", "promotion", "cashback")) {
+                reason = "Merchant name indicates promotional alert"
+            } else if (settings.aiSpamDetectionEnabled && domain.aiClassification != null) {
+                if (domain.aiClassification.authenticityLabel == AuthenticityLabel.SPAM_PROMO) {
+                    val conf = (domain.aiClassification.authenticityConfidence * 100).toInt()
+                    reason = "AI Flagged: Promotional alert ($conf% confidence)"
+                } else if (domain.aiClassification.authenticityLabel == AuthenticityLabel.PAYMENT_REMINDER) {
+                    val conf = (domain.aiClassification.authenticityConfidence * 100).toInt()
+                    reason = "AI Flagged: Payment reminder / bill notice ($conf% confidence)"
+                }
             }
 
             if (reason != null) {
@@ -244,7 +250,7 @@ class TransactionRepositoryImpl @Inject constructor(
         }
 
         suspectedBySender.map { (sender, entities) ->
-            val allMessages = entities.mapNotNull { it.rawSnippet?.ifBlank { null } ?: it.merchantRaw?.ifBlank { null } }.distinct()
+            val allMessages = entities.mapNotNull { it.rawSnippet?.ifBlank { null } ?: it.merchantRaw.ifBlank { null } }.distinct()
             SuspectedSpamItem(
                 sender = sender,
                 transactionCount = entities.size,
@@ -282,7 +288,26 @@ class TransactionRepositoryImpl @Inject constructor(
         matchingIds.size
     }
 
+    override suspend fun setTransactionValidity(id: String, isValid: Boolean): Unit = withContext(ioDispatcher) {
+        transactionDao.updateTransactionValidity(id, isValid)
+    }
+
+    override suspend fun recordUserFeedback(
+        sender: String?,
+        merchantClean: String,
+        rawSnippet: String?,
+        label: AuthenticityLabel
+    ): Unit = withContext(ioDispatcher) {
+        userFeedbackDao.insertExemplar(
+            UserFeedbackExemplarEntity(
+                sender = sender?.trim()?.uppercase()?.ifBlank { null },
+                merchantClean = merchantClean.trim(),
+                rawSnippet = rawSnippet?.take(300),
+                assignedLabel = label
+            )
+        )
+    }
+
     private fun String.containsAny(vararg keywords: String): Boolean =
         keywords.any { this.contains(it, ignoreCase = true) }
 }
-
