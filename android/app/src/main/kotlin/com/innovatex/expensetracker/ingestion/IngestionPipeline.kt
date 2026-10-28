@@ -45,7 +45,7 @@ class IngestionPipeline @Inject constructor(
 
         // Step 2: AI Classification (runs if model downloaded and enabled)
         val aiResult = if (settings.aiClassificationEnabled) {
-            localAiClassifier.classify(body, candidate.cleanMerchant)
+            localAiClassifier.classify(body, candidate.merchantClean)
         } else {
             null
         }
@@ -74,9 +74,9 @@ class IngestionPipeline @Inject constructor(
         val userRules = runCatching { categoryRepository.getAllRules().first() }.getOrDefault(emptyList())
         val hasUserRule = userRules.any { rule ->
             if (rule.isRegex) {
-                Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(candidate.cleanMerchant)
+                Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(candidate.merchantClean)
             } else {
-                candidate.cleanMerchant.contains(rule.pattern, ignoreCase = true)
+                candidate.merchantClean.contains(rule.pattern, ignoreCase = true)
             }
         }
 

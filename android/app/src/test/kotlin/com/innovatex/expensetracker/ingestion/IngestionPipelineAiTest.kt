@@ -157,7 +157,8 @@ class IngestionPipelineAiTest {
                 )
             )
         )
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
+        val userRuleCandidate = sampleCandidate.copy(categoryId = "groceries")
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns userRuleCandidate
         coEvery { mockAiClassifier.classify(sms, any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.99f,
@@ -173,8 +174,8 @@ class IngestionPipelineAiTest {
         val result = pipeline.processIncomingMessage(sms, 1700000000000L, SourceChannel.SMS)
         assertNotNull(result)
         val inserted = (result as DeduplicationResult.Inserted).transaction
-        // Since candidate has categoryId from user rule or initial parse, user rule is respected
-        assertEquals("food_dining", inserted.categoryId)
+        // Since user rule matched, candidate's rule category ("groceries") is preserved and not overwritten by AI ("food_dining")
+        assertEquals("groceries", inserted.categoryId)
     }
 
     @Test

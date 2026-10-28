@@ -1,6 +1,7 @@
 package com.innovatex.expensetracker.ai
 
 import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OnnxValue
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
@@ -104,12 +105,22 @@ class LocalAiClassifier @Inject constructor(
     }
 
     private fun extractLogits(result: OrtSession.Result, preferredName: String, fallbackIndex: Int): FloatArray {
-        val ortValue = result.get(preferredName) ?: runCatching { result.get(fallbackIndex) }.getOrNull()
-        if (ortValue != null) {
-            val value = ortValue.value
-            if (value is Array<*>) {
-                val first = value.firstOrNull()
+        val onnxVal: OnnxValue? = runCatching { result.get(preferredName).orElse(null) }.getOrNull()
+            ?: runCatching { result.get(fallbackIndex) }.getOrNull()
+
+        if (onnxVal is OnnxTensor) {
+            val floatBuffer = runCatching { onnxVal.floatBuffer }.getOrNull()
+            if (floatBuffer != null) {
+                val array = FloatArray(floatBuffer.remaining())
+                floatBuffer.get(array)
+                return array
+            }
+            val raw = runCatching { onnxVal.getValue() }.getOrNull()
+            if (raw is Array<*>) {
+                val first = raw.firstOrNull()
                 if (first is FloatArray) return first
+            } else if (raw is FloatArray) {
+                return raw
             }
         }
         return FloatArray(10) { 0f }
