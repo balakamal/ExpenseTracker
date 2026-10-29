@@ -251,7 +251,7 @@ class DashboardViewModel @Inject constructor(
 
     fun triggerHistoricalScanIfNeeded(context: Context) {
         viewModelScope.launch {
-            val isCompleted = preferencesDataStore.historicalScanCompletedFlow.first()
+            val isCompleted = preferencesDataStore.appSettingsFlow.first().isHistoricalScanCompleted
             if (!isCompleted) {
                 historicalSmsScanner.scanLast30Days(context)
             }

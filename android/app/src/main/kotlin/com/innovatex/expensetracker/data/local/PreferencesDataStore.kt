@@ -67,6 +67,10 @@ class PreferencesDataStore @Inject constructor(
         preferences[KEY_TRUSTED_SENDERS] ?: emptySet()
     }
 
+    val historicalScanCompletedFlow: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_HISTORICAL_SCAN_DONE] ?: false
+    }
+
     suspend fun markSenderAsSpam(sender: String) {
         val normalized = sender.trim().uppercase()
         if (normalized.isBlank()) return
@@ -173,6 +177,7 @@ class PreferencesDataStore @Inject constructor(
     suspend fun setAiSpamDetectionEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_AI_SPAM_DETECTION_ENABLED] = enabled }
     }
+
     suspend fun setPreferredAiEngine(engine: AiEnginePreference) {
         dataStore.edit { it[KEY_PREFERRED_AI_ENGINE] = engine.name }
     }
