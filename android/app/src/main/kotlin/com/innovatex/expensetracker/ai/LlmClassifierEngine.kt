@@ -41,8 +41,6 @@ class LlmClassifierEngine @Inject constructor(
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelFile.absolutePath)
                 .setMaxTokens(256)
-                .setTemperature(0.1f)
-                .setTopK(40)
                 .build()
             val instance = LlmInference.createFromOptions(context, options)
             llmInference = instance
