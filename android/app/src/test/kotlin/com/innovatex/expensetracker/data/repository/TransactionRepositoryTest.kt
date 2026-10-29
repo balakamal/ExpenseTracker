@@ -173,4 +173,44 @@ class TransactionRepositoryTest {
         assertEquals(1, deletedCount)
         coVerify(exactly = 1) { transactionDao.deleteTransactionsByIds(listOf("spam_bill")) }
     }
+
+    @Test
+    fun `test purgeDuplicates merges boundary-crossing duplicates within 30 min`() = runTest {
+        val t1 = TransactionEntity(
+            id = "t1",
+            amount = 250.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 1729570140000L, // 11:29
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy",
+            merchantClean = "Swiggy",
+            referenceId = "UPI12345",
+            accountLast4 = "1234",
+            sources = listOf(SourceChannel.SMS)
+        )
+
+        val t2 = TransactionEntity(
+            id = "t2",
+            amount = 250.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 1729570260000L, // 11:31 (crosses 30m boundary!)
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy App",
+            merchantClean = "Swiggy",
+            referenceId = "UPI12345",
+            accountLast4 = "1234",
+            sources = listOf(SourceChannel.NOTIFICATION)
+        )
+
+        coEvery { transactionDao.getAllTransactions() } returns listOf(t1, t2)
+        coEvery { transactionDao.updateTransaction(any()) } returns Unit
+        coEvery { transactionDao.deleteTransactionsByIds(any()) } returns Unit
+
+        val mergedCount = repository.purgeDuplicates()
+        assertEquals(1, mergedCount)
+        coVerify(exactly = 1) { transactionDao.deleteTransactionsByIds(listOf("t2")) }
+        coVerify(exactly = 1) { transactionDao.updateTransaction(match { it.isDeduplicated && it.sources.size == 2 }) }
+    }
 }

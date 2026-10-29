@@ -154,46 +154,71 @@ class TransactionRepositoryImpl @Inject constructor(
         }.flowOn(ioDispatcher)
 
     override suspend fun purgeDuplicates(): Int = withContext(ioDispatcher) {
-        val allEntities = transactionDao.getAllTransactions()
-        val seenTransactions = mutableMapOf<String, Transaction>()
+        val allEntities = transactionDao.getAllTransactions().sortedBy { it.timestamp }
+        val retained = mutableListOf<Transaction>()
         val duplicateIds = mutableListOf<String>()
 
         for (entity in allEntities) {
-            val domain = entity.toDomain()
-            val timeBucket30m = domain.timestamp / (30 * 60 * 1000L)
-            val timeBucket15m = domain.timestamp / (15 * 60 * 1000L)
-            val refKey = domain.referenceId?.trim()?.lowercase() ?: ""
-            val acctKey = domain.accountLast4?.trim() ?: ""
+            val candidate = entity.toDomain()
+            // Look for matching existing transaction in retained pool within 30 minutes
+            val matchIndex = retained.indexOfLast { existing ->
+                if (existing.currency != candidate.currency) return@indexOfLast false
+                if (existing.type != candidate.type) return@indexOfLast false
+                if (kotlin.math.abs(existing.amount - candidate.amount) >= 0.01) return@indexOfLast false
 
-            val key = when {
-                refKey.isNotBlank() -> "REF_${domain.amount}_${domain.currency}_$refKey"
-                acctKey.isNotBlank() -> "ACCT_${domain.amount}_${domain.currency}_${acctKey}_$timeBucket30m"
-                else -> {
-                    val normMerchant = domain.merchantClean.lowercase().take(15)
-                    "MERCHANT_${domain.amount}_${domain.currency}_${normMerchant}_$timeBucket15m"
-                }
+                val timeDiff = kotlin.math.abs(existing.timestamp - candidate.timestamp)
+                if (timeDiff > 30 * 60 * 1000L) return@indexOfLast false
+
+                // Rule 1: Reference ID match
+                val refMatch = !existing.referenceId.isNullOrBlank() &&
+                    !candidate.referenceId.isNullOrBlank() &&
+                    existing.referenceId.equals(candidate.referenceId, ignoreCase = true)
+                if (refMatch) return@indexOfLast true
+
+                // Rule 2: Same Account within 30 min
+                val acctMatch = !existing.accountLast4.isNullOrBlank() &&
+                    !candidate.accountLast4.isNullOrBlank() &&
+                    existing.accountLast4 == candidate.accountLast4
+                if (acctMatch) return@indexOfLast true
+
+                // Rule 3: Similar merchant within 15 min
+                val normExisting = existing.merchantClean.trim().lowercase()
+                val normCandidate = candidate.merchantClean.trim().lowercase()
+                val merchantMatch = (normExisting == normCandidate ||
+                    normExisting.contains(normCandidate) || normCandidate.contains(normExisting)) &&
+                    timeDiff <= 15 * 60 * 1000L
+                if (merchantMatch) return@indexOfLast true
+
+                // Rule 4: Very close in time (<= 90 sec) for identical amounts
+                timeDiff <= 90_000L
             }
 
-            val existing = seenTransactions[key]
-            if (existing != null) {
-                val combinedSources = (existing.sources + domain.sources).distinct()
+            if (matchIndex != -1) {
+                val existing = retained[matchIndex]
+                val combinedSources = (existing.sources + candidate.sources).distinct()
                 val bestMerchant = if (existing.merchantClean.lowercase() in setOf("general purchase", "unknown merchant")) {
-                    domain.merchantClean
+                    candidate.merchantClean
                 } else {
                     existing.merchantClean
                 }
+                val bestCategory = if (existing.categoryId != "general") existing.categoryId else candidate.categoryId
+
                 val updated = existing.copy(
                     merchantClean = bestMerchant,
+                    categoryId = bestCategory,
                     sources = combinedSources,
                     isDeduplicated = true,
-                    referenceId = existing.referenceId ?: domain.referenceId,
-                    accountLast4 = existing.accountLast4 ?: domain.accountLast4
+                    referenceId = existing.referenceId ?: candidate.referenceId,
+                    accountLast4 = existing.accountLast4 ?: candidate.accountLast4,
+                    rawSnippet = existing.rawSnippet ?: candidate.rawSnippet,
+                    notes = existing.notes ?: candidate.notes,
+                    aiClassification = existing.aiClassification ?: candidate.aiClassification
                 )
-                seenTransactions[key] = updated
+                retained[matchIndex] = updated
                 transactionDao.updateTransaction(TransactionEntity.fromDomain(updated))
                 duplicateIds.add(entity.id)
             } else {
-                seenTransactions[key] = domain
+                retained.add(candidate)
             }
         }
 

@@ -47,8 +47,8 @@ class ModelDownloadWorker(
             try {
                 setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to LiteRT Community..."))
 
-                downloadFileWithRedirects(
-                    urlString = GENERATIVE_LLM_URL,
+                downloadWithResumeAndRetry(
+                    urls = GENERATIVE_LLM_URLS,
                     destination = tempLlmFile,
                     startPercent = 5,
                     endPercent = 95,
@@ -84,7 +84,7 @@ class ModelDownloadWorker(
                     Result.failure(workDataOf(KEY_STATUS to "Generative LLM verification failed"))
                 }
             } catch (e: Exception) {
-                tempLlmFile.delete()
+                if (isStopped) tempLlmFile.delete()
                 val errorMsg = e.localizedMessage ?: e.message ?: "Network error downloading LLM"
                 Result.failure(workDataOf(KEY_STATUS to errorMsg))
             }
@@ -96,8 +96,8 @@ class ModelDownloadWorker(
             try {
                 setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to Hugging Face..."))
 
-                downloadFileWithRedirects(
-                    urlString = TRANSFORMER_MODEL_URL,
+                downloadWithResumeAndRetry(
+                    urls = TRANSFORMER_MODEL_URLS,
                     destination = tempModelFile,
                     startPercent = 5,
                     endPercent = 85,
@@ -109,8 +109,8 @@ class ModelDownloadWorker(
                     return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
                 }
 
-                downloadFileWithRedirects(
-                    urlString = TRANSFORMER_VOCAB_URL,
+                downloadWithResumeAndRetry(
+                    urls = TRANSFORMER_VOCAB_URLS,
                     destination = tempVocabFile,
                     startPercent = 85,
                     endPercent = 95,
@@ -155,15 +155,53 @@ class ModelDownloadWorker(
                     Result.failure(workDataOf(KEY_STATUS to "Model installation verification failed"))
                 }
             } catch (e: Exception) {
-                tempModelFile.delete()
-                tempVocabFile.delete()
+                if (isStopped) {
+                    tempModelFile.delete()
+                    tempVocabFile.delete()
+                }
                 val errorMsg = e.localizedMessage ?: e.message ?: "Network error downloading transformer"
                 Result.failure(workDataOf(KEY_STATUS to errorMsg))
             }
         }
     }
 
-    private suspend fun downloadFileWithRedirects(
+    private suspend fun downloadWithResumeAndRetry(
+        urls: List<String>,
+        destination: File,
+        startPercent: Int,
+        endPercent: Int,
+        taskLabel: String
+    ) = withContext(Dispatchers.IO) {
+        var lastException: Exception? = null
+        for (url in urls) {
+            var attempts = 0
+            val maxAttempts = 3
+            while (attempts < maxAttempts && !isStopped) {
+                try {
+                    downloadFileWithResume(
+                        urlString = url,
+                        destination = destination,
+                        startPercent = startPercent,
+                        endPercent = endPercent,
+                        taskLabel = taskLabel
+                    )
+                    return@withContext // Successfully downloaded
+                } catch (e: Exception) {
+                    lastException = e
+                    attempts++
+                    if (isStopped) return@withContext
+                    if (attempts < maxAttempts) {
+                        kotlinx.coroutines.delay(attempts * 2000L)
+                    }
+                }
+            }
+        }
+        if (lastException != null && !isStopped) {
+            throw lastException
+        }
+    }
+
+    private suspend fun downloadFileWithResume(
         urlString: String,
         destination: File,
         startPercent: Int,
@@ -174,6 +212,7 @@ class ModelDownloadWorker(
         var connection: HttpURLConnection? = null
         val maxRedirects = 8
         var redirects = 0
+        var existingBytes = if (destination.exists()) destination.length() else 0L
 
         try {
             while (redirects < maxRedirects) {
@@ -185,6 +224,9 @@ class ModelDownloadWorker(
                     connectTimeout = 60_000
                     readTimeout = 120_000
                     setRequestProperty("User-Agent", "ExpenseTracker-Android/1.0 (Mobile AI)")
+                    if (existingBytes > 0) {
+                        setRequestProperty("Range", "bytes=$existingBytes-")
+                    }
                 }
 
                 val code = connection.responseCode
@@ -203,7 +245,15 @@ class ModelDownloadWorker(
                     connection.disconnect()
                     redirects++
                     continue
+                } else if (code == HttpURLConnection.HTTP_PARTIAL) {
+                    // HTTP 206: Server accepted resume range
+                    break
                 } else if (code in 200..299) {
+                    // HTTP 200: Server sent complete file from 0, reset existingBytes
+                    existingBytes = 0L
+                    break
+                } else if (code == 416) {
+                    // Range not satisfiable: file might already be fully downloaded
                     break
                 } else {
                     throw java.io.IOException("HTTP $code ${connection.responseMessage} for $currentUrl")
@@ -215,12 +265,14 @@ class ModelDownloadWorker(
             }
 
             val conn = connection ?: throw java.io.IOException("Failed to connect to $urlString")
-            val totalBytes = conn.contentLengthLong
-            var downloadedBytes = 0L
+            val responseLength = conn.contentLengthLong
+            val totalBytes = if (responseLength > 0) existingBytes + responseLength else -1L
+            var downloadedBytes = existingBytes
+            val append = existingBytes > 0 && conn.responseCode == HttpURLConnection.HTTP_PARTIAL
 
             BufferedInputStream(conn.inputStream).use { input ->
-                FileOutputStream(destination).use { output ->
-                    val buffer = ByteArray(32768)
+                FileOutputStream(destination, append).use { output ->
+                    val buffer = ByteArray(65536)
                     var count: Int
                     var lastPercent = startPercent
 
@@ -232,7 +284,8 @@ class ModelDownloadWorker(
 
                         if (totalBytes > 0) {
                             val range = endPercent - startPercent
-                            val percent = startPercent + ((downloadedBytes * range) / totalBytes).toInt()
+                            val percent = (startPercent + ((downloadedBytes * range) / totalBytes).toInt())
+                                .coerceIn(startPercent, endPercent)
                             if (percent - lastPercent >= 2) {
                                 lastPercent = percent
                                 setProgress(workDataOf(
@@ -242,6 +295,7 @@ class ModelDownloadWorker(
                             }
                         }
                     }
+                    output.flush()
                 }
             }
         } finally {
@@ -256,10 +310,22 @@ class ModelDownloadWorker(
         const val KEY_TARGET_ENGINE = "target_engine"
 
         // Generative SLM (MediaPipe Tasks-GenAI / LiteRT - Qwen 2.5 0.5B INT8 Task Bundle)
+        val GENERATIVE_LLM_URLS = listOf(
+            "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
+            "https://hf-mirror.com/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
+        )
         const val GENERATIVE_LLM_URL =
             "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
 
         // Financial Sequence Transformer (ONNX)
+        val TRANSFORMER_MODEL_URLS = listOf(
+            "https://huggingface.co/onnx-community/bert-tiny-ONNX/resolve/main/onnx/model_quantized.onnx",
+            "https://hf-mirror.com/onnx-community/bert-tiny-ONNX/resolve/main/onnx/model_quantized.onnx"
+        )
+        val TRANSFORMER_VOCAB_URLS = listOf(
+            "https://huggingface.co/onnx-community/bert-tiny-ONNX/resolve/main/vocab.txt",
+            "https://hf-mirror.com/onnx-community/bert-tiny-ONNX/resolve/main/vocab.txt"
+        )
         const val TRANSFORMER_MODEL_URL =
             "https://huggingface.co/onnx-community/bert-tiny-ONNX/resolve/main/onnx/model_quantized.onnx"
         const val TRANSFORMER_VOCAB_URL =

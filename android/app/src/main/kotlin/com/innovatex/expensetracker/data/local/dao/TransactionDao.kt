@@ -31,7 +31,7 @@ interface TransactionDao {
         """
         SELECT * FROM transactions 
         WHERE timestamp BETWEEN :startTime AND :endTime 
-          AND amount = :amount
+          AND ABS(amount - :amount) < 0.01
           AND currency = :currency
         """
     )
