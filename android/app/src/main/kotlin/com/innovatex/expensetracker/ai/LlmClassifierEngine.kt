@@ -24,14 +24,22 @@ class LlmClassifierEngine @Inject constructor(
 ) {
     private var llmInference: LlmInference? = null
     private val mutex = Mutex()
+    private var isEngineFailed = false
 
     private fun getOrInitLlm(): LlmInference? {
-        if (!modelStore.isGenerativeLlmReady()) return null
+        if (isEngineFailed || !modelStore.isGenerativeLlmReady()) return null
         if (llmInference != null) return llmInference
 
-        return runCatching {
+        val modelFile = modelStore.generativeLlmFile
+        if (!modelStore.isValidMediaPipeBundle(modelFile)) {
+            Log.e("LlmClassifierEngine", "Model file is not a valid MediaPipe GenAI bundle. Aborting native init to prevent crash.")
+            isEngineFailed = true
+            return null
+        }
+
+        return try {
             val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(modelStore.generativeLlmFile.absolutePath)
+                .setModelPath(modelFile.absolutePath)
                 .setMaxTokens(256)
                 .setTemperature(0.1f)
                 .setTopK(40)
@@ -39,9 +47,11 @@ class LlmClassifierEngine @Inject constructor(
             val instance = LlmInference.createFromOptions(context, options)
             llmInference = instance
             instance
-        }.onFailure { err ->
-            Log.e("LlmClassifierEngine", "Failed to initialize MediaPipe LlmInference", err)
-        }.getOrNull()
+        } catch (t: Throwable) {
+            Log.e("LlmClassifierEngine", "Failed to initialize MediaPipe LlmInference", t)
+            isEngineFailed = true
+            null
+        }
     }
 
     suspend fun analyze(text: String, candidateMerchant: String? = null): AiClassificationResult? =
@@ -142,7 +152,7 @@ class LlmClassifierEngine @Inject constructor(
         runCatching {
             llmInference?.close()
             llmInference = null
+            isEngineFailed = false
         }
     }
 }
-

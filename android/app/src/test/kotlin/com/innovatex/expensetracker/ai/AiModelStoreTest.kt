@@ -61,4 +61,30 @@ class AiModelStoreTest {
         assertFalse(model.exists())
         assertFalse(vocab.exists())
     }
+
+    @Test
+    fun `test qwen flatbuffer is rejected by bundle validator`() {
+        val dir = modelStore.ensureDirectoryExists()
+        val qwenFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        // Write dummy data > 1MB
+        val bytes = ByteArray(1_050_000)
+        qwenFile.writeBytes(bytes)
+
+        // Must reject qwen files to prevent native SIGABRT crashes
+        assertFalse(modelStore.isValidMediaPipeBundle(qwenFile))
+        assertFalse(modelStore.isGenerativeLlmReady())
+    }
+
+    @Test
+    fun `test purgeIncompatibleModels deletes invalid model files`() {
+        val dir = modelStore.ensureDirectoryExists()
+        val qwenFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        qwenFile.writeBytes(ByteArray(1_050_000))
+
+        assertTrue(qwenFile.exists())
+        val purged = modelStore.purgeIncompatibleModels()
+        assertTrue(purged)
+        assertFalse(qwenFile.exists())
+        assertFalse(modelStore.isGenerativeLlmReady())
+    }
 }

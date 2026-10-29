@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         val smsGranted = permissions[Manifest.permission.RECEIVE_SMS] == true ||
             permissions[Manifest.permission.READ_SMS] == true
         if (smsGranted) {
-            dashboardViewModel.triggerHistoricalScan(this)
+            dashboardViewModel.triggerHistoricalScanIfNeeded(this)
         }
     }
 
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
-            dashboardViewModel.triggerHistoricalScan(this)
+            dashboardViewModel.triggerHistoricalScanIfNeeded(this)
         }
     }
 }

@@ -36,10 +36,45 @@ class AiModelStore @Inject constructor(
         return modelDir
     }
 
-    fun isGenerativeLlmReady(): Boolean {
-        if (generativeLlmFile.exists() && generativeLlmFile.length() > 1_000_000L) return true
+    fun isValidMediaPipeBundle(file: File): Boolean {
+        if (!file.exists() || file.length() < 1_000_000L) return false
+        // MediaPipe Tasks-GenAI 0.10.14 requires a MediaPipe Task/GenAI bundle (Gemma/Falcon/Phi-2).
+        // It does not support raw Qwen or unbundled TFLite flatbuffers, which cause native SIGABRT crashes.
+        if (file.name.contains("qwen", ignoreCase = true)) {
+            return false
+        }
+        return try {
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                val magic = ByteArray(4)
+                raf.readFully(magic)
+                // MediaPipe bundles are zip archives (PK..) containing model, metadata and tokenizer
+                val isZip = magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte() &&
+                    magic[2] == 0x03.toByte() && magic[3] == 0x04.toByte()
+                isZip || file.name.endsWith(".task") || file.name.endsWith(".bin")
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun purgeIncompatibleModels(): Boolean {
+        var purged = false
+        if (generativeLlmFile.exists() && !isValidMediaPipeBundle(generativeLlmFile)) {
+            deleteGenerativeLlm()
+            purged = true
+        }
         val legacy = File(modelDir, LEGACY_LLM_FILE_NAME)
-        return legacy.exists() && legacy.length() > 1_000_000L
+        if (legacy.exists() && !isValidMediaPipeBundle(legacy)) {
+            legacy.delete()
+            purged = true
+        }
+        return purged
+    }
+
+    fun isGenerativeLlmReady(): Boolean {
+        if (generativeLlmFile.exists() && isValidMediaPipeBundle(generativeLlmFile)) return true
+        val legacy = File(modelDir, LEGACY_LLM_FILE_NAME)
+        return legacy.exists() && isValidMediaPipeBundle(legacy)
     }
 
     fun isTransformerReady(): Boolean {
@@ -106,6 +141,7 @@ class AiModelStore @Inject constructor(
         const val GENERATIVE_LLM_FILE_NAME = "qwen2.5_0.5b_instruct.tflite"
         const val LEGACY_LLM_FILE_NAME = "generative_llm.bin"
         const val TRANSFORMER_MODEL_FILE_NAME = "expense_classifier.onnx"
+        const val MODEL_FILE_NAME = TRANSFORMER_MODEL_FILE_NAME
         const val VOCAB_FILE_NAME = "vocab.txt"
     }
 }

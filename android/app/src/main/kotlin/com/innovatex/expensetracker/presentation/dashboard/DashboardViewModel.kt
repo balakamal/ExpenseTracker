@@ -104,6 +104,12 @@ class DashboardViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // Check for and purge any incompatible/crashing models from previous sessions
+            val purgedIncompatible = aiModelStore.purgeIncompatibleModels()
+            if (purgedIncompatible) {
+                preferencesDataStore.setAiClassificationEnabled(false)
+                refreshAiModelState()
+            }
             transactionRepository.purgeDuplicates()
             refreshSuspectedSpam()
             val currentSettings = preferencesDataStore.appSettingsFlow.first()
@@ -241,6 +247,15 @@ class DashboardViewModel @Inject constructor(
             set(java.util.Calendar.MILLISECOND, 0)
         }
         return cal.timeInMillis
+    }
+
+    fun triggerHistoricalScanIfNeeded(context: Context) {
+        viewModelScope.launch {
+            val isCompleted = preferencesDataStore.historicalScanCompletedFlow.first()
+            if (!isCompleted) {
+                historicalSmsScanner.scanLast30Days(context)
+            }
+        }
     }
 
     fun triggerHistoricalScan(context: Context) {
@@ -554,55 +569,62 @@ class DashboardViewModel @Inject constructor(
     fun rerunAiOnExistingTransactions() {
         if (_aiReclassifyState.value is AiReclassifyState.Running) return
         viewModelScope.launch(Dispatchers.IO) {
-            val allTxns = transactionRepository.getAllTransactions().first()
-            // Eligible: no user override, has raw snippet or clean merchant to classify
-            val eligible = allTxns.filter { it.userOverrideValid == null }
-            val total = eligible.size
-            _aiReclassifyState.value = AiReclassifyState.Running(processed = 0, total = total)
+            try {
+                val allTxns = transactionRepository.getAllTransactions().first()
+                // Eligible: no user override, has raw snippet or clean merchant to classify
+                val eligible = allTxns.filter { it.userOverrideValid == null }
+                val total = eligible.size
+                _aiReclassifyState.value = AiReclassifyState.Running(processed = 0, total = total)
 
-            val userRules = runCatching {
-                categoryRepository.getAllRules().first()
-            }.getOrDefault(emptyList())
+                val userRules = runCatching {
+                    categoryRepository.getAllRules().first()
+                }.getOrDefault(emptyList())
 
-            var updatedCount = 0
-            eligible.forEachIndexed { idx, txn ->
-                _aiReclassifyState.value = AiReclassifyState.Running(processed = idx + 1, total = total)
-                val aiResult = runCatching {
-                    localAiClassifier.classify(
-                        text = txn.rawSnippet?.ifBlank { null } ?: txn.merchantClean,
-                        merchant = txn.merchantClean,
-                        sender = txn.sender
-                    )
-                }.getOrNull() ?: return@forEachIndexed
+                var updatedCount = 0
+                eligible.forEachIndexed { idx, txn ->
+                    _aiReclassifyState.value = AiReclassifyState.Running(processed = idx + 1, total = total)
+                    val aiResult = runCatching {
+                        localAiClassifier.classify(
+                            text = txn.rawSnippet?.ifBlank { null } ?: txn.merchantClean,
+                            merchant = txn.merchantClean,
+                            sender = txn.sender
+                        )
+                    }.getOrNull()
 
-                val hasUserRule = userRules.any { rule ->
-                    if (rule.isRegex) {
-                        Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(txn.merchantClean)
-                    } else {
-                        txn.merchantClean.contains(rule.pattern, ignoreCase = true)
+                    val hasUserRule = userRules.any { rule ->
+                        if (rule.isRegex) {
+                            Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(txn.merchantClean)
+                        } else {
+                            txn.merchantClean.contains(rule.pattern, ignoreCase = true)
+                        }
                     }
-                }
 
-                val newCategory = if (!hasUserRule &&
-                    aiResult.categoryId != null &&
-                    (aiResult.categoryConfidence ?: 0f) >= IngestionPipeline.AI_CATEGORY_CONFIDENCE_THRESHOLD
-                ) {
-                    aiResult.categoryId
-                } else {
-                    txn.categoryId
-                }
+                    val newCategory = if (!hasUserRule &&
+                        aiResult?.categoryId != null &&
+                        (aiResult.categoryConfidence ?: 0f) >= IngestionPipeline.AI_CATEGORY_CONFIDENCE_THRESHOLD
+                    ) {
+                        aiResult.categoryId
+                    } else {
+                        txn.categoryId
+                    }
 
-                val enriched = txn.copy(
-                    categoryId = newCategory,
-                    aiClassification = aiResult
-                )
-                runCatching { transactionRepository.updateTransaction(enriched) }
-                updatedCount++
+                    val enriched = txn.copy(
+                        categoryId = newCategory,
+                        aiClassification = aiResult ?: txn.aiClassification
+                    )
+                    runCatching { transactionRepository.updateTransaction(enriched) }
+                    updatedCount++
+                }
+                val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
+                _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount, deduplicatedCount = deduplicatedCount)
+                _cleanSpamStatus.value = "AI verification complete: $updatedCount verified, $deduplicatedCount duplicates merged."
+                refreshSuspectedSpam()
+            } catch (err: Exception) {
+                android.util.Log.e("DashboardViewModel", "Error in rerunAiOnExistingTransactions", err)
+                val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
+                _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = 0, deduplicatedCount = deduplicatedCount)
+                _cleanSpamStatus.value = "Verification completed using local rules."
             }
-            val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
-            _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount, deduplicatedCount = deduplicatedCount)
-            _cleanSpamStatus.value = "AI verification complete: $updatedCount verified, $deduplicatedCount duplicates merged."
-            refreshSuspectedSpam()
         }
     }
 }

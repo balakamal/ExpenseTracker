@@ -62,7 +62,7 @@ class ModelDownloadWorker(
 
                 setProgress(workDataOf(KEY_PROGRESS to 95, KEY_STATUS to "Verifying LLM binary..."))
 
-                if (tempLlmFile.exists() && tempLlmFile.length() > 1_000_000L) {
+                if (tempLlmFile.exists() && modelStore.isValidMediaPipeBundle(tempLlmFile)) {
                     if (modelStore.generativeLlmFile.exists()) modelStore.generativeLlmFile.delete()
                     val moved = tempLlmFile.renameTo(modelStore.generativeLlmFile)
                     if (!moved) {
@@ -71,7 +71,7 @@ class ModelDownloadWorker(
                     }
                 } else {
                     tempLlmFile.delete()
-                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Downloaded file was invalid or incomplete"))
+                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Downloaded model format is incompatible with on-device engine"))
                 }
 
                 if (modelStore.isGenerativeLlmReady()) {

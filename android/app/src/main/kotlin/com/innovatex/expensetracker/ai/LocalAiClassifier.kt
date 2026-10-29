@@ -117,7 +117,7 @@ class LocalAiClassifier @Inject constructor(
 
         // Case A: Generative SLM/LLM (Snapdragon 8 Gen 3 / Tensor / Dimensity)
         if (preferredEngine == AiEnginePreference.GENERATIVE_LLM && modelStore.isGenerativeLlmReady()) {
-            val llmResult = llmClassifierEngine.analyze(text, merchant)
+            val llmResult = runCatching { llmClassifierEngine.analyze(text, merchant) }.getOrNull()
             if (llmResult != null) {
                 return@withContext llmResult
             }
@@ -125,7 +125,7 @@ class LocalAiClassifier @Inject constructor(
 
         // Case B: High-Accuracy Dedicated Financial Transformer (ONNX Runtime)
         if (preferredEngine == AiEnginePreference.FINANCIAL_TRANSFORMER && modelStore.isTransformerReady()) {
-            val onnxResult = runTransformerInference(text, merchant)
+            val onnxResult = runCatching { runTransformerInference(text, merchant) }.getOrNull()
             if (onnxResult != null) {
                 return@withContext onnxResult
             }
@@ -229,12 +229,26 @@ class LocalAiClassifier @Inject constructor(
             else -> AuthenticityLabel.REAL_TRANSACTION
         }
 
+        val merchantLower = (merchant + " " + text).lowercase()
+        val inferredCategory = when {
+            merchantLower.containsAny("swiggy", "zomato", "mcdonald", "kfc", "domino", "starbucks", "cafe", "coffee", "restaurant", "burger", "pizza", "diner", "bakery", "chai", "tea", "food") -> "food_dining"
+            merchantLower.containsAny("blinkit", "zepto", "instamart", "bigbasket", "grofers", "supermarket", "grocery", "provision", "mart", "nature basket", "dmart") -> "groceries"
+            merchantLower.containsAny("uber", "ola", "rapido", "metro", "railway", "irctc", "petrol", "fuel", "hpcl", "bpcl", "iocl", "shell", "toll", "fastag") -> "transport"
+            merchantLower.containsAny("amazon", "flipkart", "myntra", "ajio", "tata cliq", "nykaa", "meesho", "zara", "h&m", "retail", "croma", "reliance digital") -> "shopping"
+            merchantLower.containsAny("bescom", "tneb", "electricity", "water", "airtel", "jio", "vi", "broadband", "wifi", "gas", "indane", "hp gas", "bharat gas", "piped gas", "recharge", "dth", "tatasky") -> "utilities"
+            merchantLower.containsAny("bookmyshow", "pvr", "inox", "cinepolis", "netflix", "spotify", "prime video", "hotstar", "youtube", "cinema", "theatre") -> "entertainment"
+            merchantLower.containsAny("apollo", "pharmacy", "medplus", "1mg", "pharmeasy", "hospital", "clinic", "diagnostic", "dr ", "doctor", "pathology", "dental") -> "health"
+            merchantLower.containsAny("salary", "payroll", "dividend", "interest credited", "cashback credited", "refund") -> "income"
+            else -> "general"
+        }
+        val categoryConfidence = if (inferredCategory != "general") 0.88f else 0.50f
+
         return AiClassificationResult(
             authenticityLabel = authLabel,
             authenticityConfidence = 0.92f,
-            categoryId = "general",
-            categoryConfidence = 0.60f,
-            impliedTransactionType = TransactionType.DEBIT,
+            categoryId = inferredCategory,
+            categoryConfidence = categoryConfidence,
+            impliedTransactionType = if (inferredCategory == "income") TransactionType.CREDIT else TransactionType.DEBIT,
             ranByAi = false
         )
     }

@@ -88,21 +88,25 @@ class HistoricalSmsScanner @Inject constructor(
 
                     if (bodyIndex >= 0 && dateIndex >= 0) {
                         while (cursor.moveToNext()) {
-                            val body = cursor.getString(bodyIndex) ?: continue
-                            val date = cursor.getLong(dateIndex)
-                            val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
-                            if (preferencesDataStore.isSpamSender(sender)) {
-                                continue
-                            }
+                            try {
+                                val body = cursor.getString(bodyIndex) ?: continue
+                                val date = cursor.getLong(dateIndex)
+                                val sender = if (addressIndex >= 0) cursor.getString(addressIndex) else null
+                                if (preferencesDataStore.isSpamSender(sender)) {
+                                    continue
+                                }
 
-                            val res = ingestionPipeline.processIncomingMessage(
-                                body = body,
-                                timestamp = date,
-                                source = SourceChannel.SMS,
-                                sender = sender
-                            )
-                            if (res != null) {
-                                scanned++
+                                val res = ingestionPipeline.processIncomingMessage(
+                                    body = body,
+                                    timestamp = date,
+                                    source = SourceChannel.SMS,
+                                    sender = sender
+                                )
+                                if (res != null) {
+                                    scanned++
+                                }
+                            } catch (msgErr: Exception) {
+                                Log.e("HistoricalSmsScanner", "Error processing individual historical SMS message", msgErr)
                             }
                         }
                     }
