@@ -18,7 +18,7 @@ coil = "2.7.0"
 paging = "3.3.2"
 leakCanary = "2.14"
 onnxruntime = "1.17.0"
-mediapipeGenai = "0.10.14"
+mediapipeGenai = "0.10.20"
 workRuntime = "2.9.1"
 hiltWork = "1.2.0"
 

@@ -43,7 +43,7 @@ class ModelDownloadWorker(
         val targetDir = modelStore.ensureDirectoryExists()
 
         if (targetEngine == AiEnginePreference.GENERATIVE_LLM) {
-            val tempLlmFile = File(targetDir, "llm_temp.tflite")
+            val tempLlmFile = File(targetDir, "llm_temp.task")
             try {
                 setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to LiteRT Community..."))
 
@@ -52,7 +52,7 @@ class ModelDownloadWorker(
                     destination = tempLlmFile,
                     startPercent = 5,
                     endPercent = 95,
-                    taskLabel = "Downloading Qwen 2.5 SLM (~520 MB)"
+                    taskLabel = "Downloading Qwen 2.5 SLM Task (~520 MB)"
                 )
 
                 if (isStopped) {
@@ -255,9 +255,9 @@ class ModelDownloadWorker(
         const val KEY_STATUS = "status"
         const val KEY_TARGET_ENGINE = "target_engine"
 
-        // Generative SLM (MediaPipe Tasks-GenAI / LiteRT - Qwen 2.5 0.5B INT8)
+        // Generative SLM (MediaPipe Tasks-GenAI / LiteRT - Qwen 2.5 0.5B INT8 Task Bundle)
         const val GENERATIVE_LLM_URL =
-            "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_seq128_q8_ekv1280.tflite"
+            "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_multi-prefill-seq_q8_ekv1280.task"
 
         // Financial Sequence Transformer (ONNX)
         const val TRANSFORMER_MODEL_URL =

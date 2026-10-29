@@ -63,28 +63,50 @@ class AiModelStoreTest {
     }
 
     @Test
-    fun `test qwen flatbuffer is rejected by bundle validator`() {
+    fun `test unbundled flatbuffer without zip header is rejected by bundle validator`() {
         val dir = modelStore.ensureDirectoryExists()
-        val qwenFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
-        // Write dummy data > 1MB
+        val badFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        // Write dummy flatbuffer data > 1MB without zip header
         val bytes = ByteArray(1_050_000)
-        qwenFile.writeBytes(bytes)
+        badFile.writeBytes(bytes)
 
-        // Must reject qwen files to prevent native SIGABRT crashes
-        assertFalse(modelStore.isValidMediaPipeBundle(qwenFile))
+        // Must reject raw non-zip flatbuffers to prevent native SIGABRT crashes
+        assertFalse(modelStore.isValidMediaPipeBundle(badFile))
         assertFalse(modelStore.isGenerativeLlmReady())
+    }
+
+    @Test
+    fun `test valid mediapipe task zip bundle is accepted by bundle validator`() {
+        val dir = modelStore.ensureDirectoryExists()
+        val taskFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        // Write dummy zip header PK\x03\x04 followed by data > 1MB
+        val bytes = ByteArray(1_050_000)
+        bytes[0] = 0x50.toByte() // P
+        bytes[1] = 0x4B.toByte() // K
+        bytes[2] = 0x03.toByte()
+        bytes[3] = 0x04.toByte()
+        taskFile.writeBytes(bytes)
+
+        assertTrue(modelStore.isValidMediaPipeBundle(taskFile))
+        assertTrue(modelStore.isGenerativeLlmReady())
     }
 
     @Test
     fun `test purgeIncompatibleModels deletes invalid model files`() {
         val dir = modelStore.ensureDirectoryExists()
-        val qwenFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
-        qwenFile.writeBytes(ByteArray(1_050_000))
+        val badFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        badFile.writeBytes(ByteArray(1_050_000))
 
-        assertTrue(qwenFile.exists())
+        val legacyTflite = File(dir, "qwen2.5_0.5b_instruct.tflite")
+        legacyTflite.writeBytes(ByteArray(500))
+
+        assertTrue(badFile.exists())
+        assertTrue(legacyTflite.exists())
+
         val purged = modelStore.purgeIncompatibleModels()
         assertTrue(purged)
-        assertFalse(qwenFile.exists())
+        assertFalse(badFile.exists())
+        assertFalse(legacyTflite.exists())
         assertFalse(modelStore.isGenerativeLlmReady())
     }
 }

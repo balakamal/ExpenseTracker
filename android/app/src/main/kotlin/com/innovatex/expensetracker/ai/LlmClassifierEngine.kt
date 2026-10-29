@@ -73,22 +73,25 @@ class LlmClassifierEngine @Inject constructor(
         }
 
     private fun buildPrompt(body: String): String {
-        return """
-            You are an on-device personal financial assistant. Analyze the following notification message:
-            "${body.trim()}"
+        return """<|im_start|>system
+You are an on-device personal financial assistant. Analyze notification messages to classify whether they represent an actual completed transaction, a payment reminder, or promotional spam. Always respond in valid JSON format only.<|im_end|>
+<|im_start|>user
+Analyze the following notification message:
+"${body.trim()}"
 
-            Determine if this message represents money that was ALREADY debited or credited (an actual completed transaction), or if it is an upcoming bill, payment reminder, mandate schedule, loan offer, or promotional spam.
+Determine if this message represents money that was ALREADY debited or credited (an actual completed transaction), or if it is an upcoming bill, payment reminder, mandate schedule, loan offer, or promotional spam.
 
-            Output ONLY a valid JSON object in this exact format:
-            {
-              "is_actual_transaction": true,
-              "is_reminder": false,
-              "transaction_type": "DEBIT",
-              "merchant": "Merchant Name",
-              "category": "food_dining",
-              "reason": "Brief explanation"
-            }
-        """.trimIndent()
+Output ONLY a valid JSON object in this exact format:
+{
+  "is_actual_transaction": true,
+  "is_reminder": false,
+  "transaction_type": "DEBIT",
+  "merchant": "Merchant Name",
+  "category": "food_dining",
+  "reason": "Brief explanation"
+}<|im_end|>
+<|im_start|>assistant
+"""
     }
 
     private fun parseLlmResponse(
