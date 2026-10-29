@@ -42,8 +42,9 @@ class AiModelStore @Inject constructor(
         val file = generativeLlmFile
         if (!file.isFile || file.length() < MIN_MODEL_BYTES || !generativeLlmMetadataFile.isFile) return false
         val metadata = runCatching { generativeLlmMetadataFile.readText().trim().split('|') }.getOrNull() ?: return false
-        return metadata.size == 3 && metadata[0].matches(SHA256_REGEX) &&
-            metadata[1].toLongOrNull() == file.length() && metadata[2].toLongOrNull() == file.lastModified()
+        return metadata.size == 3 && metadata[0].equals(PINNED_MODEL_SHA256, ignoreCase = true) &&
+            file.length() == PINNED_MODEL_SIZE_BYTES && metadata[1].toLongOrNull() == file.length() &&
+            metadata[2].toLongOrNull() == file.lastModified()
     }
     fun isModelReady(): Boolean = isGenerativeLlmReady()
     fun getGenerativeLlmSizeBytes(): Long = generativeLlmFile.takeIf(File::exists)?.length() ?: 0L
@@ -89,6 +90,8 @@ class AiModelStore @Inject constructor(
         const val GENERATIVE_LLM_FILE_NAME = "qwen3_0_6b_mixed_int4.litertlm"
         const val GENERATIVE_LLM_PART_FILE_NAME = "$GENERATIVE_LLM_FILE_NAME.part"
         const val GENERATIVE_LLM_METADATA_FILE_NAME = "$GENERATIVE_LLM_FILE_NAME.sha256"
+        const val PINNED_MODEL_SHA256 = "7900eb4e7362d88c58782c6f9999bb7a129e03544aa98b8f338ea0cc5d8c22c1"
+        const val PINNED_MODEL_SIZE_BYTES = 497_516_544L
         const val LEGACY_LLM_FILE_NAME = "generative_llm.bin"
         const val LEGACY_TASK_FILE_NAME = "qwen2.5_0.5b_instruct.task"
         private const val LEGACY_ONNX_FILE_NAME = "expense_classifier.onnx"

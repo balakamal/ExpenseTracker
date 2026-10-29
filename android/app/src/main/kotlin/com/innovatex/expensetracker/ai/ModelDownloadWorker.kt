@@ -91,17 +91,28 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
 
     private suspend fun downloadWithResume(destination: java.io.File) {
         var existing = destination.length()
+        val savedHashFile = partialShaFile(destination)
+        val partialMatchesPinnedModel = existing > 0 && savedHashFile.isFile &&
+            runCatching {
+                savedHashFile.readText().trim().equals(AiModelStore.PINNED_MODEL_SHA256, ignoreCase = true)
+            }.getOrDefault(false)
+        if (existing > 0 && !partialMatchesPinnedModel) {
+            destination.delete()
+            savedHashFile.delete()
+            existing = 0L
+        }
         val connection = (URL(MODEL_URL).openConnection() as HttpURLConnection).apply {
             connectTimeout = 30_000
             readTimeout = 60_000
             instanceFollowRedirects = true
+            setRequestProperty("Accept-Encoding", "identity")
             if (existing > 0) setRequestProperty("Range", "bytes=$existing-")
         }
         try {
             val response = connection.responseCode
             if (response == 416) {
                 val total = connection.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
-                if (total == existing && total > 0) return
+                if (total == AiModelStore.PINNED_MODEL_SIZE_BYTES && total == existing) return
                 destination.delete()
                 partialShaFile(destination).delete()
                 throw java.io.IOException("Repository rejected an invalid partial range; retry to restart")
@@ -113,25 +124,37 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                 destination.writeBytes(byteArrayOf())
             }
 
-            val expectedHash = extractSha256(connection.getHeaderField("X-Linked-Etag") ?: connection.getHeaderField("ETag"))
-                ?: throw java.io.IOException("Repository did not provide a SHA-256 checksum; download stopped safely")
-            val savedHashFile = partialShaFile(destination)
-            if (append && (!savedHashFile.isFile || savedHashFile.readText().trim() != expectedHash)) {
-                destination.delete()
-                savedHashFile.delete()
-                throw java.io.IOException("Partial download cannot be verified against this model revision; retry to restart")
-            }
+            val expectedHash = AiModelStore.PINNED_MODEL_SHA256
             savedHashFile.writeText(expectedHash)
 
-            val contentRangeTotal = connection.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
-            val total = contentRangeTotal ?: connection.contentLengthLong.takeIf { it > 0 }?.let { if (append) existing + it else it }
-            if (total == null || total <= 0) {
-                throw java.io.IOException("Repository did not report the model size, so download progress and completeness cannot be verified")
+            val contentRange = connection.getHeaderField("Content-Range")
+            val rangeMatch = contentRange?.let { CONTENT_RANGE_REGEX.matchEntire(it.trim()) }
+            val total = if (append) {
+                val range = rangeMatch ?: throw java.io.IOException("Repository returned an invalid partial-content range")
+                val rangeStart = range.groupValues[1].toLong()
+                val rangeEnd = range.groupValues[2].toLong()
+                val rangeTotal = range.groupValues[3].toLong()
+                if (rangeStart != existing || rangeEnd < rangeStart || rangeTotal != AiModelStore.PINNED_MODEL_SIZE_BYTES) {
+                    destination.delete()
+                    savedHashFile.delete()
+                    throw java.io.IOException("Repository returned a range for the wrong model bytes; retry to restart")
+                }
+                rangeTotal
+            } else {
+                connection.contentLengthLong.takeIf { it > 0 }
+                    ?: throw java.io.IOException("Repository did not report the model size")
             }
-            if (total != null && total - existing + MIN_FREE_SPACE_MARGIN > StatFs(destination.parentFile!!.absolutePath).availableBytes) {
-                throw java.io.IOException("Not enough free storage. Free at least ${(total - existing + MIN_FREE_SPACE_MARGIN) / (1024 * 1024)} MB and retry.")
+            if (total != AiModelStore.PINNED_MODEL_SIZE_BYTES) {
+                destination.delete()
+                savedHashFile.delete()
+                throw java.io.IOException("Downloaded artifact size does not match the pinned model revision")
+            }
+            val requiredSpace = total - existing + MIN_FREE_SPACE_MARGIN
+            if (requiredSpace > StatFs(destination.parentFile!!.absolutePath).availableBytes) {
+                throw java.io.IOException("Not enough free storage. Free at least ${requiredSpace / (1024 * 1024)} MB and retry.")
             }
             var bytes = existing
+            var receivedThisResponse = 0L
             BufferedInputStream(connection.inputStream).use { input ->
                 FileOutputStream(destination, append).use { output ->
                     val buffer = ByteArray(64 * 1024)
@@ -142,19 +165,25 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         bytes += count
-                        if (total != null && total > 0) {
-                            val progress = (bytes * 94 / total).toInt().coerceIn(1, 94)
-                            if (progress > lastProgress) {
-                                lastProgress = progress
-                                setProgress(workDataOf(KEY_PROGRESS to progress, KEY_STATUS to "Downloading on-device model ($progress%)"))
-                                updateForeground(progress, "Downloading on-device model ($progress%)")
-                            }
+                        receivedThisResponse += count
+                        val progress = (bytes * 94 / total).toInt().coerceIn(1, 94)
+                        if (progress > lastProgress) {
+                            lastProgress = progress
+                            setProgress(workDataOf(KEY_PROGRESS to progress, KEY_STATUS to "Downloading on-device model ($progress%)"))
+                            updateForeground(progress, "Downloading on-device model ($progress%)")
                         }
                     }
                     output.fd.sync()
                 }
             }
-            if (total != null && bytes != total) throw java.io.IOException("Download ended at $bytes of $total bytes; retry to resume")
+            if (append) {
+                val range = requireNotNull(rangeMatch)
+                val expectedResponseBytes = range.groupValues[2].toLong() - range.groupValues[1].toLong() + 1
+                if (receivedThisResponse != expectedResponseBytes) {
+                    throw java.io.IOException("Download range ended early; retry to resume")
+                }
+            }
+            if (bytes != total) throw java.io.IOException("Download ended at $bytes of $total bytes; retry to resume")
             setProgress(workDataOf(KEY_PROGRESS to 95, KEY_STATUS to "Verifying model checksum"))
             updateForeground(95, "Verifying model checksum")
             if (!modelStore.isValidLiteRtModel(destination, expectedHash)) {
@@ -165,13 +194,6 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         } finally {
             connection.disconnect()
         }
-    }
-
-    private fun extractSha256(value: String?): String? {
-        val normalized = value?.trim()?.trim('"') ?: return null
-        return normalized.substringAfter("sha256:", normalized)
-            .takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
-            ?.lowercase()
     }
 
     private fun partialShaFile(file: java.io.File) = java.io.File(file.parentFile, "${file.name}.sha256")
@@ -199,7 +221,8 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         const val KEY_TARGET_ENGINE = "target_engine"
         private const val NOTIFICATION_ID = 2001
         private const val MIN_FREE_SPACE_MARGIN = 50L * 1024 * 1024
-        const val MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/dd97997951bb15a2a71f539ba17f604707c0b11a/qwen3_0_6b_mixed_int4.litertlm"
+        private val CONTENT_RANGE_REGEX = Regex("bytes (\\d+)-(\\d+)/(\\d+)", RegexOption.IGNORE_CASE)
+        const val MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/154c5de0fc0fc5002a7da570ba8c67edffa32ca2/qwen3_0_6b_mixed_int4.litertlm"
 
         fun enqueue(context: Context, engine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM) {
             require(engine != AiEnginePreference.FINANCIAL_TRANSFORMER) { "The legacy generic BERT model is not supported" }
