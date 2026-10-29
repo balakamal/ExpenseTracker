@@ -15,6 +15,7 @@ class AiModelStore @Inject constructor(
 
     val generativeLlmFile: File get() = File(modelDir, GENERATIVE_LLM_FILE_NAME)
     val generativeLlmPartFile: File get() = File(modelDir, GENERATIVE_LLM_PART_FILE_NAME)
+    val generativeLlmValidationFile: File get() = File(modelDir, GENERATIVE_LLM_VALIDATION_FILE_NAME)
     val generativeLlmMetadataFile: File get() = File(modelDir, GENERATIVE_LLM_METADATA_FILE_NAME)
 
     fun ensureDirectoryExists(): File {
@@ -52,6 +53,7 @@ class AiModelStore @Inject constructor(
 
     fun deleteGenerativeLlm(): Boolean = listOf(
         generativeLlmFile, generativeLlmPartFile, generativeLlmMetadataFile,
+        generativeLlmValidationFile,
         File(modelDir, LEGACY_LLM_FILE_NAME), File(modelDir, "$LEGACY_LLM_FILE_NAME.part"),
         File(modelDir, LEGACY_TASK_FILE_NAME), File(modelDir, "$LEGACY_TASK_FILE_NAME.part")
     ).all { !it.exists() || it.delete() }
@@ -89,6 +91,7 @@ class AiModelStore @Inject constructor(
     companion object {
         const val GENERATIVE_LLM_FILE_NAME = "qwen3_0_6b_mixed_int4.litertlm"
         const val GENERATIVE_LLM_PART_FILE_NAME = "$GENERATIVE_LLM_FILE_NAME.part"
+        const val GENERATIVE_LLM_VALIDATION_FILE_NAME = "qwen3_0_6b_mixed_int4.validation.litertlm"
         const val GENERATIVE_LLM_METADATA_FILE_NAME = "$GENERATIVE_LLM_FILE_NAME.sha256"
         const val PINNED_MODEL_SHA256 = "7900eb4e7362d88c58782c6f9999bb7a129e03544aa98b8f338ea0cc5d8c22c1"
         const val PINNED_MODEL_SIZE_BYTES = 497_516_544L

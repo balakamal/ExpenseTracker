@@ -40,6 +40,7 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         try {
             modelStore.ensureDirectoryExists()
             val partial = modelStore.generativeLlmPartFile
+            restoreInterruptedValidationFile(partial)
             setProgress(workDataOf(KEY_PROGRESS to 1, KEY_STATUS to "Connecting to LiteRT model repository"))
             updateForeground(1, "Connecting to LiteRT model repository")
             downloadWithResume(partial)
@@ -54,27 +55,37 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
 
             setProgress(workDataOf(KEY_PROGRESS to 96, KEY_STATUS to "Checking model compatibility"))
             updateForeground(96, "Checking model compatibility")
+            val validationFile = modelStore.generativeLlmValidationFile
+            if (validationFile.exists() && !validationFile.delete()) {
+                return@withContext Result.failure(workDataOf(KEY_STATUS to "Could not prepare the model validation file"))
+            }
+            if (!partial.renameTo(validationFile)) {
+                return@withContext Result.failure(workDataOf(KEY_STATUS to "Could not prepare the model for compatibility validation"))
+            }
             val compatibility = runCatching {
-                Engine(EngineConfig(modelPath = partial.absolutePath, backend = Backend.CPU(), cacheDir = applicationContext.cacheDir.absolutePath))
+                Engine(EngineConfig(modelPath = validationFile.absolutePath, backend = Backend.CPU(), cacheDir = applicationContext.cacheDir.absolutePath))
                     .also { it.initialize() }
             }
             val validationEngine = compatibility.getOrElse { error ->
+                restoreValidationFile(validationFile, partial)
                 return@withContext Result.failure(workDataOf(KEY_STATUS to "Model is incompatible or this device has insufficient memory: ${error.message ?: "initialization failed"}"))
             }
             validationEngine.close()
 
             val installed = runCatching {
                 if (modelStore.generativeLlmFile.exists() && !modelStore.generativeLlmFile.delete()) error("Could not replace the existing model")
-                if (!partial.renameTo(modelStore.generativeLlmFile)) partial.copyTo(modelStore.generativeLlmFile, overwrite = true).also { partial.delete() }
+                if (!validationFile.renameTo(modelStore.generativeLlmFile)) error("Could not atomically install the validated model")
                 val installedModel = modelStore.generativeLlmFile
                 modelStore.generativeLlmMetadataFile.writeText("$sha256|${installedModel.length()}|${installedModel.lastModified()}")
                 modelStore.isGenerativeLlmReady()
             }.getOrDefault(false)
-            partialShaFile(partial).delete()
             if (!installed) {
-                modelStore.deleteGenerativeLlm()
+                modelStore.generativeLlmFile.delete()
+                modelStore.generativeLlmMetadataFile.delete()
+                restoreValidationFile(validationFile, partial)
                 return@withContext Result.failure(workDataOf(KEY_STATUS to "Verified model could not be installed in private storage"))
             }
+            partialShaFile(partial).delete()
             readyResult()
         } catch (e: Exception) {
             Result.failure(workDataOf(KEY_STATUS to (e.localizedMessage ?: "Download failed; retry to resume")))
@@ -197,6 +208,26 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
     }
 
     private fun partialShaFile(file: java.io.File) = java.io.File(file.parentFile, "${file.name}.sha256")
+
+    /** A crash during model initialization must not strand the complete download under a temp suffix. */
+    private fun restoreInterruptedValidationFile(partial: java.io.File) {
+        val validationFile = modelStore.generativeLlmValidationFile
+        if (!validationFile.isFile) return
+        if (partial.exists() && !partial.delete()) {
+            throw java.io.IOException("Could not recover the interrupted model validation file")
+        }
+        restoreValidationFile(validationFile, partial)
+    }
+
+    private fun restoreValidationFile(validationFile: java.io.File, partial: java.io.File) {
+        if (validationFile.renameTo(partial)) return
+        try {
+            validationFile.copyTo(partial, overwrite = true)
+            if (!validationFile.delete()) throw java.io.IOException("Could not remove the temporary model file")
+        } catch (error: Exception) {
+            throw java.io.IOException("Could not recover the model download for retry", error)
+        }
+    }
 
     private suspend fun updateForeground(progress: Int, status: String) {
         val channelId = "ai_model_download_channel"
