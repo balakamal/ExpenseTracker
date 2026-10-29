@@ -103,6 +103,11 @@ class GetMonthlyDashboardUseCase @Inject constructor(
             val categoryCountMap = mutableMapOf<String, Int>()
 
             for (txn in filteredTransactions) {
+                // Only include genuine transactions in the financial totals -
+                // promotional/spam alerts (isValidTransaction == false) are shown in
+                // the ledger for transparency but excluded from all summary calculations.
+                if (!txn.isValidTransaction) continue
+
                 when (txn.type) {
                     TransactionType.DEBIT -> {
                         totalDebit += txn.amount

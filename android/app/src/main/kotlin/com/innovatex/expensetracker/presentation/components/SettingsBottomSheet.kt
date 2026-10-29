@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
@@ -24,9 +25,12 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -40,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.domain.model.AppUpdateInfo
+import com.innovatex.expensetracker.presentation.dashboard.AiReclassifyState
 import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
 import com.innovatex.expensetracker.presentation.dashboard.UpdateCheckState
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
@@ -71,6 +77,8 @@ fun SettingsBottomSheet(
     onDeleteAiModel: () -> Unit = {},
     onToggleAiClassification: (Boolean) -> Unit = {},
     onToggleAiSpamDetection: (Boolean) -> Unit = {},
+    aiReclassifyState: AiReclassifyState = AiReclassifyState.Idle,
+    onRerunAiOnExisting: () -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -648,116 +656,318 @@ fun SettingsBottomSheet(
                                 }
                             }
                             else -> {
-                                Button(
-                                    onClick = onDownloadAiModel,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = ApexThemeTokens.AccentCobalt,
-                                        contentColor = Color.White
-                                    ),
-                                    shape = ApexThemeTokens.RadiusSm,
-                                    modifier = Modifier.fillMaxWidth()
+                                // Premium hero download card
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(ApexThemeTokens.RadiusMd)
+                                        .background(
+                                            Brush.linearGradient(
+                                                colors = listOf(
+                                                    ApexThemeTokens.AccentCobalt.copy(alpha = 0.14f),
+                                                    ApexThemeTokens.AccentPrimary.copy(alpha = 0.08f)
+                                                )
+                                            )
+                                        )
+                                        .border(1.dp, ApexThemeTokens.AccentCobaltBorder, ApexThemeTokens.RadiusMd)
+                                        .padding(14.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Download AI Model (4.8 MB)",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    // Feature bullet list
+                                    AiFeatureBullet(text = "Smart expense categorization with BERT-Tiny neural model")
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    AiFeatureBullet(text = "Promotional & payment reminder filtering")
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    AiFeatureBullet(text = "100% offline — zero data leaves your device")
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Button(
+                                        onClick = onDownloadAiModel,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = ApexThemeTokens.AccentCobalt,
+                                            contentColor = Color.White
+                                        ),
+                                        shape = ApexThemeTokens.RadiusFull,
+                                        modifier = Modifier.fillMaxWidth().height(46.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Download AI Model · 4.8 MB",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
                     } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Enable AI Classification",
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
+                        // --- AI ACTIVE HERO CARD ---
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ApexThemeTokens.RadiusMd)
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(
+                                            ApexThemeTokens.AccentCobalt.copy(alpha = 0.14f),
+                                            ApexThemeTokens.AccentPrimary.copy(alpha = 0.08f)
+                                        )
+                                    )
                                 )
-                                Text(
-                                    text = "Categorizes expenses and infers credit/debit using BERT",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 11.sp
+                                .border(1.dp, ApexThemeTokens.AccentCobaltBorder, ApexThemeTokens.RadiusMd)
+                                .padding(16.dp)
+                        ) {
+                            // Header: shield icon + ACTIVE pill + size badge
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(ApexThemeTokens.RadiusSm)
+                                        .background(ApexThemeTokens.AccentCobaltTint),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Security,
+                                        contentDescription = null,
+                                        tint = ApexThemeTokens.AccentCobalt,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "BERT-Tiny Engine",
+                                            color = ApexThemeTokens.TextPrimary,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(ApexThemeTokens.RadiusFull)
+                                                .background(ApexThemeTokens.AccentPrimaryTint)
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "ACTIVE",
+                                                color = ApexThemeTokens.AccentPrimary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "$formattedModelSize on-device · 100% offline",
+                                        color = ApexThemeTokens.TextTertiary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                            androidx.compose.material3.HorizontalDivider(
+                                color = ApexThemeTokens.StrokeSubtle,
+                                thickness = 0.5.dp
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Enable AI Classification toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Enable AI Classification",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "Categorizes expenses and infers credit/debit using BERT",
+                                        color = ApexThemeTokens.TextTertiary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = settings.aiClassificationEnabled,
+                                    onCheckedChange = onToggleAiClassification,
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                        checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                        uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                        uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                                    )
                                 )
                             }
 
-                            Switch(
-                                checked = settings.aiClassificationEnabled,
-                                onCheckedChange = onToggleAiClassification,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
-                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
-                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
-                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
-                                )
-                            )
-                        }
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "AI Spam & Reminder Filter",
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Automatically drops promotional and unpaid reminder alerts",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 11.sp
+                            // AI Spam & Reminder Filter toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "AI Spam & Reminder Filter",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "Automatically drops promotional and unpaid reminder alerts",
+                                        color = ApexThemeTokens.TextTertiary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = settings.aiSpamDetectionEnabled,
+                                    onCheckedChange = onToggleAiSpamDetection,
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                        checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                        uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                        uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                                    )
                                 )
                             }
 
-                            Switch(
-                                checked = settings.aiSpamDetectionEnabled,
-                                onCheckedChange = onToggleAiSpamDetection,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
-                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
-                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
-                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                            Spacer(modifier = Modifier.height(14.dp))
+                            androidx.compose.material3.HorizontalDivider(
+                                color = ApexThemeTokens.StrokeSubtle,
+                                thickness = 0.5.dp
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Re-classify Existing Transactions — persistent always-available action
+                            when (aiReclassifyState) {
+                                is AiReclassifyState.Running -> {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = ApexThemeTokens.AccentCobalt
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Re-classifying transactions…",
+                                                    color = ApexThemeTokens.TextPrimary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                            Text(
+                                                text = "${aiReclassifyState.processed} / ${aiReclassifyState.total}",
+                                                color = ApexThemeTokens.AccentCobalt,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        LinearProgressIndicator(
+                                            progress = {
+                                                if (aiReclassifyState.total > 0)
+                                                    aiReclassifyState.processed / aiReclassifyState.total.toFloat()
+                                                else 0f
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(3.dp)
+                                                .clip(ApexThemeTokens.RadiusFull),
+                                            color = ApexThemeTokens.AccentCobalt,
+                                            trackColor = ApexThemeTokens.StrokeHighlight
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    OutlinedButton(
+                                        onClick = onRerunAiOnExisting,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = ApexThemeTokens.RadiusSm,
+                                        border = BorderStroke(1.dp, ApexThemeTokens.AccentCobaltBorder),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = ApexThemeTokens.AccentCobalt
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoFixHigh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (aiReclassifyState is AiReclassifyState.Done)
+                                                "Re-run AI Classification Again"
+                                            else
+                                                "Re-classify Existing Transactions",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    if (aiReclassifyState is AiReclassifyState.Done) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = ApexThemeTokens.AccentPrimary,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                            Text(
+                                                text = "Updated ${(aiReclassifyState as AiReclassifyState.Done).updatedCount} transactions",
+                                                color = ApexThemeTokens.AccentPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "New transactions are classified automatically. Tap above to re-evaluate your existing history.",
+                                        color = ApexThemeTokens.TextTertiary,
+                                        fontSize = 10.sp,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Delete model — tertiary destructive action
+                            TextButton(
+                                onClick = onDeleteAiModel,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = null,
+                                    tint = ApexThemeTokens.AccentDanger,
+                                    modifier = Modifier.size(14.dp)
                                 )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedButton(
-                            onClick = onDeleteAiModel,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = ApexThemeTokens.AccentDanger
-                            ),
-                            border = ButtonDefaults.outlinedButtonBorder.copy(
-                                brush = androidx.compose.ui.graphics.SolidColor(ApexThemeTokens.AccentDangerBorder)
-                            ),
-                            shape = ApexThemeTokens.RadiusSm,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Delete Downloaded Model",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Remove Downloaded Model",
+                                    color = ApexThemeTokens.AccentDanger,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -940,3 +1150,23 @@ fun SettingsBottomSheet(
         }
     }
 }
+
+@Composable
+private fun AiFeatureBullet(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(ApexThemeTokens.AccentCobalt)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            color = ApexThemeTokens.TextSecondary,
+            fontSize = 11.sp,
+            lineHeight = 15.sp
+        )
+    }
+}
+

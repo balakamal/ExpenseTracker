@@ -81,6 +81,7 @@ fun CorbelCalendar(
         val cal = Calendar.getInstance()
 
         for (txn in allTransactions) {
+            if (!txn.isValidTransaction) continue
             cal.timeInMillis = txn.timestamp
             cal.set(Calendar.HOUR_OF_DAY, 0)
             cal.set(Calendar.MINUTE, 0)

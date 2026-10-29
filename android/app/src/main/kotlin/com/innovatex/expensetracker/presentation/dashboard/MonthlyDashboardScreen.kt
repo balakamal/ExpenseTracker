@@ -114,6 +114,7 @@ fun MonthlyDashboardScreen(
     val isAiModelReady by viewModel.isAiModelReady.collectAsState()
     val aiModelSizeBytes by viewModel.aiModelSizeBytes.collectAsState()
     val modelDownloadState by viewModel.modelDownloadState.collectAsState()
+    val aiReclassifyState by viewModel.aiReclassifyState.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -765,6 +766,8 @@ fun MonthlyDashboardScreen(
             onDownloadAiModel = { viewModel.downloadAiModel(context) },
             onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
             onDeleteAiModel = { viewModel.deleteAiModel() },
+            aiReclassifyState = aiReclassifyState,
+            onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions() },
             onToggleAiClassification = { viewModel.toggleAiClassification(it) },
             onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },

@@ -7,7 +7,10 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
 import com.innovatex.expensetracker.ai.AiModelStore
+import com.innovatex.expensetracker.ai.LocalAiClassifier
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
+import com.innovatex.expensetracker.ingestion.IngestionPipeline
+import kotlinx.coroutines.Dispatchers
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
@@ -44,7 +47,8 @@ class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
-    private val aiModelStore: AiModelStore
+    private val aiModelStore: AiModelStore,
+    private val localAiClassifier: LocalAiClassifier
 ) : ViewModel() {
 
     private val _isAiModelReady = MutableStateFlow(aiModelStore.isModelReady())
@@ -57,6 +61,9 @@ class DashboardViewModel @Inject constructor(
     val modelDownloadState: StateFlow<ModelDownloadUiState> = _modelDownloadState.asStateFlow()
 
     private var downloadJob: Job? = null
+
+    private val _aiReclassifyState = MutableStateFlow<AiReclassifyState>(AiReclassifyState.Idle)
+    val aiReclassifyState: StateFlow<AiReclassifyState> = _aiReclassifyState.asStateFlow()
 
     private val _selectedMonth = MutableStateFlow("ALL")
     val selectedMonth: StateFlow<String> = _selectedMonth.asStateFlow()
@@ -524,6 +531,60 @@ class DashboardViewModel @Inject constructor(
             refreshSuspectedSpam()
         }
     }
+
+    fun rerunAiOnExistingTransactions() {
+        if (_aiReclassifyState.value is AiReclassifyState.Running) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val allTxns = transactionRepository.getAllTransactions().first()
+            // Eligible: no user override, has raw snippet or clean merchant to classify
+            val eligible = allTxns.filter { it.userOverrideValid == null }
+            val total = eligible.size
+            _aiReclassifyState.value = AiReclassifyState.Running(processed = 0, total = total)
+
+            val userRules = runCatching {
+                categoryRepository.getAllRules().first()
+            }.getOrDefault(emptyList())
+
+            var updatedCount = 0
+            eligible.forEachIndexed { idx, txn ->
+                _aiReclassifyState.value = AiReclassifyState.Running(processed = idx + 1, total = total)
+                val aiResult = runCatching {
+                    localAiClassifier.classify(
+                        text = txn.rawSnippet?.ifBlank { null } ?: txn.merchantClean,
+                        merchant = txn.merchantClean,
+                        sender = txn.sender
+                    )
+                }.getOrNull() ?: return@forEachIndexed
+
+                val hasUserRule = userRules.any { rule ->
+                    if (rule.isRegex) {
+                        Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(txn.merchantClean)
+                    } else {
+                        txn.merchantClean.contains(rule.pattern, ignoreCase = true)
+                    }
+                }
+
+                val newCategory = if (!hasUserRule &&
+                    aiResult.categoryId != null &&
+                    (aiResult.categoryConfidence ?: 0f) >= IngestionPipeline.AI_CATEGORY_CONFIDENCE_THRESHOLD
+                ) {
+                    aiResult.categoryId
+                } else {
+                    txn.categoryId
+                }
+
+                val enriched = txn.copy(
+                    categoryId = newCategory,
+                    aiClassification = aiResult
+                )
+                runCatching { transactionRepository.updateTransaction(enriched) }
+                updatedCount++
+            }
+            _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount)
+            // Refresh suspected spam list since AI may have re-flagged some transactions
+            refreshSuspectedSpam()
+        }
+    }
 }
 
 sealed interface ModelDownloadUiState {
@@ -539,4 +600,9 @@ enum class DateRangePreset(val label: String) {
     LAST_7_DAYS("7D"),
     THIS_MONTH("This Month"),
     LAST_30_DAYS("30D")
+}
+sealed interface AiReclassifyState {
+    object Idle : AiReclassifyState
+    data class Running(val processed: Int, val total: Int) : AiReclassifyState
+    data class Done(val updatedCount: Int) : AiReclassifyState
 }
