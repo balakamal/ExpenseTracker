@@ -27,7 +27,7 @@ android {
 
         // Option A: Target physical mobile devices (ARM 64-bit and 32-bit), reducing APK size by ~50%
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -81,6 +81,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/LICENSE.md"
             excludes += "META-INF/LICENSE-notice.md"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            pickFirsts += "META-INF/*"
         }
     }
 

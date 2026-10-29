@@ -26,6 +26,26 @@
 -keep class ai.onnxruntime.** { *; }
 -dontwarn ai.onnxruntime.**
 
+# MediaPipe Core & Tasks GenAI (On-Device LLM Inference)
+-keep class com.google.mediapipe.** { *; }
+-keep class * implements com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.mediapipe.tasks.genai.**
+-keepclassmembers class com.google.mediapipe.**$$ExternalSyntheticLambda* { *; }
+-keepclassmembers,allowoptimization class com.google.mediapipe.** { *; }
+
+# Protocol Buffers (used by MediaPipe & GenAI serialization)
+-keep class com.google.mediapipe.proto.** { *; }
+-keep class com.google.protobuf.** { *; }
+-dontwarn com.google.protobuf.**
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { *; }
+-keepclassmembers class com.google.protobuf.** { *; }
+
+# Google Common Flogger (internal logging in MediaPipe)
+-keep class com.google.common.flogger.** { *; }
+-dontwarn com.google.common.flogger.**
+-keepclassmembers class com.google.common.flogger.** { *; }
+
 # WorkManager & Hilt Worker
 -keep class * extends androidx.work.Worker
 -keep class * extends androidx.work.ListenableWorker

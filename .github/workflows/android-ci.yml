@@ -161,6 +161,11 @@ jobs:
             fi
           } > error-artifacts/error-summary.txt
 
+          echo "=========================================================="
+          cat error-artifacts/error-summary.txt
+          echo "=========================================================="
+          cat error-artifacts/error-summary.txt >> $GITHUB_STEP_SUMMARY
+
           # Copy entire console execution log
           if [ -f build-execution.log ]; then
             cp build-execution.log error-artifacts/build-execution.log
