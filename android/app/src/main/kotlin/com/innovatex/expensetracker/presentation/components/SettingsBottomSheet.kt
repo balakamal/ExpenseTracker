@@ -87,8 +87,10 @@ fun SettingsBottomSheet(
     onDeleteAiModel: () -> Unit = {},
     onToggleAiClassification: (Boolean) -> Unit = {},
     onToggleAiSpamDetection: (Boolean) -> Unit = {},
+    onToggleBackgroundAiNotifications: (Boolean) -> Unit = {},
     aiReclassifyState: AiReclassifyState = AiReclassifyState.Idle,
     onRerunAiOnExisting: () -> Unit = {},
+    onCancelAiReprocessing: () -> Unit = {},
     onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
@@ -785,6 +787,36 @@ fun SettingsBottomSheet(
                             )
                         }
                     }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Background AI notifications",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "When allowed, show model setup and ledger reprocessing progress and completion. Android keeps a minimal notice while work runs.",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.backgroundAiNotificationsEnabled,
+                            onCheckedChange = onToggleBackgroundAiNotifications,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                            )
+                        )
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
                     HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(14.dp))
@@ -878,7 +910,7 @@ fun SettingsBottomSheet(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "Verifying & Deduplicating…",
+                                            text = aiReclassifyState.statusText,
                                             color = ApexThemeTokens.TextPrimary,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium
@@ -905,9 +937,25 @@ fun SettingsBottomSheet(
                                     color = ApexThemeTokens.AccentCobalt,
                                     trackColor = ApexThemeTokens.StrokeHighlight
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                TextButton(
+                                    onClick = onCancelAiReprocessing,
+                                    modifier = Modifier.align(Alignment.End),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text(text = "Cancel", color = ApexThemeTokens.TextTertiary, fontSize = 11.sp)
+                                }
                             }
                         }
                         else -> {
+                            if (aiReclassifyState is AiReclassifyState.Failed) {
+                                Text(
+                                    text = aiReclassifyState.message,
+                                    color = ApexThemeTokens.AccentDanger,
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                             if (aiReclassifyState is AiReclassifyState.Done) {
                                 Box(
                                     modifier = Modifier

@@ -37,6 +37,7 @@ data class AppSettings(
     val autoCheckUpdates: Boolean = true,
     val aiClassificationEnabled: Boolean = true,
     val aiSpamDetectionEnabled: Boolean = true,
+    val backgroundAiNotificationsEnabled: Boolean = true,
     val preferredAiEngine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM
 )
 
@@ -58,6 +59,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_TRUSTED_SENDERS = stringSetPreferencesKey("key_trusted_senders")
         val KEY_AI_CLASSIFICATION_ENABLED = booleanPreferencesKey("key_ai_classification_enabled")
         val KEY_AI_SPAM_DETECTION_ENABLED = booleanPreferencesKey("key_ai_spam_detection_enabled")
+        val KEY_BACKGROUND_AI_NOTIFICATIONS_ENABLED = booleanPreferencesKey("key_model_download_notifications_enabled")
         val KEY_PREFERRED_AI_ENGINE = stringPreferencesKey("key_preferred_ai_engine")
     }
 
@@ -138,6 +140,7 @@ class PreferencesDataStore @Inject constructor(
             autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true,
             aiClassificationEnabled = preferences[KEY_AI_CLASSIFICATION_ENABLED] ?: true,
             aiSpamDetectionEnabled = preferences[KEY_AI_SPAM_DETECTION_ENABLED] ?: true,
+            backgroundAiNotificationsEnabled = preferences[KEY_BACKGROUND_AI_NOTIFICATIONS_ENABLED] ?: true,
             preferredAiEngine = preferences[KEY_PREFERRED_AI_ENGINE]?.let { name ->
                 runCatching { AiEnginePreference.valueOf(name) }.getOrNull()
             }?.takeUnless { it == AiEnginePreference.FINANCIAL_TRANSFORMER } ?: AiEnginePreference.GENERATIVE_LLM
@@ -178,6 +181,10 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setAiSpamDetectionEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_AI_SPAM_DETECTION_ENABLED] = enabled }
+    }
+
+    suspend fun setBackgroundAiNotificationsEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_BACKGROUND_AI_NOTIFICATIONS_ENABLED] = enabled }
     }
 
     suspend fun setPreferredAiEngine(engine: AiEnginePreference) {

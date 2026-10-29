@@ -10,6 +10,7 @@ import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionCursor
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.ingestion.parser.SmsParserEngine
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +43,28 @@ class TransactionRepositoryImpl @Inject constructor(
         transactionDao.getAllTransactionsFlow()
             .map { list -> list.map { it.toDomain() } }
             .flowOn(ioDispatcher)
+
+    override suspend fun countTransactionsForReprocessing(): Int = withContext(ioDispatcher) {
+        transactionDao.countTransactionsForReprocessing()
+    }
+
+    override suspend fun latestTransactionCursor(): TransactionCursor? = withContext(ioDispatcher) {
+        transactionDao.getLatestTransactionCursor()?.let { TransactionCursor(it.timestamp, it.id) }
+    }
+
+    override suspend fun getTransactionsForReprocessing(
+        after: TransactionCursor?,
+        through: TransactionCursor,
+        limit: Int
+    ): List<Transaction> = withContext(ioDispatcher) {
+        transactionDao.getTransactionsForReprocessing(
+            afterTimestamp = after?.timestamp,
+            afterId = after?.id,
+            throughTimestamp = through.timestamp,
+            throughId = through.id,
+            limit = limit.coerceIn(1, 500)
+        ).map { it.toDomain() }
+    }
 
     override fun getTransactionsForDate(startTime: Long, endTime: Long): Flow<List<Transaction>> =
         transactionDao.getTransactionsForDateRange(startTime, endTime)
@@ -159,6 +184,7 @@ class TransactionRepositoryImpl @Inject constructor(
         val duplicateIds = mutableListOf<String>()
 
         for (entity in allEntities) {
+            currentCoroutineContext().ensureActive()
             val candidate = entity.toDomain()
             // Look for matching existing transaction in retained pool within 30 minutes
             val matchIndex = retained.indexOfLast { existing ->

@@ -180,6 +180,12 @@ data class Transaction(
     }
 }
 
+/** Stable cursor used to page a ledger snapshot during background reprocessing. */
+data class TransactionCursor(
+    val timestamp: Long,
+    val id: String
+)
+
 data class SuspectedSpamItem(
     val sender: String,
     val transactionCount: Int,

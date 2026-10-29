@@ -2,11 +2,17 @@ package com.innovatex.expensetracker.ai
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.StatFs
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -22,8 +28,10 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
+import com.innovatex.expensetracker.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import java.io.BufferedInputStream
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -36,7 +44,7 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
     private val preferences = PreferencesDataStore(context)
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        if (modelStore.isGenerativeLlmReady()) return@withContext readyResult()
+        if (modelStore.isGenerativeLlmReady()) return@withContext readyResult(notifyCompletion = false)
         try {
             modelStore.ensureDirectoryExists()
             val partial = modelStore.generativeLlmPartFile
@@ -86,15 +94,18 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                 return@withContext Result.failure(workDataOf(KEY_STATUS to "Verified model could not be installed in private storage"))
             }
             partialShaFile(partial).delete()
-            readyResult()
+            readyResult(notifyCompletion = true)
         } catch (e: Exception) {
             Result.failure(workDataOf(KEY_STATUS to (e.localizedMessage ?: "Download failed; retry to resume")))
         }
     }
 
-    private suspend fun readyResult(): Result {
+    private suspend fun readyResult(notifyCompletion: Boolean): Result {
         preferences.setPreferredAiEngine(AiEnginePreference.GENERATIVE_LLM)
         preferences.setAiClassificationEnabled(true)
+        if (notifyCompletion && shouldShowDownloadNotifications()) {
+            postCompletionNotification()
+        }
         setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "On-device model ready"))
         updateForeground(100, "On-device model ready")
         return Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Model ready"))
@@ -230,19 +241,59 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
     }
 
     private suspend fun updateForeground(progress: Int, status: String) {
-        val channelId = "ai_model_download_channel"
+        val channelId = DOWNLOAD_NOTIFICATION_CHANNEL_ID
+        val notificationsEnabled = shouldShowDownloadNotifications()
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(NotificationChannel(channelId, "AI Model Download", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(channelId, "AI and ledger processing", NotificationManager.IMPORTANCE_LOW))
         }
+        val shownStatus = if (notificationsEnabled) status else "Model setup is running in the background"
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setContentTitle("Apex Expense AI").setContentText(status)
-            .setSmallIcon(android.R.drawable.stat_sys_download).setProgress(100, progress, false)
+            .setContentTitle("Apex Expense AI").setContentText(shownStatus)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setProgress(100, if (notificationsEnabled) progress else 0, !notificationsEnabled)
             .setOngoing(progress < 100).setSilent(true).build()
         val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else ForegroundInfo(NOTIFICATION_ID, notification)
         setForeground(info)
+    }
+
+    private suspend fun shouldShowDownloadNotifications(): Boolean {
+        val enabledInApp = preferences.appSettingsFlow.first().backgroundAiNotificationsEnabled
+        if (!enabledInApp || !NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            if (manager?.getNotificationChannel(DOWNLOAD_NOTIFICATION_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+                return false
+            }
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun postCompletionNotification() {
+        val channelId = DOWNLOAD_NOTIFICATION_CHANNEL_ID
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            COMPLETION_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setContentTitle("On-device model is ready")
+            .setContentText("Model setup is complete. Financial message classification can now run on this device.")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(applicationContext).notify(COMPLETION_NOTIFICATION_ID, notification)
+        }
     }
 
     companion object {
@@ -251,6 +302,8 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
         const val KEY_STATUS = "status"
         const val KEY_TARGET_ENGINE = "target_engine"
         private const val NOTIFICATION_ID = 2001
+        private const val COMPLETION_NOTIFICATION_ID = 2002
+        private const val DOWNLOAD_NOTIFICATION_CHANNEL_ID = "ai_model_download_channel"
         private const val MIN_FREE_SPACE_MARGIN = 50L * 1024 * 1024
         private val CONTENT_RANGE_REGEX = Regex("bytes (\\d+)-(\\d+)/(\\d+)", RegexOption.IGNORE_CASE)
         const val MODEL_URL = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/154c5de0fc0fc5002a7da570ba8c67edffa32ca2/qwen3_0_6b_mixed_int4.litertlm"

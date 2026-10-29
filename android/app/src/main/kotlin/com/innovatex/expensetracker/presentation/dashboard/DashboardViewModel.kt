@@ -7,10 +7,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
 import com.innovatex.expensetracker.ai.AiModelStore
-import com.innovatex.expensetracker.ai.LocalAiClassifier
+import com.innovatex.expensetracker.ai.LedgerReprocessingWorker
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
-import com.innovatex.expensetracker.ingestion.IngestionPipeline
-import kotlinx.coroutines.Dispatchers
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.AiEnginePreference
@@ -48,8 +46,7 @@ class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
-    private val aiModelStore: AiModelStore,
-    private val localAiClassifier: LocalAiClassifier
+    private val aiModelStore: AiModelStore
 ) : ViewModel() {
 
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
@@ -65,6 +62,7 @@ class DashboardViewModel @Inject constructor(
     val modelDownloadState: StateFlow<ModelDownloadUiState> = _modelDownloadState.asStateFlow()
 
     private var downloadJob: Job? = null
+    private var reprocessingObserverJob: Job? = null
 
     private val _aiReclassifyState = MutableStateFlow<AiReclassifyState>(AiReclassifyState.Idle)
     val aiReclassifyState: StateFlow<AiReclassifyState> = _aiReclassifyState.asStateFlow()
@@ -472,6 +470,12 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun setBackgroundAiNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataStore.setBackgroundAiNotificationsEnabled(enabled)
+        }
+    }
+
     fun downloadAiModel(context: Context, engine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM) {
         ModelDownloadWorker.enqueue(context, engine)
         observeModelDownloadWork(context)
@@ -562,65 +566,55 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun rerunAiOnExistingTransactions() {
-        if (_aiReclassifyState.value is AiReclassifyState.Running) return
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val allTxns = transactionRepository.getAllTransactions().first()
-                // Eligible: no user override, has raw snippet or clean merchant to classify
-                val eligible = allTxns.filter { it.userOverrideValid == null }
-                val total = eligible.size
-                _aiReclassifyState.value = AiReclassifyState.Running(processed = 0, total = total)
+    fun rerunAiOnExistingTransactions(context: Context) {
+        LedgerReprocessingWorker.enqueue(context)
+        observeLedgerReprocessingWork(context)
+    }
 
-                val userRules = runCatching {
-                    categoryRepository.getAllRules().first()
-                }.getOrDefault(emptyList())
+    fun cancelLedgerReprocessing(context: Context) {
+        LedgerReprocessingWorker.cancel(context)
+    }
 
-                var updatedCount = 0
-                eligible.forEachIndexed { idx, txn ->
-                    _aiReclassifyState.value = AiReclassifyState.Running(processed = idx + 1, total = total)
-                    val aiResult = runCatching {
-                        localAiClassifier.classify(
-                            text = txn.rawSnippet?.ifBlank { null } ?: txn.merchantClean,
-                            merchant = txn.merchantClean,
-                            sender = txn.sender
-                        )
-                    }.getOrNull()
-
-                    val hasUserRule = userRules.any { rule ->
-                        if (rule.isRegex) {
-                            Regex(rule.pattern, RegexOption.IGNORE_CASE).containsMatchIn(txn.merchantClean)
-                        } else {
-                            txn.merchantClean.contains(rule.pattern, ignoreCase = true)
+    fun observeLedgerReprocessingWork(context: Context) {
+        reprocessingObserverJob?.cancel()
+        reprocessingObserverJob = viewModelScope.launch {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkFlow(LedgerReprocessingWorker.WORK_NAME)
+                .collect { workInfos ->
+                    val workInfo = workInfos.firstOrNull {
+                        it.state == WorkInfo.State.ENQUEUED ||
+                            it.state == WorkInfo.State.BLOCKED ||
+                            it.state == WorkInfo.State.RUNNING
+                    } ?: workInfos.lastOrNull()
+                    if (workInfo == null) {
+                        _aiReclassifyState.value = AiReclassifyState.Idle
+                        return@collect
+                    }
+                    when (workInfo.state) {
+                        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED, WorkInfo.State.RUNNING -> {
+                            val progress = workInfo.progress
+                            _aiReclassifyState.value = AiReclassifyState.Running(
+                                processed = progress.getInt(LedgerReprocessingWorker.KEY_PROCESSED, 0),
+                                total = progress.getInt(LedgerReprocessingWorker.KEY_TOTAL, 0),
+                                statusText = progress.getString(LedgerReprocessingWorker.KEY_STATUS)
+                                    ?: if (workInfo.state == WorkInfo.State.BLOCKED) "Waiting for background execution" else "Preparing ledger verification"
+                            )
                         }
+                        WorkInfo.State.SUCCEEDED -> {
+                            val updated = workInfo.outputData.getInt(LedgerReprocessingWorker.KEY_UPDATED, 0)
+                            val merged = workInfo.outputData.getInt(LedgerReprocessingWorker.KEY_DEDUPLICATED, 0)
+                            _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updated, deduplicatedCount = merged)
+                            _cleanSpamStatus.value = "AI verification complete: $updated transactions verified, $merged duplicate alerts merged."
+                            refreshSuspectedSpam()
+                        }
+                        WorkInfo.State.FAILED -> {
+                            val message = workInfo.outputData.getString(LedgerReprocessingWorker.KEY_STATUS)
+                                ?: "Ledger verification failed. Retry when the device is ready."
+                            _aiReclassifyState.value = AiReclassifyState.Failed(message)
+                        }
+                        WorkInfo.State.CANCELLED -> _aiReclassifyState.value = AiReclassifyState.Idle
                     }
-
-                    val newCategory = if (!hasUserRule &&
-                        aiResult?.categoryId != null &&
-                        (aiResult.categoryConfidence ?: 0f) >= IngestionPipeline.AI_CATEGORY_CONFIDENCE_THRESHOLD
-                    ) {
-                        aiResult.categoryId
-                    } else {
-                        txn.categoryId
-                    }
-
-                    val enriched = txn.copy(
-                        categoryId = newCategory,
-                        aiClassification = aiResult ?: txn.aiClassification
-                    )
-                    runCatching { transactionRepository.updateTransaction(enriched) }
-                    updatedCount++
                 }
-                val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
-                _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount, deduplicatedCount = deduplicatedCount)
-                _cleanSpamStatus.value = "AI verification complete: $updatedCount verified, $deduplicatedCount duplicates merged."
-                refreshSuspectedSpam()
-            } catch (err: Exception) {
-                android.util.Log.e("DashboardViewModel", "Error in rerunAiOnExistingTransactions", err)
-                val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
-                _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = 0, deduplicatedCount = deduplicatedCount)
-                _cleanSpamStatus.value = "Verification completed using local rules."
-            }
         }
     }
 }
@@ -641,6 +635,7 @@ enum class DateRangePreset(val label: String) {
 }
 sealed interface AiReclassifyState {
     object Idle : AiReclassifyState
-    data class Running(val processed: Int, val total: Int) : AiReclassifyState
+    data class Running(val processed: Int, val total: Int, val statusText: String = "Re-verifying ledger") : AiReclassifyState
     data class Done(val updatedCount: Int, val deduplicatedCount: Int = 0) : AiReclassifyState
+    data class Failed(val message: String) : AiReclassifyState
 }

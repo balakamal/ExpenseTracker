@@ -149,6 +149,7 @@ dependencies {
     // WorkManager + Hilt Work
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)

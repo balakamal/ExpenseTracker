@@ -120,6 +120,7 @@ fun MonthlyDashboardScreen(
 
     LaunchedEffect(Unit) {
         viewModel.observeModelDownloadWork(context)
+        viewModel.observeLedgerReprocessingWork(context)
     }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -772,9 +773,11 @@ fun MonthlyDashboardScreen(
             onDismissDownloadError = { viewModel.dismissModelDownloadError() },
             onDeleteAiModel = { viewModel.deleteAiModel() },
             aiReclassifyState = aiReclassifyState,
-            onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions() },
+            onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions(context) },
+            onCancelAiReprocessing = { viewModel.cancelLedgerReprocessing(context) },
             onToggleAiClassification = { viewModel.toggleAiClassification(it) },
             onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
+            onToggleBackgroundAiNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
             onOpenReviewSpam = {
                 showSettingsSheet = false

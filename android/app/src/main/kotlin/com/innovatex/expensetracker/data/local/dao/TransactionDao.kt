@@ -8,7 +8,13 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
+import androidx.room.ColumnInfo
 import kotlinx.coroutines.flow.Flow
+
+data class TransactionCursorRow(
+    @ColumnInfo(name = "timestamp") val timestamp: Long,
+    @ColumnInfo(name = "id") val id: String
+)
 
 @Dao
 interface TransactionDao {
@@ -59,6 +65,30 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     suspend fun getAllTransactions(): List<TransactionEntity>
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE user_override_valid IS NULL")
+    suspend fun countTransactionsForReprocessing(): Int
+
+    @Query("SELECT timestamp, id FROM transactions ORDER BY timestamp DESC, id DESC LIMIT 1")
+    suspend fun getLatestTransactionCursor(): TransactionCursorRow?
+
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE user_override_valid IS NULL
+          AND (:afterTimestamp IS NULL OR timestamp > :afterTimestamp OR (timestamp = :afterTimestamp AND id > :afterId))
+          AND (timestamp < :throughTimestamp OR (timestamp = :throughTimestamp AND id <= :throughId))
+        ORDER BY timestamp ASC, id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getTransactionsForReprocessing(
+        afterTimestamp: Long?,
+        afterId: String?,
+        throughTimestamp: Long,
+        throughId: String,
+        limit: Int
+    ): List<TransactionEntity>
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransactionById(id: String)

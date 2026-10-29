@@ -4,11 +4,19 @@ import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionCursor
 import kotlinx.coroutines.flow.Flow
 
 interface TransactionRepository {
     fun getTransactionsForMonth(monthKey: String): Flow<List<Transaction>>
     fun getAllTransactions(): Flow<List<Transaction>>
+    suspend fun countTransactionsForReprocessing(): Int
+    suspend fun latestTransactionCursor(): TransactionCursor?
+    suspend fun getTransactionsForReprocessing(
+        after: TransactionCursor?,
+        through: TransactionCursor,
+        limit: Int
+    ): List<Transaction>
     fun getTransactionsForDate(startTime: Long, endTime: Long): Flow<List<Transaction>>
     fun getRecentTransactions(limit: Int = 5): Flow<List<Transaction>>
     suspend fun getTransactionById(id: String): Transaction?
