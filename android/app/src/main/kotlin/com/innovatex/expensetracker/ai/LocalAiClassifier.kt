@@ -296,7 +296,7 @@ class LocalAiClassifier @Inject constructor(
                     setIntraOpNumThreads(2)
                 }
                 ortSession = ortEnv.createSession(modelStore.modelFile.absolutePath, sessionOptions)
-                tokenizer = WordPieceTokenizer.load(modelStore.vocabFile)
+                tokenizer = WordPieceTokenizer(modelStore.vocabFile)
                 ortSession
             } catch (e: Exception) {
                 ortSession = null

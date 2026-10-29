@@ -190,7 +190,7 @@ class TransactionRepositoryImpl @Inject constructor(
                     accountLast4 = existing.accountLast4 ?: domain.accountLast4
                 )
                 seenTransactions[key] = updated
-                transactionDao.updateTransaction(updated.toEntity())
+                transactionDao.updateTransaction(TransactionEntity.fromDomain(updated))
                 duplicateIds.add(entity.id)
             } else {
                 seenTransactions[key] = domain

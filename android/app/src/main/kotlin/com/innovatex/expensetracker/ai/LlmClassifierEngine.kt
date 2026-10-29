@@ -50,11 +50,13 @@ class LlmClassifierEngine @Inject constructor(
                 val engine = getOrInitLlm() ?: return@withContext null
                 val prompt = buildPrompt(text)
 
-                val response = runCatching {
-                    engine.generate(prompt)
+                val response: String? = runCatching {
+                    engine.generateResponse(prompt)
                 }.onFailure { err ->
                     Log.e("LlmClassifierEngine", "Error generating response from LLM", err)
-                }.getOrNull() ?: return@withContext null
+                }.getOrNull()
+
+                if (response.isNullOrBlank()) return@withContext null
 
                 parseLlmResponse(response, candidateMerchant)
             }
