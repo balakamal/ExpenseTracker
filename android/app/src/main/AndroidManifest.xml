@@ -12,6 +12,10 @@
     <!-- Internet permission for GitHub App update release checking & user-initiated AI model download (zero telemetry) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Foreground service permissions for large AI model downloads -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <!-- Storage Access Framework handles exports without external storage permissions -->
 
     <application
@@ -34,6 +38,12 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <!-- Foreground Service for long-running AI model downloads without 10-minute OS timeout -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <!-- Main Activity -->
         <activity

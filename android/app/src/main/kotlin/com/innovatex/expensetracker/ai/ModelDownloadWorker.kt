@@ -1,10 +1,17 @@
 package com.innovatex.expensetracker.ai
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -40,108 +47,127 @@ class ModelDownloadWorker(
             return@withContext Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Model ready"))
         }
 
-        val targetDir = modelStore.ensureDirectoryExists()
+        modelStore.ensureDirectoryExists()
+        updateForeground(5, "Connecting to model repository...")
 
         if (targetEngine == AiEnginePreference.GENERATIVE_LLM) {
-            val tempLlmFile = File(targetDir, "llm_temp.task")
+            val partFile = modelStore.generativeLlmPartFile
+            val targetFile = modelStore.generativeLlmFile
+
+            // Check if .part file is already fully downloaded and verified on disk
+            if (partFile.exists() && modelStore.isValidMediaPipeBundle(partFile)) {
+                installFileWithFallback(partFile, targetFile)
+                if (modelStore.isGenerativeLlmReady()) {
+                    preferencesDataStore.setPreferredAiEngine(AiEnginePreference.GENERATIVE_LLM)
+                    preferencesDataStore.setAiClassificationEnabled(true)
+                    setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Ready"))
+                    updateForeground(100, "Qwen 2.5 SLM is ready")
+                    return@withContext Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Success"))
+                }
+            }
+
             try {
-                setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to LiteRT Community..."))
+                val resumePercent = calculateExistingPercent(partFile, 5, 95, 521_000_000L)
+                val initialStatus = if (resumePercent > 5) "Resuming Qwen 2.5 SLM ($resumePercent%)..." else "Connecting to LiteRT Community..."
+                setProgress(workDataOf(KEY_PROGRESS to resumePercent, KEY_STATUS to initialStatus))
+                updateForeground(resumePercent, initialStatus)
 
                 downloadWithResumeAndRetry(
                     urls = GENERATIVE_LLM_URLS,
-                    destination = tempLlmFile,
+                    destination = partFile,
                     startPercent = 5,
                     endPercent = 95,
-                    taskLabel = "Downloading Qwen 2.5 SLM Task (~520 MB)"
+                    taskLabel = "Downloading Qwen 2.5 SLM Task (~520 MB)",
+                    isBundle = true
                 )
 
                 if (isStopped) {
-                    tempLlmFile.delete()
-                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
+                    // Do NOT delete the partial download! Keep it for resumption
+                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Download paused / cancelled"))
                 }
 
                 setProgress(workDataOf(KEY_PROGRESS to 95, KEY_STATUS to "Verifying LLM binary..."))
+                updateForeground(95, "Verifying LLM binary...")
 
-                if (tempLlmFile.exists() && modelStore.isValidMediaPipeBundle(tempLlmFile)) {
-                    if (modelStore.generativeLlmFile.exists()) modelStore.generativeLlmFile.delete()
-                    val moved = tempLlmFile.renameTo(modelStore.generativeLlmFile)
+                if (partFile.exists() && modelStore.isValidMediaPipeBundle(partFile)) {
+                    val moved = installFileWithFallback(partFile, targetFile)
                     if (!moved) {
-                        tempLlmFile.delete()
                         return@withContext Result.failure(workDataOf(KEY_STATUS to "Failed to install LLM into app storage"))
                     }
                 } else {
-                    tempLlmFile.delete()
-                    return@withContext Result.failure(workDataOf(KEY_STATUS to "Downloaded model format is incompatible with on-device engine"))
+                    // If file is tiny (<1MB), it may be a corrupt error response; otherwise keep for resume
+                    val msg = if (partFile.exists() && partFile.length() < 1_000_000L) {
+                        partFile.delete()
+                        "Downloaded file was invalid or corrupted"
+                    } else {
+                        "Download incomplete or verification failed. Tap Retry to resume."
+                    }
+                    return@withContext Result.failure(workDataOf(KEY_STATUS to msg))
                 }
 
                 if (modelStore.isGenerativeLlmReady()) {
                     preferencesDataStore.setPreferredAiEngine(AiEnginePreference.GENERATIVE_LLM)
                     preferencesDataStore.setAiClassificationEnabled(true)
                     setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Ready"))
+                    updateForeground(100, "Qwen 2.5 SLM is ready")
                     Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Success"))
                 } else {
                     modelStore.deleteGenerativeLlm()
                     Result.failure(workDataOf(KEY_STATUS to "Generative LLM verification failed"))
                 }
             } catch (e: Exception) {
-                if (isStopped) tempLlmFile.delete()
+                // Keep partial file on disk so the next attempt resumes!
                 val errorMsg = e.localizedMessage ?: e.message ?: "Network error downloading LLM"
                 Result.failure(workDataOf(KEY_STATUS to errorMsg))
             }
         } else {
             // Financial Transformer (ONNX)
-            val tempModelFile = File(targetDir, "model_temp.onnx")
-            val tempVocabFile = File(targetDir, "vocab_temp.txt")
+            val modelPart = modelStore.modelPartFile
+            val vocabPart = modelStore.vocabPartFile
 
             try {
                 setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to Hugging Face..."))
+                updateForeground(5, "Connecting to Hugging Face...")
 
                 downloadWithResumeAndRetry(
                     urls = TRANSFORMER_MODEL_URLS,
-                    destination = tempModelFile,
+                    destination = modelPart,
                     startPercent = 5,
                     endPercent = 85,
-                    taskLabel = "Downloading Financial Transformer (~35 MB)"
+                    taskLabel = "Downloading Financial Transformer (~35 MB)",
+                    isBundle = false
                 )
 
                 if (isStopped) {
-                    tempModelFile.delete()
                     return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
                 }
 
                 downloadWithResumeAndRetry(
                     urls = TRANSFORMER_VOCAB_URLS,
-                    destination = tempVocabFile,
+                    destination = vocabPart,
                     startPercent = 85,
                     endPercent = 95,
-                    taskLabel = "Downloading vocabulary"
+                    taskLabel = "Downloading vocabulary",
+                    isBundle = false
                 )
 
                 if (isStopped) {
-                    tempModelFile.delete()
-                    tempVocabFile.delete()
                     return@withContext Result.failure(workDataOf(KEY_STATUS to "Download cancelled"))
                 }
 
                 setProgress(workDataOf(KEY_PROGRESS to 95, KEY_STATUS to "Verifying transformer files..."))
+                updateForeground(95, "Verifying transformer files...")
 
-                if (tempModelFile.exists() && tempModelFile.length() > 0 &&
-                    tempVocabFile.exists() && tempVocabFile.length() > 0
+                if (modelPart.exists() && modelPart.length() > 0 &&
+                    vocabPart.exists() && vocabPart.length() > 0
                 ) {
-                    if (modelStore.modelFile.exists()) modelStore.modelFile.delete()
-                    if (modelStore.vocabFile.exists()) modelStore.vocabFile.delete()
-
-                    val modelMoved = tempModelFile.renameTo(modelStore.modelFile)
-                    val vocabMoved = tempVocabFile.renameTo(modelStore.vocabFile)
+                    val modelMoved = installFileWithFallback(modelPart, modelStore.modelFile)
+                    val vocabMoved = installFileWithFallback(vocabPart, modelStore.vocabFile)
 
                     if (!modelMoved || !vocabMoved) {
-                        tempModelFile.delete()
-                        tempVocabFile.delete()
                         return@withContext Result.failure(workDataOf(KEY_STATUS to "Failed to install model files into app storage"))
                     }
                 } else {
-                    tempModelFile.delete()
-                    tempVocabFile.delete()
                     return@withContext Result.failure(workDataOf(KEY_STATUS to "Downloaded files were empty"))
                 }
 
@@ -149,19 +175,73 @@ class ModelDownloadWorker(
                     preferencesDataStore.setPreferredAiEngine(AiEnginePreference.FINANCIAL_TRANSFORMER)
                     preferencesDataStore.setAiClassificationEnabled(true)
                     setProgress(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Ready"))
+                    updateForeground(100, "Financial Transformer ready")
                     Result.success(workDataOf(KEY_PROGRESS to 100, KEY_STATUS to "Success"))
                 } else {
                     modelStore.deleteTransformer()
                     Result.failure(workDataOf(KEY_STATUS to "Model installation verification failed"))
                 }
             } catch (e: Exception) {
-                if (isStopped) {
-                    tempModelFile.delete()
-                    tempVocabFile.delete()
-                }
                 val errorMsg = e.localizedMessage ?: e.message ?: "Network error downloading transformer"
                 Result.failure(workDataOf(KEY_STATUS to errorMsg))
             }
+        }
+    }
+
+    private fun installFileWithFallback(source: File, target: File): Boolean {
+        if (!source.exists()) return false
+        if (target.exists()) target.delete()
+        val moved = source.renameTo(target)
+        if (moved) return true
+        return try {
+            source.copyTo(target, overwrite = true)
+            source.delete()
+            true
+        } catch (e: Exception) {
+            Log.e("ModelDownloadWorker", "Failed to move or copy ${source.name} to ${target.name}", e)
+            false
+        }
+    }
+
+    private fun calculateExistingPercent(file: File, start: Int, end: Int, expectedBytes: Long): Int {
+        if (!file.exists() || expectedBytes <= 0) return start
+        val bytes = file.length()
+        val range = end - start
+        return (start + ((bytes * range) / expectedBytes).toInt()).coerceIn(start, end)
+    }
+
+    private fun updateForeground(progress: Int, status: String) {
+        runCatching {
+            val channelId = "ai_model_download_channel"
+            val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return@runCatching
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    channelId,
+                    "AI Model Download",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Shows progress of local AI model downloads"
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val notification = NotificationCompat.Builder(applicationContext, channelId)
+                .setContentTitle("Apex Expense AI")
+                .setContentText(status)
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setProgress(100, progress, false)
+                .setOngoing(progress < 100)
+                .setSilent(true)
+                .build()
+
+            val foregroundInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                ForegroundInfo(NOTIFICATION_ID, notification)
+            }
+            setForegroundAsync(foregroundInfo)
         }
     }
 
@@ -170,7 +250,8 @@ class ModelDownloadWorker(
         destination: File,
         startPercent: Int,
         endPercent: Int,
-        taskLabel: String
+        taskLabel: String,
+        isBundle: Boolean
     ) = withContext(Dispatchers.IO) {
         var lastException: Exception? = null
         for (url in urls) {
@@ -183,12 +264,14 @@ class ModelDownloadWorker(
                         destination = destination,
                         startPercent = startPercent,
                         endPercent = endPercent,
-                        taskLabel = taskLabel
+                        taskLabel = taskLabel,
+                        isBundle = isBundle
                     )
                     return@withContext // Successfully downloaded
                 } catch (e: Exception) {
                     lastException = e
                     attempts++
+                    Log.w("ModelDownloadWorker", "Attempt $attempts failed for $url: ${e.message}")
                     if (isStopped) return@withContext
                     if (attempts < maxAttempts) {
                         kotlinx.coroutines.delay(attempts * 2000L)
@@ -206,7 +289,8 @@ class ModelDownloadWorker(
         destination: File,
         startPercent: Int,
         endPercent: Int,
-        taskLabel: String
+        taskLabel: String,
+        isBundle: Boolean
     ) = withContext(Dispatchers.IO) {
         var currentUrl = urlString
         var connection: HttpURLConnection? = null
@@ -245,15 +329,30 @@ class ModelDownloadWorker(
                     connection.disconnect()
                     redirects++
                     continue
+                } else if (code == 416) {
+                    // HTTP 416 Range Not Satisfiable: file might already be complete
+                    if (existingBytes > 0) {
+                        val isGood = if (isBundle) modelStore.isValidMediaPipeBundle(destination) else (destination.length() > 0)
+                        if (isGood) {
+                            Log.i("ModelDownloadWorker", "File already fully downloaded on disk (HTTP 416 satisfied).")
+                            return@withContext
+                        } else {
+                            Log.w("ModelDownloadWorker", "HTTP 416 but destination is invalid. Resetting partial file.")
+                            destination.delete()
+                            existingBytes = 0L
+                            throw java.io.IOException("HTTP 416: Invalid partial file on disk. Resetting for clean download.")
+                        }
+                    }
+                    break
                 } else if (code == HttpURLConnection.HTTP_PARTIAL) {
                     // HTTP 206: Server accepted resume range
                     break
                 } else if (code in 200..299) {
-                    // HTTP 200: Server sent complete file from 0, reset existingBytes
-                    existingBytes = 0L
-                    break
-                } else if (code == 416) {
-                    // Range not satisfiable: file might already be fully downloaded
+                    // HTTP 200: Server sent full file from 0, range was not used
+                    if (existingBytes > 0) {
+                        Log.w("ModelDownloadWorker", "Server returned HTTP 200 instead of 206 Partial. Starting fresh from 0.")
+                        existingBytes = 0L
+                    }
                     break
                 } else {
                     throw java.io.IOException("HTTP $code ${connection.responseMessage} for $currentUrl")
@@ -265,10 +364,31 @@ class ModelDownloadWorker(
             }
 
             val conn = connection ?: throw java.io.IOException("Failed to connect to $urlString")
-            val responseLength = conn.contentLengthLong
-            val totalBytes = if (responseLength > 0) existingBytes + responseLength else -1L
+            val isPartial = conn.responseCode == HttpURLConnection.HTTP_PARTIAL
+
+            // Accurately determine totalBytes from Content-Range or Content-Length
+            val contentRange = conn.getHeaderField("Content-Range")
+            val totalFromRange = contentRange?.substringAfterLast('/', "")?.toLongOrNull()
+            val totalBytes = when {
+                totalFromRange != null && totalFromRange > 0 -> totalFromRange
+                conn.contentLengthLong > 0 -> if (isPartial) existingBytes + conn.contentLengthLong else conn.contentLengthLong
+                else -> -1L
+            }
+
             var downloadedBytes = existingBytes
-            val append = existingBytes > 0 && conn.responseCode == HttpURLConnection.HTTP_PARTIAL
+            val append = existingBytes > 0 && isPartial
+
+            // Immediately report real resume progress if resuming
+            if (totalBytes > 0 && existingBytes > 0) {
+                val range = endPercent - startPercent
+                val resumePercent = (startPercent + ((existingBytes * range) / totalBytes).toInt())
+                    .coerceIn(startPercent, endPercent)
+                setProgress(workDataOf(
+                    KEY_PROGRESS to resumePercent,
+                    KEY_STATUS to "$taskLabel (Resuming at $resumePercent%)..."
+                ))
+                updateForeground(resumePercent, "$taskLabel (Resuming at $resumePercent%)...")
+            }
 
             BufferedInputStream(conn.inputStream).use { input ->
                 FileOutputStream(destination, append).use { output ->
@@ -286,17 +406,25 @@ class ModelDownloadWorker(
                             val range = endPercent - startPercent
                             val percent = (startPercent + ((downloadedBytes * range) / totalBytes).toInt())
                                 .coerceIn(startPercent, endPercent)
-                            if (percent - lastPercent >= 2) {
+                            if (percent - lastPercent >= 1) {
                                 lastPercent = percent
                                 setProgress(workDataOf(
                                     KEY_PROGRESS to percent,
                                     KEY_STATUS to "$taskLabel ($percent%)..."
                                 ))
+                                updateForeground(percent, "$taskLabel ($percent%)...")
                             }
                         }
                     }
                     output.flush()
                 }
+            }
+
+            // Strictly verify that the stream was not truncated by an early socket close
+            if (!isStopped && totalBytes > 0 && downloadedBytes < totalBytes) {
+                throw java.io.IOException(
+                    "Download stream terminated prematurely: received $downloadedBytes bytes of $totalBytes bytes"
+                )
             }
         } finally {
             connection?.disconnect()
@@ -308,6 +436,7 @@ class ModelDownloadWorker(
         const val KEY_PROGRESS = "progress"
         const val KEY_STATUS = "status"
         const val KEY_TARGET_ENGINE = "target_engine"
+        private const val NOTIFICATION_ID = 2001
 
         // Generative SLM (MediaPipe Tasks-GenAI / LiteRT - Qwen 2.5 0.5B INT8 Task Bundle)
         val GENERATIVE_LLM_URLS = listOf(

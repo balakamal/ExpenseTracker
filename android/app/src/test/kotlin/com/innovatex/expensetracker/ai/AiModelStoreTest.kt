@@ -79,7 +79,17 @@ class AiModelStoreTest {
     fun `test valid mediapipe task zip bundle is accepted by bundle validator`() {
         val dir = modelStore.ensureDirectoryExists()
         val taskFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
-        // Write dummy zip header PK\x03\x04 followed by data > 1MB
+        createValidZipBundle(taskFile, 1_050_000)
+
+        assertTrue(modelStore.isValidMediaPipeBundle(taskFile))
+        assertTrue(modelStore.isGenerativeLlmReady())
+    }
+
+    @Test
+    fun `test truncated zip bundle without central directory is rejected by bundle validator`() {
+        val dir = modelStore.ensureDirectoryExists()
+        val taskFile = File(dir, AiModelStore.GENERATIVE_LLM_FILE_NAME)
+        // Header starts with PK\x03\x04 but has no central directory (truncated stream)
         val bytes = ByteArray(1_050_000)
         bytes[0] = 0x50.toByte() // P
         bytes[1] = 0x4B.toByte() // K
@@ -87,8 +97,43 @@ class AiModelStoreTest {
         bytes[3] = 0x04.toByte()
         taskFile.writeBytes(bytes)
 
-        assertTrue(modelStore.isValidMediaPipeBundle(taskFile))
-        assertTrue(modelStore.isGenerativeLlmReady())
+        // Must reject truncated stream to prevent MediaPipe native crash
+        assertFalse(modelStore.isValidMediaPipeBundle(taskFile))
+        assertFalse(modelStore.isGenerativeLlmReady())
+    }
+
+    @Test
+    fun `test deleteModel cleans up all active and partial part files`() {
+        val dir = modelStore.ensureDirectoryExists()
+        val llmPart = modelStore.generativeLlmPartFile
+        val modelPart = modelStore.modelPartFile
+        val vocabPart = modelStore.vocabPartFile
+
+        llmPart.writeText("partial llm")
+        modelPart.writeText("partial onnx")
+        vocabPart.writeText("partial vocab")
+
+        assertTrue(llmPart.exists())
+        assertTrue(modelPart.exists())
+        assertTrue(vocabPart.exists())
+
+        modelStore.deleteModel()
+
+        assertFalse(llmPart.exists())
+        assertFalse(modelPart.exists())
+        assertFalse(vocabPart.exists())
+    }
+
+    private fun createValidZipBundle(file: File, sizeBytes: Int) {
+        java.io.FileOutputStream(file).use { fos ->
+            java.util.zip.ZipOutputStream(fos).use { zos ->
+                val entry = java.util.zip.ZipEntry("model.tflite")
+                zos.putNextEntry(entry)
+                val payload = ByteArray(sizeBytes)
+                zos.write(payload)
+                zos.closeEntry()
+            }
+        }
     }
 
     @Test

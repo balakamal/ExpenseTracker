@@ -22,12 +22,21 @@ class AiModelStore @Inject constructor(
             return if (legacy.exists()) legacy else file
         }
 
+    val generativeLlmPartFile: File
+        get() = File(modelDir, GENERATIVE_LLM_PART_FILE_NAME)
+
     // Financial Transformer (ONNX Runtime)
     val modelFile: File
         get() = File(modelDir, TRANSFORMER_MODEL_FILE_NAME)
 
+    val modelPartFile: File
+        get() = File(modelDir, TRANSFORMER_MODEL_PART_FILE_NAME)
+
     val vocabFile: File
         get() = File(modelDir, VOCAB_FILE_NAME)
+
+    val vocabPartFile: File
+        get() = File(modelDir, VOCAB_PART_FILE_NAME)
 
     fun ensureDirectoryExists(): File {
         if (!modelDir.exists()) {
@@ -39,13 +48,19 @@ class AiModelStore @Inject constructor(
     fun isValidMediaPipeBundle(file: File): Boolean {
         if (!file.exists() || file.length() < 1_000_000L) return false
         return try {
-            java.io.RandomAccessFile(file, "r").use { raf ->
+            // Step 1: Fast header check for ZIP container magic bytes (PK\x03\x04)
+            val hasZipMagic = java.io.RandomAccessFile(file, "r").use { raf ->
                 val magic = ByteArray(4)
                 raf.readFully(magic)
-                // MediaPipe Task bundles (.task / .bin) are zip archives (PK\x03\x04)
-                // containing model weights, tokenizer.model, and task metadata.
                 magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte() &&
                     magic[2] == 0x03.toByte() && magic[3] == 0x04.toByte()
+            }
+            if (!hasZipMagic) return false
+
+            // Step 2: Validate complete ZIP archive structure (Central Directory at end of file)
+            // If the download was truncated before completion, ZipFile constructor will throw ZipException
+            java.util.zip.ZipFile(file).use { zip ->
+                zip.entries().hasMoreElements()
             }
         } catch (_: Exception) {
             false
@@ -124,6 +139,7 @@ class AiModelStore @Inject constructor(
         if (legacy.exists()) deleted = deleted && legacy.delete()
         val tflite = File(modelDir, "qwen2.5_0.5b_instruct.tflite")
         if (tflite.exists()) deleted = deleted && tflite.delete()
+        if (generativeLlmPartFile.exists()) deleted = deleted && generativeLlmPartFile.delete()
         return deleted
     }
 
@@ -131,6 +147,8 @@ class AiModelStore @Inject constructor(
         var success = true
         if (modelFile.exists()) success = success && modelFile.delete()
         if (vocabFile.exists()) success = success && vocabFile.delete()
+        if (modelPartFile.exists()) success = success && modelPartFile.delete()
+        if (vocabPartFile.exists()) success = success && vocabPartFile.delete()
         return success
     }
 
@@ -142,9 +160,12 @@ class AiModelStore @Inject constructor(
 
     companion object {
         const val GENERATIVE_LLM_FILE_NAME = "qwen2.5_0.5b_instruct.task"
+        const val GENERATIVE_LLM_PART_FILE_NAME = "qwen2.5_0.5b_instruct.task.part"
         const val LEGACY_LLM_FILE_NAME = "generative_llm.bin"
         const val TRANSFORMER_MODEL_FILE_NAME = "expense_classifier.onnx"
+        const val TRANSFORMER_MODEL_PART_FILE_NAME = "expense_classifier.onnx.part"
         const val MODEL_FILE_NAME = TRANSFORMER_MODEL_FILE_NAME
         const val VOCAB_FILE_NAME = "vocab.txt"
+        const val VOCAB_PART_FILE_NAME = "vocab.txt.part"
     }
 }
