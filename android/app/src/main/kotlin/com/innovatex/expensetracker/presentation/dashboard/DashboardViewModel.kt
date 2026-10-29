@@ -466,6 +466,10 @@ class DashboardViewModel @Inject constructor(
         observeModelDownloadWork(context)
     }
 
+    fun dismissModelDownloadError() {
+        _modelDownloadState.value = ModelDownloadUiState.Idle
+    }
+
     fun cancelDownloadAiModel(context: Context) {
         ModelDownloadWorker.cancel(context)
         downloadJob?.cancel()

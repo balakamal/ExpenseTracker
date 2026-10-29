@@ -43,16 +43,16 @@ class ModelDownloadWorker(
         val targetDir = modelStore.ensureDirectoryExists()
 
         if (targetEngine == AiEnginePreference.GENERATIVE_LLM) {
-            val tempLlmFile = File(targetDir, "llm_temp.bin")
+            val tempLlmFile = File(targetDir, "llm_temp.tflite")
             try {
-                setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to Hugging Face..."))
+                setProgress(workDataOf(KEY_PROGRESS to 5, KEY_STATUS to "Connecting to LiteRT Community..."))
 
                 downloadFileWithRedirects(
                     urlString = GENERATIVE_LLM_URL,
                     destination = tempLlmFile,
                     startPercent = 5,
                     endPercent = 95,
-                    taskLabel = "Downloading Generative SLM (~280 MB)"
+                    taskLabel = "Downloading Qwen 2.5 SLM (~520 MB)"
                 )
 
                 if (isStopped) {
@@ -182,8 +182,8 @@ class ModelDownloadWorker(
                 val url = URL(currentUrl)
                 connection = (url.openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
-                    connectTimeout = 30_000
-                    readTimeout = 60_000
+                    connectTimeout = 60_000
+                    readTimeout = 120_000
                     setRequestProperty("User-Agent", "ExpenseTracker-Android/1.0 (Mobile AI)")
                 }
 
@@ -220,7 +220,7 @@ class ModelDownloadWorker(
 
             BufferedInputStream(conn.inputStream).use { input ->
                 FileOutputStream(destination).use { output ->
-                    val buffer = ByteArray(16384)
+                    val buffer = ByteArray(32768)
                     var count: Int
                     var lastPercent = startPercent
 
@@ -255,9 +255,9 @@ class ModelDownloadWorker(
         const val KEY_STATUS = "status"
         const val KEY_TARGET_ENGINE = "target_engine"
 
-        // Generative SLM (MediaPipe Tasks-GenAI)
+        // Generative SLM (MediaPipe Tasks-GenAI / LiteRT - Qwen 2.5 0.5B INT8)
         const val GENERATIVE_LLM_URL =
-            "https://huggingface.co/LiteRT/Qwen2.5-0.5B-Instruct/resolve/main/qwen2.5-0.5b-instruct-int4.bin"
+            "https://huggingface.co/litert-community/Qwen2.5-0.5B-Instruct/resolve/main/Qwen2.5-0.5B-Instruct_seq128_q8_ekv1280.tflite"
 
         // Financial Sequence Transformer (ONNX)
         const val TRANSFORMER_MODEL_URL =

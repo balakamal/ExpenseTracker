@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Notifications
@@ -83,6 +84,7 @@ fun SettingsBottomSheet(
     downloadState: ModelDownloadUiState = ModelDownloadUiState.Idle,
     onDownloadAiModel: () -> Unit = {},
     onCancelDownloadAiModel: () -> Unit = {},
+    onDismissDownloadError: () -> Unit = {},
     onDeleteAiModel: () -> Unit = {},
     onToggleAiClassification: (Boolean) -> Unit = {},
     onToggleAiSpamDetection: (Boolean) -> Unit = {},
@@ -619,7 +621,7 @@ fun SettingsBottomSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isGenerativeLlmReady) "Ready (~280 MB)" else "Download: ~280 MB INT4",
+                                text = if (isGenerativeLlmReady) "Ready (~520 MB)" else "Download: ~520 MB INT8",
                                 color = if (isGenerativeLlmReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -798,6 +800,92 @@ fun SettingsBottomSheet(
                             ) {
                                 Text(text = "Cancel Download", fontSize = 11.sp, color = ApexThemeTokens.TextSecondary)
                             }
+                        }
+                    }
+
+                    // Download Failure Alert
+                    if (downloadState is ModelDownloadUiState.Failed) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ApexThemeTokens.SurfaceLoss.copy(alpha = 0.15f), ApexThemeTokens.RadiusSm)
+                                .border(1.dp, ApexThemeTokens.LossRed.copy(alpha = 0.4f), ApexThemeTokens.RadiusSm)
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = ApexThemeTokens.LossRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Download Failed",
+                                        color = ApexThemeTokens.LossRed,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                TextButton(
+                                    onClick = onDismissDownloadError,
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text(text = "Dismiss", color = ApexThemeTokens.TextTertiary, fontSize = 11.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = downloadState.errorMessage,
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { onDownloadAiModelWithEngine(settings.preferredAiEngine) },
+                                colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.LossRed, contentColor = Color.White),
+                                shape = ApexThemeTokens.RadiusSm,
+                                modifier = Modifier.fillMaxWidth().height(32.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "Retry Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Download Success Banner
+                    if (downloadState is ModelDownloadUiState.Success) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ApexThemeTokens.SurfaceGain.copy(alpha = 0.2f), ApexThemeTokens.RadiusSm)
+                                .border(1.dp, ApexThemeTokens.GainGreen.copy(alpha = 0.5f), ApexThemeTokens.RadiusSm)
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = ApexThemeTokens.GainGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Model downloaded and verified successfully!",
+                                color = ApexThemeTokens.GainGreen,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
 

@@ -15,7 +15,12 @@ class AiModelStore @Inject constructor(
 
     // Generative LLM (MediaPipe Tasks-GenAI)
     val generativeLlmFile: File
-        get() = File(modelDir, GENERATIVE_LLM_FILE_NAME)
+        get() {
+            val file = File(modelDir, GENERATIVE_LLM_FILE_NAME)
+            if (file.exists()) return file
+            val legacy = File(modelDir, LEGACY_LLM_FILE_NAME)
+            return if (legacy.exists()) legacy else file
+        }
 
     // Financial Transformer (ONNX Runtime)
     val modelFile: File
@@ -32,7 +37,9 @@ class AiModelStore @Inject constructor(
     }
 
     fun isGenerativeLlmReady(): Boolean {
-        return generativeLlmFile.exists() && generativeLlmFile.length() > 1_000_000L
+        if (generativeLlmFile.exists() && generativeLlmFile.length() > 1_000_000L) return true
+        val legacy = File(modelDir, LEGACY_LLM_FILE_NAME)
+        return legacy.exists() && legacy.length() > 1_000_000L
     }
 
     fun isTransformerReady(): Boolean {
@@ -76,7 +83,10 @@ class AiModelStore @Inject constructor(
     }
 
     fun deleteGenerativeLlm(): Boolean {
-        return if (generativeLlmFile.exists()) generativeLlmFile.delete() else true
+        var deleted = if (generativeLlmFile.exists()) generativeLlmFile.delete() else true
+        val legacy = File(modelDir, LEGACY_LLM_FILE_NAME)
+        if (legacy.exists()) deleted = deleted && legacy.delete()
+        return deleted
     }
 
     fun deleteTransformer(): Boolean {
@@ -93,7 +103,8 @@ class AiModelStore @Inject constructor(
     }
 
     companion object {
-        const val GENERATIVE_LLM_FILE_NAME = "generative_llm.bin"
+        const val GENERATIVE_LLM_FILE_NAME = "qwen2.5_0.5b_instruct.tflite"
+        const val LEGACY_LLM_FILE_NAME = "generative_llm.bin"
         const val TRANSFORMER_MODEL_FILE_NAME = "expense_classifier.onnx"
         const val VOCAB_FILE_NAME = "vocab.txt"
     }

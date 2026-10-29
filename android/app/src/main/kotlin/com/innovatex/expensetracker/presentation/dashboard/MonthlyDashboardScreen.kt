@@ -771,6 +771,7 @@ fun MonthlyDashboardScreen(
             downloadState = modelDownloadState,
             onDownloadAiModel = { viewModel.downloadAiModel(context) },
             onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
+            onDismissDownloadError = { viewModel.dismissModelDownloadError() },
             onDeleteAiModel = { viewModel.deleteAiModel() },
             aiReclassifyState = aiReclassifyState,
             onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions() },
