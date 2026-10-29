@@ -64,3 +64,11 @@
 -dontwarn org.tensorflow.**
 -dontwarn com.google.crypto.tink.**
 -dontwarn sun.misc.Unsafe
+
+# Shaded AutoValue, JavaPoet, and Java compiler model classes (used by Google/MediaPipe dependencies)
+-dontwarn javax.lang.model.**
+-dontwarn javax.tools.**
+-dontwarn javax.annotation.**
+-dontwarn autovalue.shaded.com.**
+-dontwarn autovalue.shaded.**
+-dontwarn com.google.auto.value.**
