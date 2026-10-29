@@ -802,15 +802,14 @@ fun SettingsBottomSheet(
                             }
                         }
                     }
-
                     // Download Failure Alert
                     if (downloadState is ModelDownloadUiState.Failed) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(ApexThemeTokens.SurfaceLoss.copy(alpha = 0.15f), ApexThemeTokens.RadiusSm)
-                                .border(1.dp, ApexThemeTokens.LossRed.copy(alpha = 0.4f), ApexThemeTokens.RadiusSm)
+                                .background(ApexThemeTokens.AccentDangerTint, ApexThemeTokens.RadiusSm)
+                                .border(1.dp, ApexThemeTokens.AccentDangerBorder, ApexThemeTokens.RadiusSm)
                                 .padding(12.dp)
                         ) {
                             Row(
@@ -822,13 +821,13 @@ fun SettingsBottomSheet(
                                     Icon(
                                         Icons.Default.ErrorOutline,
                                         contentDescription = null,
-                                        tint = ApexThemeTokens.LossRed,
+                                        tint = ApexThemeTokens.AccentDanger,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Download Failed",
-                                        color = ApexThemeTokens.LossRed,
+                                        color = ApexThemeTokens.AccentDanger,
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -850,7 +849,7 @@ fun SettingsBottomSheet(
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = { onDownloadAiModelWithEngine(settings.preferredAiEngine) },
-                                colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.LossRed, contentColor = Color.White),
+                                colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentDanger, contentColor = Color.White),
                                 shape = ApexThemeTokens.RadiusSm,
                                 modifier = Modifier.fillMaxWidth().height(32.dp),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
@@ -868,27 +867,26 @@ fun SettingsBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(ApexThemeTokens.SurfaceGain.copy(alpha = 0.2f), ApexThemeTokens.RadiusSm)
-                                .border(1.dp, ApexThemeTokens.GainGreen.copy(alpha = 0.5f), ApexThemeTokens.RadiusSm)
+                                .background(ApexThemeTokens.AccentPrimaryTint, ApexThemeTokens.RadiusSm)
+                                .border(1.dp, ApexThemeTokens.AccentPrimaryBorder, ApexThemeTokens.RadiusSm)
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = ApexThemeTokens.GainGreen,
+                                tint = ApexThemeTokens.AccentPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Model downloaded and verified successfully!",
-                                color = ApexThemeTokens.GainGreen,
+                                color = ApexThemeTokens.AccentPrimary,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(14.dp))
                     HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(14.dp))
