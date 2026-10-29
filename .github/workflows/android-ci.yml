@@ -14,6 +14,8 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -120,6 +122,8 @@ jobs:
       - name: Collect & Generate Error Logs
         if: failure()
         working-directory: android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p error-artifacts
           
@@ -165,6 +169,11 @@ jobs:
           cat error-artifacts/error-summary.txt
           echo "=========================================================="
           cat error-artifacts/error-summary.txt >> $GITHUB_STEP_SUMMARY
+
+          if [ -s error-artifacts/error-summary.txt ]; then
+            gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+              -f body="$(cat error-artifacts/error-summary.txt | head -c 60000)" || true
+          fi
 
           # Copy entire console execution log
           if [ -f build-execution.log ]; then

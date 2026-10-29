@@ -50,3 +50,17 @@
 -keep class * extends androidx.work.Worker
 -keep class * extends androidx.work.ListenableWorker
 -keep class * extends androidx.hilt.work.HiltWorkerFactory
+
+# JNI and Native Method Preservation (Critical for MediaPipe GenAI and ONNX Runtime)
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keepclassmembernames class * {
+    native <methods>;
+}
+-keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault,InnerClasses,EnclosingMethod
+
+# Suppress optional library warnings that MediaPipe or ONNX transitively touches
+-dontwarn org.tensorflow.**
+-dontwarn com.google.crypto.tink.**
+-dontwarn sun.misc.Unsafe
