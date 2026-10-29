@@ -44,11 +44,13 @@ class IngestionPipeline @Inject constructor(
         val candidate = parseTransactionUseCase.parse(body, timestamp, source, sender) ?: return null
 
         // Step 2: AI Classification (runs if model downloaded and enabled)
-        val aiResult = if (settings.aiClassificationEnabled) {
-            localAiClassifier.classify(body, candidate.merchantClean, sender)
-        } else {
-            null
-        }
+        // Keep deterministic safety screening enabled when AI is toggled off; only the optional SLM is disabled.
+        val aiResult = localAiClassifier.classify(
+            body,
+            candidate.merchantClean,
+            sender,
+            allowLanguageModel = settings.aiClassificationEnabled
+        )
 
         // Step 3: Handle Authenticity
         // Promotional/spam messages are retained in the transaction ledger with an authenticity badge,
@@ -59,7 +61,6 @@ class IngestionPipeline @Inject constructor(
         // Priority 2: AI Category (if confidence >= 0.75)
         // Priority 3: Regex keyword heuristics (already in candidate)
         var finalCategory = candidate.categoryId
-        var finalType = candidate.type
 
         val userRules = runCatching { categoryRepository.getAllRules().first() }.getOrDefault(emptyList())
         val hasUserRule = userRules.any { rule ->
@@ -74,12 +75,11 @@ class IngestionPipeline @Inject constructor(
             (aiResult.categoryConfidence ?: 0f) >= AI_CATEGORY_CONFIDENCE_THRESHOLD
         ) {
             finalCategory = aiResult.categoryId
-            finalType = aiResult.impliedTransactionType ?: candidate.type
         }
 
         val enrichedTransaction = candidate.copy(
             categoryId = finalCategory,
-            type = finalType,
+            type = candidate.type,
             aiClassification = aiResult
         )
 

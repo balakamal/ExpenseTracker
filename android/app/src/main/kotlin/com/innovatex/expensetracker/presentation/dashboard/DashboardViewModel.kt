@@ -55,9 +55,6 @@ class DashboardViewModel @Inject constructor(
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
     val isGenerativeLlmReady: StateFlow<Boolean> = _isGenerativeLlmReady.asStateFlow()
 
-    private val _isTransformerReady = MutableStateFlow(aiModelStore.isTransformerReady())
-    val isTransformerReady: StateFlow<Boolean> = _isTransformerReady.asStateFlow()
-
     private val _isAiModelReady = MutableStateFlow(aiModelStore.isModelReady())
     val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
 
@@ -466,7 +463,6 @@ class DashboardViewModel @Inject constructor(
     fun refreshAiModelState() {
         _isAiModelReady.value = aiModelStore.isModelReady()
         _isGenerativeLlmReady.value = aiModelStore.isGenerativeLlmReady()
-        _isTransformerReady.value = aiModelStore.isTransformerReady()
         _aiModelSizeBytes.value = aiModelStore.getModelSizeBytes()
     }
 

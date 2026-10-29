@@ -141,11 +141,8 @@ dependencies {
     // DataStore Preferences
     implementation(libs.androidx.datastore.preferences)
 
-    // ONNX Runtime Android (Local AI)
-    implementation(libs.onnxruntime.android)
-
-    // MediaPipe Tasks-GenAI (On-Device LLM for Snapdragon & Tensor)
-    implementation(libs.mediapipe.tasks.genai)
+    // LiteRT-LM runs the optional small language model entirely on-device.
+    implementation(libs.litertlm.android)
 
     // WorkManager + Hilt Work
     implementation(libs.androidx.work.runtime.ktx)

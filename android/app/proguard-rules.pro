@@ -22,26 +22,17 @@
 -keep class com.innovatex.expensetracker.ingestion.sms.SmsBroadcastReceiver { *; }
 -keep class com.innovatex.expensetracker.ingestion.notification.EmailNotificationListenerService { *; }
 
-# ONNX Runtime Android (Local AI)
--keep class ai.onnxruntime.** { *; }
--dontwarn ai.onnxruntime.**
+# LiteRT-LM native model runtime
+-keep class com.google.ai.edge.litertlm.** { *; }
+-dontwarn com.google.ai.edge.litertlm.**
 
-# MediaPipe Core & Tasks GenAI (On-Device LLM Inference)
--keep class com.google.mediapipe.** { *; }
--keep class * implements com.google.mediapipe.** { *; }
--dontwarn com.google.mediapipe.**
--dontwarn com.google.mediapipe.tasks.genai.**
--keepclassmembers class com.google.mediapipe.**$$ExternalSyntheticLambda* { *; }
--keepclassmembers,allowoptimization class com.google.mediapipe.** { *; }
-
-# Protocol Buffers (used by MediaPipe & GenAI serialization)
--keep class com.google.mediapipe.proto.** { *; }
+# Protocol Buffers used by native runtime metadata
 -keep class com.google.protobuf.** { *; }
 -dontwarn com.google.protobuf.**
 -keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { *; }
 -keepclassmembers class com.google.protobuf.** { *; }
 
-# Google Common Flogger (internal logging in MediaPipe)
+# Google Common Flogger (runtime logging)
 -keep class com.google.common.flogger.** { *; }
 -dontwarn com.google.common.flogger.**
 -keepclassmembers class com.google.common.flogger.** { *; }
@@ -51,7 +42,7 @@
 -keep class * extends androidx.work.ListenableWorker
 -keep class * extends androidx.hilt.work.HiltWorkerFactory
 
-# JNI and Native Method Preservation (Critical for MediaPipe GenAI and ONNX Runtime)
+# JNI and Native Method Preservation (required by LiteRT-LM)
 -keepclasseswithmembernames class * {
     native <methods>;
 }
@@ -60,12 +51,12 @@
 }
 -keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault,InnerClasses,EnclosingMethod
 
-# Suppress optional library warnings that MediaPipe or ONNX transitively touches
+# Suppress optional native/runtime warnings
 -dontwarn org.tensorflow.**
 -dontwarn com.google.crypto.tink.**
 -dontwarn sun.misc.Unsafe
 
-# Shaded AutoValue, JavaPoet, and Java compiler model classes (used by Google/MediaPipe dependencies)
+# Shaded AutoValue, JavaPoet, and Java compiler model classes used by Google runtime dependencies
 -dontwarn javax.lang.model.**
 -dontwarn javax.tools.**
 -dontwarn javax.annotation.**

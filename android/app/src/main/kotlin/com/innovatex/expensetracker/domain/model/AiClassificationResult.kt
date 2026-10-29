@@ -3,7 +3,8 @@ package com.innovatex.expensetracker.domain.model
 enum class AuthenticityLabel {
     REAL_TRANSACTION,
     SPAM_PROMO,
-    PAYMENT_REMINDER
+    PAYMENT_REMINDER,
+    UNCLASSIFIED
 }
 
 data class AiClassificationResult(

@@ -27,6 +27,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ApexExpenseTracker">
 
+        <!-- LiteRT-LM GPU uses vendor OpenCL where available; CPU backend remains supported. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
         <!-- Disable default WorkManagerInitializer so ExpenseApplication can provide HiltWorkerFactory -->
         <provider
             android:name="androidx.startup.InitializationProvider"

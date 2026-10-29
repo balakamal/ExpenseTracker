@@ -78,7 +78,6 @@ fun SettingsBottomSheet(
     isAiModelReady: Boolean = false,
     aiModelSizeBytes: Long = 0L,
     isGenerativeLlmReady: Boolean = false,
-    isTransformerReady: Boolean = false,
     onSelectAiEngine: (AiEnginePreference) -> Unit = {},
     onDownloadAiModelWithEngine: (AiEnginePreference) -> Unit = {},
     downloadState: ModelDownloadUiState = ModelDownloadUiState.Idle,
@@ -330,9 +329,9 @@ fun SettingsBottomSheet(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = if (settings.aiSpamDetectionEnabled && isAiModelReady)
-                                "On-device BERT model evaluates context to drop promotional offers, lottery spam, and unpaid reminders."
+                                "On-device LiteRT-LM helps classify ambiguous messages; verified parsing controls every ledger field."
                             else if (!isAiModelReady)
-                                "Local regex & keyword filters active. Tap 'AI Model' to download model for neural spam detection."
+                                "Local English and Hinglish rules stay active offline. Download the optional model for ambiguous message screening."
                             else
                                 "Deterministic local keyword heuristics & regex filters active. Zero machine learning used for spam decisions.",
                             color = ApexThemeTokens.TextTertiary,
@@ -606,7 +605,7 @@ fun SettingsBottomSheet(
                                 }
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Text(
-                                    text = "Full natural language reasoning using MediaPipe. Analyzes whole context, understands conversational alerts and Hinglish with zero rules.",
+                                    text = "LiteRT-LM Qwen3 0.6B runs on-device as a fallback for ambiguous English and Hinglish notifications. Financial details still come from the verified parser.",
                                     color = ApexThemeTokens.TextTertiary,
                                     fontSize = 10.5.sp
                                 )
@@ -621,7 +620,7 @@ fun SettingsBottomSheet(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isGenerativeLlmReady) "Ready (~520 MB)" else "Download: ~520 MB INT8",
+                                text = if (isGenerativeLlmReady) "Ready (about 475 MiB)" else "Download: about 475 MiB mixed INT4",
                                 color = if (isGenerativeLlmReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -649,107 +648,6 @@ fun SettingsBottomSheet(
                             } else {
                                 Button(
                                     onClick = { onDownloadAiModelWithEngine(AiEnginePreference.GENERATIVE_LLM) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentCobalt, contentColor = Color.White),
-                                    modifier = Modifier.height(32.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(text = "Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Option 2: Financial Transformer (Lightweight)
-                    val isTransformerSelected = settings.preferredAiEngine == AiEnginePreference.FINANCIAL_TRANSFORMER
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ApexThemeTokens.RadiusSm)
-                            .background(if (isTransformerSelected) ApexThemeTokens.AccentCobaltTint.copy(alpha = 0.25f) else ApexThemeTokens.BgGlassPill)
-                            .border(
-                                width = if (isTransformerSelected) 1.5.dp else 1.dp,
-                                color = if (isTransformerSelected) ApexThemeTokens.AccentCobalt else ApexThemeTokens.StrokeSubtle,
-                                shape = ApexThemeTokens.RadiusSm
-                            )
-                            .padding(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Financial Transformer",
-                                        color = ApexThemeTokens.TextPrimary,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(ApexThemeTokens.RadiusFull)
-                                            .background(ApexThemeTokens.AccentSecondaryTint)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Battery Saver",
-                                            color = ApexThemeTokens.AccentSecondary,
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "High-speed sequence classification transformer. Sub-10ms processing with minimal battery usage.",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 10.5.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isTransformerReady) "Ready (~35 MB)" else "Download: ~35 MB INT8",
-                                color = if (isTransformerReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-
-                            if (isTransformerReady) {
-                                if (isTransformerSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(ApexThemeTokens.RadiusFull)
-                                            .background(ApexThemeTokens.AccentPrimary)
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(text = "Active", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                } else {
-                                    OutlinedButton(
-                                        onClick = { onSelectAiEngine(AiEnginePreference.FINANCIAL_TRANSFORMER) },
-                                        modifier = Modifier.height(32.dp),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                                    ) {
-                                        Text(text = "Use Engine", fontSize = 11.sp, color = ApexThemeTokens.AccentCobalt)
-                                    }
-                                }
-                            } else {
-                                Button(
-                                    onClick = { onDownloadAiModelWithEngine(AiEnginePreference.FINANCIAL_TRANSFORMER) },
                                     colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentCobalt, contentColor = Color.White),
                                     modifier = Modifier.height(32.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)

@@ -187,7 +187,7 @@ data class TransactionEntity(
             val parts = raw?.split('|') ?: return null
             if (parts.size < 5) return null
             return AiClassificationResult(
-                authenticityLabel = runCatching { AuthenticityLabel.valueOf(parts[0]) }.getOrDefault(AuthenticityLabel.REAL_TRANSACTION),
+                authenticityLabel = runCatching { AuthenticityLabel.valueOf(parts[0]) }.getOrDefault(AuthenticityLabel.UNCLASSIFIED),
                 authenticityConfidence = parts[1].toFloatOrNull() ?: 0f,
                 categoryId = parts[2].ifBlank { null },
                 categoryConfidence = parts[3].toFloatOrNull(),
@@ -283,7 +283,7 @@ class Converters {
     @TypeConverter
     fun toAuthenticityLabel(value: String): AuthenticityLabel = runCatching {
         AuthenticityLabel.valueOf(value)
-    }.getOrDefault(AuthenticityLabel.REAL_TRANSACTION)
+    }.getOrDefault(AuthenticityLabel.UNCLASSIFIED)
 }
 
 @Entity(

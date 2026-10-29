@@ -116,7 +116,6 @@ fun MonthlyDashboardScreen(
     val modelDownloadState by viewModel.modelDownloadState.collectAsState()
     val aiReclassifyState by viewModel.aiReclassifyState.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
-    val isTransformerReady by viewModel.isTransformerReady.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -765,7 +764,6 @@ fun MonthlyDashboardScreen(
             isAiModelReady = isAiModelReady,
             aiModelSizeBytes = aiModelSizeBytes,
             isGenerativeLlmReady = isGenerativeLlmReady,
-            isTransformerReady = isTransformerReady,
             onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
             onDownloadAiModelWithEngine = { engine -> viewModel.downloadAiModel(context, engine) },
             downloadState = modelDownloadState,

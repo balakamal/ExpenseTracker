@@ -1,10 +1,9 @@
 package com.innovatex.expensetracker.ai
 
-import android.content.Context
-import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
+import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import io.mockk.coEvery
 import io.mockk.every
@@ -18,11 +17,9 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.io.File
 
 class LocalAiClassifierTest {
 
-    private lateinit var mockContext: Context
     private lateinit var mockModelStore: AiModelStore
     private lateinit var mockUserFeedbackDao: UserFeedbackDao
     private lateinit var mockPreferencesDataStore: PreferencesDataStore
@@ -32,21 +29,16 @@ class LocalAiClassifierTest {
 
     @BeforeEach
     fun setup() {
-        mockContext = mockk(relaxed = true)
         mockModelStore = mockk(relaxed = true)
         mockUserFeedbackDao = mockk(relaxed = true)
         mockPreferencesDataStore = mockk(relaxed = true)
         mockLlmClassifierEngine = mockk(relaxed = true)
 
-        every { mockPreferencesDataStore.appSettingsFlow } returns flowOf(
-            AppSettings(preferredAiEngine = AiEnginePreference.GENERATIVE_LLM)
-        )
+        every { mockPreferencesDataStore.appSettingsFlow } returns flowOf(AppSettings())
         every { mockModelStore.isGenerativeLlmReady() } returns false
-        every { mockModelStore.isTransformerReady() } returns false
         coEvery { mockUserFeedbackDao.getAllExemplars() } returns emptyList()
 
         classifier = LocalAiClassifier(
-            context = mockContext,
             modelStore = mockModelStore,
             userFeedbackDao = mockUserFeedbackDao,
             preferencesDataStore = mockPreferencesDataStore,
@@ -116,6 +108,39 @@ class LocalAiClassifierTest {
 
         assertNotNull(result)
         assertEquals("utilities", result?.categoryId)
+    }
+
+    @Test
+    fun `ambiguous message remains unclassified when model is unavailable`() = runTest {
+        val result = classifier.classify(
+            text = "Your account update is ready. Please review the details.",
+            merchant = "Bank",
+            sender = "VM-BANK"
+        )
+        assertEquals(AuthenticityLabel.UNCLASSIFIED, result.authenticityLabel)
+        assertEquals(0f, result.authenticityConfidence)
+        assertFalse(result.ranByAi)
+    }
+
+    @Test
+    fun `language model cannot promote ambiguous parsed message into financial totals`() = runTest {
+        every { mockModelStore.isGenerativeLlmReady() } returns true
+        coEvery { mockLlmClassifierEngine.analyze(any(), any()) } returns AiClassificationResult(
+            authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
+            authenticityConfidence = 0.70f,
+            categoryId = null,
+            categoryConfidence = null,
+            ranByAi = true
+        )
+
+        val result = classifier.classify(
+            text = "Aapka bank account update processed.",
+            merchant = "Bank",
+            sender = "VM-BANK"
+        )
+
+        assertEquals(AuthenticityLabel.UNCLASSIFIED, result.authenticityLabel)
+        assertFalse(result.authenticityLabel == AuthenticityLabel.REAL_TRANSACTION)
     }
 }
 

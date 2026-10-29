@@ -91,7 +91,7 @@ class IngestionPipelineAiTest {
     fun `test pipeline retains promotional alerts in ledger tagged as SPAM_PROMO with isValidTransaction false`() = runTest {
         val sms = "Congratulations! Instant pre-approved loan of Rs 50000! Apply bit.ly"
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.SPAM_PROMO,
             authenticityConfidence = 0.95f,
             categoryId = null,
@@ -113,7 +113,7 @@ class IngestionPipelineAiTest {
     fun `test pipeline retains payment reminders in ledger tagged as PAYMENT_REMINDER with isValidTransaction false`() = runTest {
         val sms = "Your postpaid bill of Rs 499 is due on 28-Oct. Pay now."
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.PAYMENT_REMINDER,
             authenticityConfidence = 0.90f,
             categoryId = null,
@@ -132,7 +132,7 @@ class IngestionPipelineAiTest {
     }
 
     @Test
-    fun `test AI category and implied type enrich transaction when confidence is high`() = runTest {
+    fun `AI category may enrich transaction but model implied direction cannot override parser`() = runTest {
         val sms = "Salary of INR 85,000 credited to account XX1234 on 28-Oct."
         val unclassifiedCandidate = sampleCandidate.copy(
             amount = 85000.0,
@@ -140,7 +140,7 @@ class IngestionPipelineAiTest {
             type = TransactionType.DEBIT
         )
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns unclassifiedCandidate
-        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.98f,
             categoryId = "income",
@@ -156,7 +156,7 @@ class IngestionPipelineAiTest {
         assertNotNull(result)
         val inserted = (result as DeduplicationResult.Inserted).transaction
         assertEquals("income", inserted.categoryId)
-        assertEquals(TransactionType.CREDIT, inserted.type)
+        assertEquals(TransactionType.DEBIT, inserted.type)
         assertTrue(inserted.isValidTransaction)
     }
 
@@ -176,7 +176,7 @@ class IngestionPipelineAiTest {
             categoryId = "general"
         )
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns candidate
-        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns AiClassificationResult(
+        coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.95f,
             categoryId = "groceries",
@@ -196,10 +196,16 @@ class IngestionPipelineAiTest {
     }
 
     @Test
-    fun `test pipeline handles null AI classification gracefully`() = runTest {
+    fun `uncertain classification is retained outside financial totals`() = runTest {
         val sms = "Paid Rs 250 to Uber on 28-Oct."
         coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
-        coEvery { mockAiClassifier.classify(sms, any(), any()) } returns null // AI model not ready
+        coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
+            authenticityLabel = AuthenticityLabel.UNCLASSIFIED,
+            authenticityConfidence = 0f,
+            categoryId = null,
+            categoryConfidence = null,
+            ranByAi = false
+        )
         coEvery { mockDeduplicateUseCase(any(), any()) } answers {
             val txn = firstArg<Transaction>()
             DeduplicationResult.Inserted(txn)
@@ -209,8 +215,8 @@ class IngestionPipelineAiTest {
         assertNotNull(result)
         val inserted = (result as DeduplicationResult.Inserted).transaction
         assertEquals("food_dining", inserted.categoryId)
-        assertNull(inserted.aiClassification)
-        assertTrue(inserted.isValidTransaction)
+        assertEquals(AuthenticityLabel.UNCLASSIFIED, inserted.aiClassification?.authenticityLabel)
+        assertFalse(inserted.isValidTransaction)
     }
 
     @Test

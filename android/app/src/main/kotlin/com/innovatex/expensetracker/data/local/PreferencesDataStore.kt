@@ -20,8 +20,10 @@ import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "expense_tracker_settings")
 
 enum class AiEnginePreference(val displayName: String, val sizeLabel: String) {
-    GENERATIVE_LLM("Generative SLM (Snapdragon/Tensor)", "~280 MB"),
-    FINANCIAL_TRANSFORMER("Financial Transformer", "~35 MB"),
+    GENERATIVE_LLM("Hybrid on-device classifier + SLM", "~475 MiB"),
+    /** Kept only to read old preferences; the old generic BERT artifact was not fine-tuned for this task. */
+    @Deprecated("Migrated to the hybrid on-device pipeline")
+    FINANCIAL_TRANSFORMER("Legacy classifier (migrated)", "0 MB"),
     HEURISTIC_ONLY("Rules and Heuristics", "0 MB")
 }
 
@@ -138,7 +140,7 @@ class PreferencesDataStore @Inject constructor(
             aiSpamDetectionEnabled = preferences[KEY_AI_SPAM_DETECTION_ENABLED] ?: true,
             preferredAiEngine = preferences[KEY_PREFERRED_AI_ENGINE]?.let { name ->
                 runCatching { AiEnginePreference.valueOf(name) }.getOrNull()
-            } ?: AiEnginePreference.GENERATIVE_LLM
+            }?.takeUnless { it == AiEnginePreference.FINANCIAL_TRANSFORMER } ?: AiEnginePreference.GENERATIVE_LLM
         )
     }
 
