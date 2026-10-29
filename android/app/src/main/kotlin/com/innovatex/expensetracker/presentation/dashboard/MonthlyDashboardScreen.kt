@@ -869,7 +869,30 @@ fun MonthlyDashboardScreen(
         UpdateDetailsBottomSheet(
             updateInfo = updateInfo,
             onDismiss = { selectedUpdateInfoForReview = null },
-            onDownloadApk = { apkUrl -> openUrl(apkUrl) },
+            onDownloadApk = { apkUrl ->
+                runCatching {
+                    val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                    val request = android.app.DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                        setTitle("Expense Tracker Update v${updateInfo.latestVersion}")
+                        setDescription("Downloading latest release APK...")
+                        setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        setDestinationInExternalPublicDir(
+                            android.os.Environment.DIRECTORY_DOWNLOADS,
+                            "ExpenseTracker-${updateInfo.latestVersion}.apk"
+                        )
+                        setMimeType("application/vnd.android.package-archive")
+                    }
+                    dm.enqueue(request)
+                    android.widget.Toast.makeText(
+                        context,
+                        "Downloading v${updateInfo.latestVersion} in background. Tap notification when done to install.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    selectedUpdateInfoForReview = null
+                }.onFailure {
+                    openUrl(apkUrl)
+                }
+            },
             onOpenReleasePage = { releaseUrl -> openUrl(releaseUrl) }
         )
     }

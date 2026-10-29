@@ -51,6 +51,7 @@ captures/
 # Keystore files
 *.jks
 *.keystore
+!android/app/release.keystore
 
 # External native build folder
 .externalNativeBuild

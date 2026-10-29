@@ -24,6 +24,20 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Option A: Target physical mobile devices (ARM 64-bit and 32-bit), reducing APK size by ~50%
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "expensetracker"
+            keyAlias = "expensetracker"
+            keyPassword = "expensetracker"
+        }
     }
 
     buildTypes {
@@ -34,11 +48,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug") // Replaced by CI secret signing in production
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ""
             isDebuggable = true
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
