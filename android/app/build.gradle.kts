@@ -138,6 +138,9 @@ dependencies {
     // ONNX Runtime Android (Local AI)
     implementation(libs.onnxruntime.android)
 
+    // MediaPipe Tasks-GenAI (On-Device LLM for Snapdragon & Tensor)
+    implementation(libs.mediapipe.tasks.genai)
+
     // WorkManager + Hilt Work
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)

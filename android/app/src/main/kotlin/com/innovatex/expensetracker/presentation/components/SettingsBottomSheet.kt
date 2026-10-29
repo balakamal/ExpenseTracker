@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
+import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.domain.model.AppUpdateInfo
 import com.innovatex.expensetracker.presentation.dashboard.AiReclassifyState
 import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
@@ -75,6 +76,10 @@ fun SettingsBottomSheet(
     onOpenManageSenders: () -> Unit = {},
     isAiModelReady: Boolean = false,
     aiModelSizeBytes: Long = 0L,
+    isGenerativeLlmReady: Boolean = false,
+    isTransformerReady: Boolean = false,
+    onSelectAiEngine: (AiEnginePreference) -> Unit = {},
+    onDownloadAiModelWithEngine: (AiEnginePreference) -> Unit = {},
     downloadState: ModelDownloadUiState = ModelDownloadUiState.Idle,
     onDownloadAiModel: () -> Unit = {},
     onCancelDownloadAiModel: () -> Unit = {},
@@ -484,7 +489,7 @@ fun SettingsBottomSheet(
 
             // On-Device AI Engine Section
             Text(
-                text = "ON-DEVICE AI ENGINE (OFFLINE & SANDBOXED)",
+                text = "ON-DEVICE AI ENGINES (OFFLINE & SANDBOXED)",
                 color = ApexThemeTokens.TextTertiary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -493,49 +498,32 @@ fun SettingsBottomSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Unified AI Management Container
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(ApexThemeTokens.RadiusMd)
-                    .background(
-                        if (isAiModelReady) {
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    ApexThemeTokens.AccentCobalt.copy(alpha = 0.12f),
-                                    ApexThemeTokens.BgSurfaceElevated
-                                )
-                            )
-                        } else {
-                            SolidColor(ApexThemeTokens.BgSurfaceElevated)
-                        }
-                    )
-                    .border(
-                        1.dp,
-                        if (isAiModelReady) ApexThemeTokens.AccentCobaltBorder else ApexThemeTokens.StrokeSubtle,
-                        ApexThemeTokens.RadiusMd
-                    )
-                    .padding(18.dp)
+                    .background(ApexThemeTokens.BgSurfaceElevated)
+                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd)
+                    .padding(16.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    // Header Row: Icon + Title + Status Pill + Subtitle
+                    // Header Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(36.dp)
                                 .clip(ApexThemeTokens.RadiusSm)
-                                .background(
-                                    if (isAiModelReady) ApexThemeTokens.AccentCobaltTint
-                                    else ApexThemeTokens.BgGlassPill
-                                ),
+                                .background(ApexThemeTokens.AccentCobaltTint),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Security,
+                                imageVector = Icons.Default.AutoFixHigh,
                                 contentDescription = null,
-                                tint = if (isAiModelReady) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextSecondary,
+                                tint = ApexThemeTokens.AccentCobalt,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -543,45 +531,15 @@ fun SettingsBottomSheet(
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "BERT-Tiny AI Engine",
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 14.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(ApexThemeTokens.RadiusFull)
-                                        .background(
-                                            when {
-                                                isAiModelReady -> ApexThemeTokens.AccentPrimaryTint
-                                                downloadState is ModelDownloadUiState.Downloading -> ApexThemeTokens.AccentCobaltTint
-                                                else -> ApexThemeTokens.AccentSecondaryTint
-                                            }
-                                        )
-                                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
-                                ) {
-                                    Text(
-                                        text = when {
-                                            isAiModelReady -> "Active ($formattedModelSize)"
-                                            downloadState is ModelDownloadUiState.Downloading -> "Downloading ${downloadState.progressPercent}%"
-                                            else -> "Not Downloaded"
-                                        },
-                                        color = when {
-                                            isAiModelReady -> ApexThemeTokens.AccentPrimary
-                                            downloadState is ModelDownloadUiState.Downloading -> ApexThemeTokens.AccentCobalt
-                                            else -> ApexThemeTokens.AccentSecondary
-                                        },
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                            Text(
+                                text = "On-Device Neural Engine",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "100% on-device neural processing • Zero data leaves phone",
+                                text = "100% on-device • Zero data leaves phone • Private",
                                 color = ApexThemeTokens.TextTertiary,
                                 fontSize = 11.sp
                             )
@@ -592,296 +550,388 @@ fun SettingsBottomSheet(
                     HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (!isAiModelReady) {
-                        when (downloadState) {
-                            is ModelDownloadUiState.Downloading -> {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(ApexThemeTokens.BgGlassPill, ApexThemeTokens.RadiusSm)
-                                        .border(1.dp, ApexThemeTokens.StrokeHighlight, ApexThemeTokens.RadiusSm)
-                                        .padding(12.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                strokeWidth = 2.dp,
-                                                color = ApexThemeTokens.AccentCobalt
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = downloadState.statusText,
-                                                color = ApexThemeTokens.TextPrimary,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                        Text(
-                                            text = "${downloadState.progressPercent}%",
-                                            color = ApexThemeTokens.AccentCobalt,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                    Text(
+                        text = "CHOOSE ACTIVE ENGINE",
+                        color = ApexThemeTokens.TextSecondary,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                                    LinearProgressIndicator(
-                                        progress = { downloadState.progressPercent / 100f },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(4.dp)
-                                            .clip(ApexThemeTokens.RadiusFull),
-                                        color = ApexThemeTokens.AccentCobalt,
-                                        trackColor = ApexThemeTokens.StrokeHighlight
+                    // Option 1: Generative SLM (Snapdragon / Tensor)
+                    val isLlmSelected = settings.preferredAiEngine == AiEnginePreference.GENERATIVE_LLM
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ApexThemeTokens.RadiusSm)
+                            .background(if (isLlmSelected) ApexThemeTokens.AccentCobaltTint.copy(alpha = 0.25f) else ApexThemeTokens.BgGlassPill)
+                            .border(
+                                width = if (isLlmSelected) 1.5.dp else 1.dp,
+                                color = if (isLlmSelected) ApexThemeTokens.AccentCobalt else ApexThemeTokens.StrokeSubtle,
+                                shape = ApexThemeTokens.RadiusSm
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Generative SLM",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    OutlinedButton(
-                                        onClick = onCancelDownloadAiModel,
-                                        shape = ApexThemeTokens.RadiusSm,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(34.dp),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                                    ) {
-                                        Text(
-                                            text = "Cancel Download",
-                                            fontSize = 11.5.sp,
-                                            color = ApexThemeTokens.TextSecondary
-                                        )
-                                    }
-                                }
-                            }
-                            is ModelDownloadUiState.Failed -> {
-                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(ApexThemeTokens.AccentDanger.copy(alpha = 0.12f), ApexThemeTokens.RadiusSm)
-                                            .border(1.dp, ApexThemeTokens.AccentDanger.copy(alpha = 0.3f), ApexThemeTokens.RadiusSm)
-                                            .padding(10.dp)
+                                            .clip(ApexThemeTokens.RadiusFull)
+                                            .background(ApexThemeTokens.AccentPrimaryTint)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "Download failed: ${downloadState.errorMessage}",
-                                            color = ApexThemeTokens.AccentDanger,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Button(
-                                        onClick = onDownloadAiModel,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = ApexThemeTokens.AccentCobalt,
-                                            contentColor = Color.White
-                                        ),
-                                        shape = ApexThemeTokens.RadiusSm,
-                                        modifier = Modifier.fillMaxWidth().height(42.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Retry Download (4.8 MB)",
-                                            fontSize = 13.sp,
+                                            text = "Snapdragon / Tensor",
+                                            color = ApexThemeTokens.AccentPrimary,
+                                            fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Full natural language reasoning using MediaPipe. Analyzes whole context, understands conversational alerts and Hinglish with zero rules.",
+                                    color = ApexThemeTokens.TextTertiary,
+                                    fontSize = 10.5.sp
+                                )
                             }
-                            else -> {
-                                AiFeatureBullet(text = "Smart category classification using BERT-Tiny")
-                                Spacer(modifier = Modifier.height(6.dp))
-                                AiFeatureBullet(text = "Promotional offer and payment reminder filtering")
-                                Spacer(modifier = Modifier.height(6.dp))
-                                AiFeatureBullet(text = "Runs 100% offline inside secure app sandbox")
-                                Spacer(modifier = Modifier.height(14.dp))
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isGenerativeLlmReady) "Ready (~280 MB)" else "Download: ~280 MB INT4",
+                                color = if (isGenerativeLlmReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            if (isGenerativeLlmReady) {
+                                if (isLlmSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(ApexThemeTokens.RadiusFull)
+                                            .background(ApexThemeTokens.AccentPrimary)
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(text = "Active", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { onSelectAiEngine(AiEnginePreference.GENERATIVE_LLM) },
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                                    ) {
+                                        Text(text = "Use Engine", fontSize = 11.sp, color = ApexThemeTokens.AccentCobalt)
+                                    }
+                                }
+                            } else {
                                 Button(
-                                    onClick = onDownloadAiModel,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = ApexThemeTokens.AccentCobalt,
-                                        contentColor = Color.White
-                                    ),
-                                    shape = ApexThemeTokens.RadiusFull,
-                                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                                    onClick = { onDownloadAiModelWithEngine(AiEnginePreference.GENERATIVE_LLM) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentCobalt, contentColor = Color.White),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 2: Financial Transformer (Lightweight)
+                    val isTransformerSelected = settings.preferredAiEngine == AiEnginePreference.FINANCIAL_TRANSFORMER
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ApexThemeTokens.RadiusSm)
+                            .background(if (isTransformerSelected) ApexThemeTokens.AccentCobaltTint.copy(alpha = 0.25f) else ApexThemeTokens.BgGlassPill)
+                            .border(
+                                width = if (isTransformerSelected) 1.5.dp else 1.dp,
+                                color = if (isTransformerSelected) ApexThemeTokens.AccentCobalt else ApexThemeTokens.StrokeSubtle,
+                                shape = ApexThemeTokens.RadiusSm
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "Download AI Model · 4.8 MB",
-                                        fontSize = 13.sp,
+                                        text = "Financial Transformer",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(ApexThemeTokens.RadiusFull)
+                                            .background(ApexThemeTokens.AccentSecondaryTint)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Battery Saver",
+                                            color = ApexThemeTokens.AccentSecondary,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "High-speed sequence classification transformer. Sub-10ms processing with minimal battery usage.",
+                                    color = ApexThemeTokens.TextTertiary,
+                                    fontSize = 10.5.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isTransformerReady) "Ready (~35 MB)" else "Download: ~35 MB INT8",
+                                color = if (isTransformerReady) ApexThemeTokens.AccentPrimary else ApexThemeTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            if (isTransformerReady) {
+                                if (isTransformerSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(ApexThemeTokens.RadiusFull)
+                                            .background(ApexThemeTokens.AccentPrimary)
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(text = "Active", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { onSelectAiEngine(AiEnginePreference.FINANCIAL_TRANSFORMER) },
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                                    ) {
+                                        Text(text = "Use Engine", fontSize = 11.sp, color = ApexThemeTokens.AccentCobalt)
+                                    }
+                                }
+                            } else {
+                                Button(
+                                    onClick = { onDownloadAiModelWithEngine(AiEnginePreference.FINANCIAL_TRANSFORMER) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentCobalt, contentColor = Color.White),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    // Download Progress (when active)
+                    if (downloadState is ModelDownloadUiState.Downloading) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(ApexThemeTokens.BgGlassPill, ApexThemeTokens.RadiusSm)
+                                .border(1.dp, ApexThemeTokens.StrokeHighlight, ApexThemeTokens.RadiusSm)
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = ApexThemeTokens.AccentCobalt)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(text = downloadState.statusText, color = ApexThemeTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                }
+                                Text(text = "${downloadState.progressPercent}%", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadState.progressPercent / 100f },
+                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(ApexThemeTokens.RadiusFull),
+                                color = ApexThemeTokens.AccentCobalt,
+                                trackColor = ApexThemeTokens.StrokeHighlight
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onCancelDownloadAiModel,
+                                shape = ApexThemeTokens.RadiusSm,
+                                modifier = Modifier.fillMaxWidth().height(32.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                            ) {
+                                Text(text = "Cancel Download", fontSize = 11.sp, color = ApexThemeTokens.TextSecondary)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Toggle 1: Enable AI Classification
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "AI Category Classification",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Categorizes expenses using the selected on-device AI model",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.aiClassificationEnabled,
+                            onCheckedChange = onToggleAiClassification,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Toggle 2: AI Spam & Reminder Filter
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "AI Spam & Reminder Filter",
+                                color = ApexThemeTokens.TextPrimary,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Excludes marketing promos & bill reminders from totals",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.aiSpamDetectionEnabled,
+                            onCheckedChange = onToggleAiSpamDetection,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = ApexThemeTokens.BgCanvas,
+                                checkedTrackColor = ApexThemeTokens.AccentCobalt,
+                                uncheckedThumbColor = ApexThemeTokens.TextSecondary,
+                                uncheckedTrackColor = ApexThemeTokens.BgGlassPill
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Re-verify & Deduplicate Ledger Action
+                    when (aiReclassifyState) {
+                        is AiReclassifyState.Running -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(ApexThemeTokens.RadiusSm)
+                                    .background(ApexThemeTokens.BgGlassPill)
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = ApexThemeTokens.AccentCobalt
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Verifying & Deduplicating…",
+                                            color = ApexThemeTokens.TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Text(
+                                        text = "${aiReclassifyState.processed} / ${aiReclassifyState.total}",
+                                        color = ApexThemeTokens.AccentCobalt,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                            }
-                        }
-                    } else {
-                        // Toggle 1: Enable AI Classification
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "AI Category Classification",
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Categorizes expenses & infers credit/debit using BERT",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 11.sp
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = {
+                                        if (aiReclassifyState.total > 0)
+                                            aiReclassifyState.processed.toFloat() / aiReclassifyState.total.toFloat()
+                                        else 0f
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                        .clip(ApexThemeTokens.RadiusFull),
+                                    color = ApexThemeTokens.AccentCobalt,
+                                    trackColor = ApexThemeTokens.StrokeHighlight
                                 )
                             }
-                            Switch(
-                                checked = settings.aiClassificationEnabled,
-                                onCheckedChange = onToggleAiClassification,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
-                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
-                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
-                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
-                                )
-                            )
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Toggle 2: AI Spam & Reminder Filter
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "AI Spam & Reminder Filter",
-                                    color = ApexThemeTokens.TextPrimary,
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Excludes marketing promos & bill reminders from totals",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Switch(
-                                checked = settings.aiSpamDetectionEnabled,
-                                onCheckedChange = onToggleAiSpamDetection,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = ApexThemeTokens.BgCanvas,
-                                    checkedTrackColor = ApexThemeTokens.AccentCobalt,
-                                    uncheckedThumbColor = ApexThemeTokens.TextSecondary,
-                                    uncheckedTrackColor = ApexThemeTokens.BgGlassPill
-                                )
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        HorizontalDivider(color = ApexThemeTokens.StrokeSubtle, thickness = 0.5.dp)
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Re-classify action
-                        when (aiReclassifyState) {
-                            is AiReclassifyState.Running -> {
-                                Column(
+                        else -> {
+                            if (aiReclassifyState is AiReclassifyState.Done) {
+                                Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(ApexThemeTokens.RadiusSm)
-                                        .background(ApexThemeTokens.BgGlassPill)
-                                        .padding(12.dp)
+                                        .background(ApexThemeTokens.AccentPrimaryTint)
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(14.dp),
-                                                strokeWidth = 2.dp,
-                                                color = ApexThemeTokens.AccentCobalt
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "Re-classifying transactions…",
-                                                color = ApexThemeTokens.TextPrimary,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                        Text(
-                                            text = "${aiReclassifyState.processed} / ${aiReclassifyState.total}",
-                                            color = ApexThemeTokens.AccentCobalt,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    LinearProgressIndicator(
-                                        progress = {
-                                            if (aiReclassifyState.total > 0)
-                                                aiReclassifyState.processed / aiReclassifyState.total.toFloat()
-                                            else 0f
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(3.dp)
-                                            .clip(ApexThemeTokens.RadiusFull),
-                                        color = ApexThemeTokens.AccentCobalt,
-                                        trackColor = ApexThemeTokens.StrokeHighlight
-                                    )
-                                }
-                            }
-                            else -> {
-                                Button(
-                                    onClick = onRerunAiOnExisting,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = ApexThemeTokens.AccentCobaltTint,
-                                        contentColor = ApexThemeTokens.AccentCobalt
-                                    ),
-                                    border = BorderStroke(1.dp, ApexThemeTokens.AccentCobaltBorder),
-                                    shape = ApexThemeTokens.RadiusSm,
-                                    modifier = Modifier.fillMaxWidth().height(42.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoFixHigh,
-                                        contentDescription = null,
-                                        tint = ApexThemeTokens.AccentCobalt,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (aiReclassifyState is AiReclassifyState.Done)
-                                            "Re-run AI Classification Again"
-                                        else
-                                            "Re-classify Existing Transactions",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                if (aiReclassifyState is AiReclassifyState.Done) {
-                                    Spacer(modifier = Modifier.height(6.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
@@ -891,44 +941,40 @@ fun SettingsBottomSheet(
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Successfully updated ${(aiReclassifyState as AiReclassifyState.Done).updatedCount} transactions",
+                                            text = "Verified ${aiReclassifyState.updatedCount} txns • Merged ${aiReclassifyState.deduplicatedCount} duplicate alerts",
                                             color = ApexThemeTokens.AccentPrimary,
                                             fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                            Button(
+                                onClick = onRerunAiOnExisting,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ApexThemeTokens.BgGlassPill,
+                                    contentColor = ApexThemeTokens.AccentCobalt
+                                ),
+                                shape = ApexThemeTokens.RadiusSm,
+                                border = BorderStroke(1.dp, ApexThemeTokens.AccentCobaltBorder),
+                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoFixHigh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = ApexThemeTokens.AccentCobalt
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "New transactions are classified automatically upon receipt. Tap above to re-evaluate your existing transaction history.",
-                                    color = ApexThemeTokens.TextTertiary,
-                                    fontSize = 10.5.sp,
-                                    lineHeight = 14.5.sp
+                                    text = if (aiReclassifyState is AiReclassifyState.Done) "Re-run Verification & Deduplication" else "Re-verify with AI & Deduplicate Ledger",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ApexThemeTokens.AccentCobalt
                                 )
                             }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Tertiary Delete Button
-                        TextButton(
-                            onClick = onDeleteAiModel,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = null,
-                                tint = ApexThemeTokens.AccentDanger,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Remove Downloaded Model",
-                                color = ApexThemeTokens.AccentDanger,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
                         }
                     }
                 }

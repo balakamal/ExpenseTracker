@@ -5,6 +5,8 @@ import ai.onnxruntime.OnnxValue
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
+import com.innovatex.expensetracker.data.local.AiEnginePreference
+import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
@@ -12,6 +14,7 @@ import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.TransactionType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -25,6 +28,8 @@ class LocalAiClassifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val modelStore: AiModelStore,
     private val userFeedbackDao: UserFeedbackDao,
+    private val preferencesDataStore: PreferencesDataStore,
+    private val llmClassifierEngine: LlmClassifierEngine,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val ortEnv: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
@@ -106,9 +111,33 @@ class LocalAiClassifier @Inject constructor(
             )
         }
 
-        // --- Layer 3: ONNX Neural Model Inference ---
-        val session = getOrLoadSession() ?: return@withContext heuristicFallback(text, merchant)
-        val tok = tokenizer ?: return@withContext heuristicFallback(text, merchant)
+        // --- Layer 3: Engine Selection (Generative LLM vs Financial Transformer) ---
+        val settings = runCatching { preferencesDataStore.appSettingsFlow.first() }.getOrNull()
+        val preferredEngine = settings?.preferredAiEngine ?: AiEnginePreference.GENERATIVE_LLM
+
+        // Case A: Generative SLM/LLM (Snapdragon 8 Gen 3 / Tensor / Dimensity)
+        if (preferredEngine == AiEnginePreference.GENERATIVE_LLM && modelStore.isGenerativeLlmReady()) {
+            val llmResult = llmClassifierEngine.analyze(text, merchant)
+            if (llmResult != null) {
+                return@withContext llmResult
+            }
+        }
+
+        // Case B: High-Accuracy Dedicated Financial Transformer (ONNX Runtime)
+        if (preferredEngine == AiEnginePreference.FINANCIAL_TRANSFORMER && modelStore.isTransformerReady()) {
+            val onnxResult = runTransformerInference(text, merchant)
+            if (onnxResult != null) {
+                return@withContext onnxResult
+            }
+        }
+
+        // Case C: Fallback to Intent & Tense Analyzer
+        return@withContext intentFallback(text, merchant)
+    }
+
+    private suspend fun runTransformerInference(text: String, merchant: String): AiClassificationResult? {
+        val session = getOrLoadSession() ?: return null
+        val tok = tokenizer ?: return null
 
         val combinedInput = if (merchant.isNotBlank() && merchant != "Unknown Merchant") {
             "$text $merchant"
@@ -122,7 +151,7 @@ class LocalAiClassifier @Inject constructor(
         var inputIdsTensor: OnnxTensor? = null
         var attentionMaskTensor: OnnxTensor? = null
 
-        try {
+        return try {
             inputIdsTensor = OnnxTensor.createTensor(ortEnv, LongBuffer.wrap(inputIds), shape)
             attentionMaskTensor = OnnxTensor.createTensor(ortEnv, LongBuffer.wrap(attentionMask), shape)
 
@@ -136,14 +165,12 @@ class LocalAiClassifier @Inject constructor(
             )
 
             session.run(inputs).use { result ->
-                // Head 1: Authenticity
                 val authLogits = extractLogits(result, "authenticity_logits", 0)
                 val authProbs = softmax(authLogits)
                 val topAuthIdx = authProbs.indices.maxByOrNull { authProbs[it] } ?: 0
                 val authLabel = authenticityLabels.getOrElse(topAuthIdx) { AuthenticityLabel.REAL_TRANSACTION }
                 val authConfidence = authProbs.getOrElse(topAuthIdx) { 0f }
 
-                // Head 2: Category
                 val catLogits = extractLogits(result, "category_logits", 1)
                 val catProbs = softmax(catLogits)
                 val topCatIdx = catProbs.indices.maxByOrNull { catProbs[it] } ?: (categoryLabels.size - 1)
@@ -152,18 +179,16 @@ class LocalAiClassifier @Inject constructor(
 
                 val impliedType = if (catLabel == "income") TransactionType.CREDIT else TransactionType.DEBIT
 
-                val lower = text.lowercase()
-                val finalAuthLabel = when {
-                    lower.containsAny("loan", "pre-approved", "apply now", "credit limit", "congratulations", "win cash", "voucher", "cashback of", "flat rs", "flat ₹") ->
-                        AuthenticityLabel.SPAM_PROMO
-                    lower.containsAny("due on", "bill generated", "minimum due", "pay before", "payment due") ->
-                        AuthenticityLabel.PAYMENT_REMINDER
-                    else -> authLabel
+                val fallback = intentFallback(text, merchant)
+                val finalAuthLabel = if (fallback.authenticityLabel != AuthenticityLabel.REAL_TRANSACTION) {
+                    fallback.authenticityLabel
+                } else {
+                    authLabel
                 }
 
                 AiClassificationResult(
                     authenticityLabel = finalAuthLabel,
-                    authenticityConfidence = if (finalAuthLabel != authLabel) 0.90f else authConfidence,
+                    authenticityConfidence = if (finalAuthLabel != authLabel) 0.95f else authConfidence,
                     categoryId = catLabel,
                     categoryConfidence = catConfidence,
                     impliedTransactionType = impliedType,
@@ -171,26 +196,42 @@ class LocalAiClassifier @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            heuristicFallback(text, merchant)
+            null
         } finally {
             runCatching { inputIdsTensor?.close() }
             runCatching { attentionMaskTensor?.close() }
         }
     }
 
-    private fun heuristicFallback(text: String, merchant: String): AiClassificationResult {
+    private fun intentFallback(text: String, merchant: String): AiClassificationResult {
         val lower = text.lowercase()
+
+        val isReminder = lower.containsAny(
+            "reminder", "due on", "due date", "payment due", "amount due", "minimum due",
+            "min due", "total due", "overdue", "bill generated", "bill is due", "upcoming payment",
+            "scheduled for", "will be debited", "will be deducted", "to be debited", "to be paid",
+            "shall be debited", "is scheduled to", "maintain sufficient balance", "keep balance",
+            "keep sufficient balance", "recharge now", "recharge with", "pack expiring",
+            "validity expiring", "plan expires", "collect request", "requested money",
+            "approve request", "mandate created", "mandate scheduled", "autopay scheduled",
+            "standing instruction", "pay before", "pay by"
+        )
+
+        val isSpam = lower.containsAny(
+            "pre-approved", "pre approved", "pre-qualified", "loan offer", "apply now",
+            "credit limit", "congratulations", "win cash", "voucher", "cashback of", "flat rs",
+            "flat ₹", "rummy", "dream11", "lucky winner", "claim reward", "bonus points"
+        )
+
         val authLabel = when {
-            lower.containsAny("loan", "pre-approved", "apply now", "credit limit", "congratulations", "win cash", "voucher", "cashback of", "flat rs", "flat ₹") ->
-                AuthenticityLabel.SPAM_PROMO
-            lower.containsAny("due on", "bill generated", "minimum due", "pay before", "payment due") ->
-                AuthenticityLabel.PAYMENT_REMINDER
+            isReminder -> AuthenticityLabel.PAYMENT_REMINDER
+            isSpam -> AuthenticityLabel.SPAM_PROMO
             else -> AuthenticityLabel.REAL_TRANSACTION
         }
 
         return AiClassificationResult(
             authenticityLabel = authLabel,
-            authenticityConfidence = 0.88f,
+            authenticityConfidence = 0.92f,
             categoryId = "general",
             categoryConfidence = 0.60f,
             impliedTransactionType = TransactionType.DEBIT,
@@ -220,55 +261,48 @@ class LocalAiClassifier @Inject constructor(
             ?: runCatching { result.get(fallbackIndex) }.getOrNull()
 
         if (onnxVal is OnnxTensor) {
-            val floatBuffer = runCatching { onnxVal.floatBuffer }.getOrNull()
-            if (floatBuffer != null) {
-                val array = FloatArray(floatBuffer.remaining())
-                floatBuffer.get(array)
-                return array
-            }
-            val raw = runCatching { onnxVal.getValue() }.getOrNull()
-            if (raw is Array<*>) {
-                val first = raw.firstOrNull()
+            val value = onnxVal.value
+            if (value is Array<*> && value.isNotEmpty()) {
+                val first = value[0]
                 if (first is FloatArray) return first
-            } else if (raw is FloatArray) {
-                return raw
-            }
-        }
-        return FloatArray(10) { 0f }
-    }
-
-    private suspend fun getOrLoadSession(): OrtSession? = mutex.withLock {
-        if (ortSession != null) return ortSession
-        if (!modelStore.isModelReady()) return null
-
-        try {
-            val sessionOptions = OrtSession.SessionOptions().apply {
-                try {
-                    addNnapi()
-                } catch (_: Exception) {
-                    setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                if (first is Array<*> && first.isNotEmpty()) {
+                    val second = first[0]
+                    if (second is FloatArray) return second
                 }
             }
-
-            ortSession = ortEnv.createSession(modelStore.modelFile.absolutePath, sessionOptions)
-            tokenizer = WordPieceTokenizer(modelStore.vocabFile)
-            ortSession
-        } catch (e: Exception) {
-            null
         }
+        return FloatArray(3) { 0f }
     }
 
     private fun softmax(logits: FloatArray): FloatArray {
         if (logits.isEmpty()) return FloatArray(0)
         val maxLogit = logits.maxOrNull() ?: 0f
-        val expScores = logits.map { exp((it - maxLogit).toDouble()).toFloat() }
-        val sumExp = expScores.sum().coerceAtLeast(1e-6f)
-        return expScores.map { it / sumExp }.toFloatArray()
+        val exps = logits.map { exp((it - maxLogit).toDouble()).toFloat() }
+        val sumExp = exps.sum()
+        return if (sumExp > 0f) exps.map { it / sumExp }.toFloatArray() else FloatArray(logits.size) { 1f / logits.size }
     }
 
-    fun release() {
-        ortSession?.close()
-        ortSession = null
-        tokenizer = null
+    private suspend fun getOrLoadSession(): OrtSession? = withContext(ioDispatcher) {
+        mutex.withLock {
+            if (ortSession != null && tokenizer != null) {
+                return@withLock ortSession
+            }
+            if (!modelStore.isTransformerReady()) {
+                return@withLock null
+            }
+            try {
+                val sessionOptions = OrtSession.SessionOptions().apply {
+                    setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
+                    setIntraOpNumThreads(2)
+                }
+                ortSession = ortEnv.createSession(modelStore.modelFile.absolutePath, sessionOptions)
+                tokenizer = WordPieceTokenizer.load(modelStore.vocabFile)
+                ortSession
+            } catch (e: Exception) {
+                ortSession = null
+                tokenizer = null
+                null
+            }
+        }
     }
 }

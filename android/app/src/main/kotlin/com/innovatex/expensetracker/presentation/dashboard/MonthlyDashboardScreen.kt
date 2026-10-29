@@ -115,6 +115,8 @@ fun MonthlyDashboardScreen(
     val aiModelSizeBytes by viewModel.aiModelSizeBytes.collectAsState()
     val modelDownloadState by viewModel.modelDownloadState.collectAsState()
     val aiReclassifyState by viewModel.aiReclassifyState.collectAsState()
+    val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
+    val isTransformerReady by viewModel.isTransformerReady.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -762,6 +764,10 @@ fun MonthlyDashboardScreen(
             trustedSendersCount = trustedSenders.size,
             isAiModelReady = isAiModelReady,
             aiModelSizeBytes = aiModelSizeBytes,
+            isGenerativeLlmReady = isGenerativeLlmReady,
+            isTransformerReady = isTransformerReady,
+            onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
+            onDownloadAiModelWithEngine = { engine -> viewModel.downloadAiModel(context, engine) },
             downloadState = modelDownloadState,
             onDownloadAiModel = { viewModel.downloadAiModel(context) },
             onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },

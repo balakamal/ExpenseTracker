@@ -19,6 +19,12 @@ import javax.inject.Singleton
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "expense_tracker_settings")
 
+enum class AiEnginePreference(val displayName: String, val sizeLabel: String) {
+    GENERATIVE_LLM("Generative SLM (Snapdragon/Tensor)", "~280 MB"),
+    FINANCIAL_TRANSFORMER("Financial Transformer", "~35 MB"),
+    HEURISTIC_ONLY("Rules and Heuristics", "0 MB")
+}
+
 data class AppSettings(
     val smsTrackingEnabled: Boolean = true,
     val emailTrackingEnabled: Boolean = true,
@@ -28,7 +34,8 @@ data class AppSettings(
     val deduplicationWindowMinutes: Int = 10,
     val autoCheckUpdates: Boolean = true,
     val aiClassificationEnabled: Boolean = true,
-    val aiSpamDetectionEnabled: Boolean = true
+    val aiSpamDetectionEnabled: Boolean = true,
+    val preferredAiEngine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM
 )
 
 @Singleton
@@ -49,6 +56,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_TRUSTED_SENDERS = stringSetPreferencesKey("key_trusted_senders")
         val KEY_AI_CLASSIFICATION_ENABLED = booleanPreferencesKey("key_ai_classification_enabled")
         val KEY_AI_SPAM_DETECTION_ENABLED = booleanPreferencesKey("key_ai_spam_detection_enabled")
+        val KEY_PREFERRED_AI_ENGINE = stringPreferencesKey("key_preferred_ai_engine")
     }
 
     val spamSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
@@ -123,7 +131,10 @@ class PreferencesDataStore @Inject constructor(
             deduplicationWindowMinutes = preferences[KEY_DEDUP_WINDOW_MIN] ?: 10,
             autoCheckUpdates = preferences[KEY_AUTO_CHECK_UPDATES] ?: true,
             aiClassificationEnabled = preferences[KEY_AI_CLASSIFICATION_ENABLED] ?: true,
-            aiSpamDetectionEnabled = preferences[KEY_AI_SPAM_DETECTION_ENABLED] ?: true
+            aiSpamDetectionEnabled = preferences[KEY_AI_SPAM_DETECTION_ENABLED] ?: true,
+            preferredAiEngine = preferences[KEY_PREFERRED_AI_ENGINE]?.let { name ->
+                runCatching { AiEnginePreference.valueOf(name) }.getOrNull()
+            } ?: AiEnginePreference.GENERATIVE_LLM
         )
     }
 
@@ -161,5 +172,8 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setAiSpamDetectionEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_AI_SPAM_DETECTION_ENABLED] = enabled }
+    }
+    suspend fun setPreferredAiEngine(engine: AiEnginePreference) {
+        dataStore.edit { it[KEY_PREFERRED_AI_ENGINE] = engine.name }
     }
 }

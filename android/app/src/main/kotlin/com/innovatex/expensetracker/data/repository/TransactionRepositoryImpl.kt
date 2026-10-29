@@ -155,24 +155,45 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun purgeDuplicates(): Int = withContext(ioDispatcher) {
         val allEntities = transactionDao.getAllTransactions()
-        val seenKeys = mutableSetOf<String>()
+        val seenTransactions = mutableMapOf<String, Transaction>()
         val duplicateIds = mutableListOf<String>()
 
         for (entity in allEntities) {
             val domain = entity.toDomain()
-            val senderKey = domain.sender?.trim()?.uppercase() ?: ""
-            val timeBucket = domain.timestamp / (30 * 60 * 1000L) // 30-minute bucket
+            val timeBucket30m = domain.timestamp / (30 * 60 * 1000L)
+            val timeBucket15m = domain.timestamp / (15 * 60 * 1000L)
             val refKey = domain.referenceId?.trim()?.lowercase() ?: ""
-            val key = if (refKey.isNotBlank()) {
-                "REF_${domain.amount}_$refKey"
-            } else {
-                "SENDER_${domain.amount}_${domain.merchantClean.lowercase()}_${senderKey}_$timeBucket"
+            val acctKey = domain.accountLast4?.trim() ?: ""
+
+            val key = when {
+                refKey.isNotBlank() -> "REF_${domain.amount}_${domain.currency}_$refKey"
+                acctKey.isNotBlank() -> "ACCT_${domain.amount}_${domain.currency}_${acctKey}_$timeBucket30m"
+                else -> {
+                    val normMerchant = domain.merchantClean.lowercase().take(15)
+                    "MERCHANT_${domain.amount}_${domain.currency}_${normMerchant}_$timeBucket15m"
+                }
             }
 
-            if (seenKeys.contains(key)) {
+            val existing = seenTransactions[key]
+            if (existing != null) {
+                val combinedSources = (existing.sources + domain.sources).distinct()
+                val bestMerchant = if (existing.merchantClean.lowercase() in setOf("general purchase", "unknown merchant")) {
+                    domain.merchantClean
+                } else {
+                    existing.merchantClean
+                }
+                val updated = existing.copy(
+                    merchantClean = bestMerchant,
+                    sources = combinedSources,
+                    isDeduplicated = true,
+                    referenceId = existing.referenceId ?: domain.referenceId,
+                    accountLast4 = existing.accountLast4 ?: domain.accountLast4
+                )
+                seenTransactions[key] = updated
+                transactionDao.updateTransaction(updated.toEntity())
                 duplicateIds.add(entity.id)
             } else {
-                seenKeys.add(key)
+                seenTransactions[key] = domain
             }
         }
 

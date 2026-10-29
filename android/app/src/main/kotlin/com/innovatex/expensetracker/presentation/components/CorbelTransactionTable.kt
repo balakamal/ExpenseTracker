@@ -82,7 +82,7 @@ fun CorbelTransactionTable(
     val filteredTransactions = remember(transactions, searchQuery, selectedFilter) {
         transactions.filter { txn ->
             val matchesFilter = when (selectedFilter) {
-                TransactionFilter.ALL -> true
+                TransactionFilter.ALL -> txn.isValidTransaction
                 TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT && txn.isValidTransaction
                 TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT && txn.isValidTransaction
                 TransactionFilter.PROMO_SPAM -> !txn.isValidTransaction
@@ -204,7 +204,7 @@ fun CorbelTransactionTable(
                     modifier = Modifier.weight(1f)
                 ) {
                     FilterPill(
-                        label = "All ${transactions.size}",
+                        label = "All ${debitCount + creditCount}",
                         isSelected = selectedFilter == TransactionFilter.ALL,
                         onClick = { selectedFilter = TransactionFilter.ALL }
                     )
@@ -222,7 +222,7 @@ fun CorbelTransactionTable(
                     )
                     if (promoSpamCount > 0) {
                         FilterPill(
-                            label = "Promo $promoSpamCount",
+                            label = "Reminders/Spam $promoSpamCount",
                             isSelected = selectedFilter == TransactionFilter.PROMO_SPAM,
                             activeColor = ApexThemeTokens.AccentSecondary,
                             onClick = { selectedFilter = TransactionFilter.PROMO_SPAM }

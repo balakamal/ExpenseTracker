@@ -307,5 +307,24 @@ class SmsParserTest {
         )
         assertEquals("AD-KOTAKB", txnWithMerchantFallback.sender)
     }
-}
+    @Test
+    fun `test prospective EMI reminder with will be auto-debited is strictly rejected`() {
+        val emiSms = "Dear Customer, your EMI of Rs. 12,000 for Loan A/c ending 1234 will be auto-debited on 05-Nov. Kindly keep sufficient balance."
+        assertFalse(parser.isFinancialAlert(emiSms))
+        assertNull(parser.parse(emiSms))
+    }
 
+    @Test
+    fun `test credit card minimum payment due reminder is strictly rejected`() {
+        val cardSms = "Reminder: Minimum payment of Rs. 2,500 due on your credit card ending 5678 has to be paid by 05-Nov to avoid late fees."
+        assertFalse(parser.isFinancialAlert(cardSms))
+        assertNull(parser.parse(cardSms))
+    }
+
+    @Test
+    fun `test upcoming auto-debit presentation notice is strictly rejected`() {
+        val autoDebitSms = "Your auto-debit of Rs 499 for Netflix will be presented on 01-Nov from account 4321."
+        assertFalse(parser.isFinancialAlert(autoDebitSms))
+        assertNull(parser.parse(autoDebitSms))
+    }
+}

@@ -38,6 +38,10 @@ class SmsParserEngine @Inject constructor() {
     )
 
     // 4. Bill due / Upcoming payment demands (Prospective/unpaid notices)
+    val reminderAndProspectivePattern = Pattern.compile(
+        "(?i)\\b(?:reminder|kindly\\s+pay|please\\s+pay|pay\\s+now|pay\\s+before|pay\\s+by|due\\s+date|due\\s+on|is\\s+due|payment\\s+due|amount\\s+due|minimum\\s+due|min\\s+due|total\\s+due|overdue|bill\\s+generated|bill\\s+is\\s+due|upcoming\\s+payment|scheduled\\s+for|will\\s+be\\s+(?:auto[- ]?)?debited|will\\s+be\\s+deducted|to\\s+be\\s+debited|to\\s+be\\s+paid|shall\\s+be\\s+debited|is\\s+scheduled\\s+to|maintain\\s+sufficient\\s+balance|keep\\s+sufficient\\s+balance|keep\\s+balance|recharge\\s+now|recharge\\s+with|pack\\s+expiring|validity\\s+expiring|plan\\s+expires|collect\\s+request|requested\\s+money|approve\\s+request|mandate\\s+created|mandate\\s+scheduled|autopay\\s+scheduled|standing\\s+instruction|statement\\s+generated|statement\\s+is\\s+ready)\\b"
+    )
+
     private val billDuePattern = Pattern.compile(
         "(?i)\\b(?:bill\\s+is\\s+due|payment\\s+due|due\\s+date|due\\s+on\\s+\\d|pay\\s+before|pay\\s+by\\s+\\d|to\\s+avoid\\s+(?:late\\s+fee|disconnection|interruption)|minimum\\s+amount\\s+due|min\\s+due|total\\s+amount\\s+due|unpaid\\s+bill)\\b"
     )
@@ -99,12 +103,32 @@ class SmsParserEngine @Inject constructor() {
         return clean.matches(Regex("^(?:91)?[6-9]\\d{9}$")) || clean.matches(Regex("^\\d{10,12}$"))
     }
 
+    fun isProspectiveOrReminder(body: String): Boolean {
+        if (body.isBlank()) return false
+        val lower = body.lowercase()
+        return reminderAndProspectivePattern.matcher(body).find() ||
+            lower.containsAny(
+                "will be debited", "will be auto-debited", "will be deducted", "to be debited",
+                "to be paid", "due date", "due on", "payment due", "amount due", "minimum due",
+                "min due", "total due", "overdue", "bill generated", "bill is due", "upcoming payment",
+                "scheduled for", "maintain sufficient balance", "keep balance", "keep sufficient balance",
+                "recharge now", "recharge with", "pack expiring", "validity expiring", "plan expires",
+                "collect request", "requested money", "approve request", "mandate created",
+                "mandate scheduled", "autopay scheduled", "standing instruction", "pay before", "pay by"
+            )
+    }
+
     fun isFinancialAlert(body: String, sender: String? = null): Boolean {
         if (body.isBlank()) return false
         if (otpPattern.matcher(body).find()) return false
 
         // 1. Definite Marketing Filters (excluding executed payments/EMIs)
-        val hasCompletedPaymentVerb = body.containsAny("debited", "spent", "paid", "withdrawn", "credited", "deposited", "transferred", "auto-debited")
+        // Check for prospective notices, payment reminders, and upcoming demands
+        val isReminder = isProspectiveOrReminder(body)
+        val hasCompletedPaymentVerb = !isReminder && body.containsAny("debited", "spent", "paid", "withdrawn", "credited", "deposited", "transferred", "auto-debited")
+
+        // If it is a reminder or prospective demand without actual execution, drop it
+        if (isReminder && !hasCompletedPaymentVerb) return false
         
         // Loan marketing filter: only drop if it's NOT an executed EMI or loan debit
         if (loanMarketingPattern.matcher(body).find() && !hasCompletedPaymentVerb) return false
@@ -199,6 +223,17 @@ class SmsParserEngine @Inject constructor() {
         val merchantMatcher = merchantPrepositionPattern.matcher(body)
         if (merchantMatcher.find()) {
             rawMerchant = merchantMatcher.group(1)?.trim() ?: "Unknown Merchant"
+        } else {
+            val infoMatcher = Pattern.compile("(?i)\\b(?:info|desc|narr|details)[:\\s]+([A-Za-z0-9\\s\\.\\&\\*\\-@]{2,30})").matcher(body)
+            if (infoMatcher.find()) {
+                rawMerchant = infoMatcher.group(1)?.trim() ?: "Unknown Merchant"
+            }
+        }
+        if (rawMerchant == "Unknown Merchant" && !sender.isNullOrBlank() && !isPersonalPhoneNumber(sender)) {
+            val senderClean = sender.trim().substringAfter("-").take(15)
+            if (senderClean.isNotBlank()) {
+                rawMerchant = senderClean
+            }
         }
         val cleanMerchant = cleanMerchantName(rawMerchant)
 

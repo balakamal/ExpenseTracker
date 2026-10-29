@@ -58,8 +58,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 
 @Singleton
 class HistoricalSmsScanner @Inject constructor(
-    private val parseTransactionUseCase: ParseTransactionUseCase,
-    private val deduplicateTransactionUseCase: DeduplicateTransactionUseCase,
+    private val ingestionPipeline: IngestionPipeline,
     private val transactionRepository: TransactionRepository,
     private val preferencesDataStore: PreferencesDataStore,
     private val widgetSyncManager: ExpenseWidgetSyncManager
@@ -96,14 +95,13 @@ class HistoricalSmsScanner @Inject constructor(
                                 continue
                             }
 
-                            val parsed = parseTransactionUseCase.parse(
+                            val res = ingestionPipeline.processIncomingMessage(
                                 body = body,
                                 timestamp = date,
                                 source = SourceChannel.SMS,
                                 sender = sender
                             )
-                            if (parsed != null) {
-                                deduplicateTransactionUseCase(parsed)
+                            if (res != null) {
                                 scanned++
                             }
                         }

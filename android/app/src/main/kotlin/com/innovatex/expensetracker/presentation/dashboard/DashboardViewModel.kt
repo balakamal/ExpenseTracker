@@ -13,6 +13,7 @@ import com.innovatex.expensetracker.ingestion.IngestionPipeline
 import kotlinx.coroutines.Dispatchers
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
+import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MerchantRule
@@ -50,6 +51,12 @@ class DashboardViewModel @Inject constructor(
     private val aiModelStore: AiModelStore,
     private val localAiClassifier: LocalAiClassifier
 ) : ViewModel() {
+
+    private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
+    val isGenerativeLlmReady: StateFlow<Boolean> = _isGenerativeLlmReady.asStateFlow()
+
+    private val _isTransformerReady = MutableStateFlow(aiModelStore.isTransformerReady())
+    val isTransformerReady: StateFlow<Boolean> = _isTransformerReady.asStateFlow()
 
     private val _isAiModelReady = MutableStateFlow(aiModelStore.isModelReady())
     val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
@@ -443,11 +450,19 @@ class DashboardViewModel @Inject constructor(
 
     fun refreshAiModelState() {
         _isAiModelReady.value = aiModelStore.isModelReady()
+        _isGenerativeLlmReady.value = aiModelStore.isGenerativeLlmReady()
+        _isTransformerReady.value = aiModelStore.isTransformerReady()
         _aiModelSizeBytes.value = aiModelStore.getModelSizeBytes()
     }
 
-    fun downloadAiModel(context: Context) {
-        ModelDownloadWorker.enqueue(context)
+    fun setPreferredAiEngine(engine: AiEnginePreference) {
+        viewModelScope.launch {
+            preferencesDataStore.setPreferredAiEngine(engine)
+        }
+    }
+
+    fun downloadAiModel(context: Context, engine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM) {
+        ModelDownloadWorker.enqueue(context, engine)
         observeModelDownloadWork(context)
     }
 
@@ -580,8 +595,9 @@ class DashboardViewModel @Inject constructor(
                 runCatching { transactionRepository.updateTransaction(enriched) }
                 updatedCount++
             }
-            _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount)
-            // Refresh suspected spam list since AI may have re-flagged some transactions
+            val deduplicatedCount = runCatching { transactionRepository.purgeDuplicates() }.getOrDefault(0)
+            _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updatedCount, deduplicatedCount = deduplicatedCount)
+            _cleanSpamStatus.value = "AI verification complete: $updatedCount verified, $deduplicatedCount duplicates merged."
             refreshSuspectedSpam()
         }
     }
@@ -604,5 +620,5 @@ enum class DateRangePreset(val label: String) {
 sealed interface AiReclassifyState {
     object Idle : AiReclassifyState
     data class Running(val processed: Int, val total: Int) : AiReclassifyState
-    data class Done(val updatedCount: Int) : AiReclassifyState
+    data class Done(val updatedCount: Int, val deduplicatedCount: Int = 0) : AiReclassifyState
 }
