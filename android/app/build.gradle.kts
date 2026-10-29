@@ -62,15 +62,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-            "-opt-in=androidx.compose.animation.ExperimentalAnimationApi"
-        )
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -93,6 +84,17 @@ android {
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        optIn.addAll(listOf(
+            "androidx.compose.material3.ExperimentalMaterial3Api",
+            "kotlinx.coroutines.ExperimentalCoroutinesApi",
+            "androidx.compose.animation.ExperimentalAnimationApi"
+        ))
     }
 }
 

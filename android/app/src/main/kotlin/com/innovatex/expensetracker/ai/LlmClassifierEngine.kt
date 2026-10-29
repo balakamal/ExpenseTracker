@@ -6,7 +6,6 @@ import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
-import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
@@ -58,11 +57,13 @@ class LlmClassifierEngine @Inject constructor(
                         "Return exactly one JSON object: {\"label\":\"REAL_TRANSACTION|SPAM_PROMO|PAYMENT_REMINDER|OTHER\"}. " +
                         "REAL_TRANSACTION means a completed money movement. If unclear, return OTHER. Never extract or invent amounts, dates, merchants, or transaction types."
                 ),
-                samplerConfig = SamplerConfig(topK = 1, topP = 1.0f, temperature = 0.0f)
+                samplerConfig = SamplerConfig(topK = 1, topP = 1.0, temperature = 0.0)
             )
         ).use { conversation ->
             val safeText = text.take(MAX_INPUT_CHARS)
-            val response = conversation.sendMessage(Message.user("Classify this message only.\n<message>\n$safeText\n</message>")).text
+            val response = conversation.sendMessage(
+                "Classify this message only.\n<message>\n$safeText\n</message>"
+            ).contents.toString()
             parseClassification(response)
         }
 
