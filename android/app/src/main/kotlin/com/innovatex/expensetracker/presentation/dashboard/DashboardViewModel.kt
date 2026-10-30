@@ -143,23 +143,27 @@ class DashboardViewModel @Inject constructor(
     fun observeAiChatWork(context: Context) {
         if (aiChatObserverJob?.isActive == true) return
         aiChatObserverJob = viewModelScope.launch {
-            WorkManager.getInstance(context).getWorkInfosByTagFlow(AiChatWorker.WORK_TAG).collect { workInfos ->
-                _aiChatEntries.value = workInfos.sortedBy { it.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L) }.mapNotNull { work ->
+            WorkManager.getInstance(context).getWorkInfosByTagFlow(AiChatWorker.WORK_TAG).collect { workInfos: List<WorkInfo> ->
+                val chatEntries = mutableListOf<AiChatEntry>()
+                val sortedWorkInfos: List<WorkInfo> = workInfos.sortedBy { it.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L) }
+                for (work in sortedWorkInfos) {
                     val mode = if (work.inputData.getString(AiChatWorker.KEY_MODE) == AiChatWorker.MODE_LEDGER) {
                         AiChatMode.FINANCIAL_LEDGER
                     } else AiChatMode.GENERAL
                     val prompt = work.outputData.getString(AiChatWorker.KEY_PROMPT)
                         ?: work.inputData.getString(AiChatWorker.KEY_DISPLAY_PROMPT)
-                        ?: return@mapNotNull null
-                    AiChatEntry(
-                        id = work.id.toString(),
-                        mode = mode,
-                        prompt = prompt,
-                        answer = work.outputData.getString(AiChatWorker.KEY_ANSWER),
-                        error = work.outputData.getString(AiChatWorker.KEY_ERROR),
-                        isWorking = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED || work.state == WorkInfo.State.RUNNING
-                    )
+                    if (prompt != null) {
+                        chatEntries += AiChatEntry(
+                            id = work.id.toString(),
+                            mode = mode,
+                            prompt = prompt,
+                            answer = work.outputData.getString(AiChatWorker.KEY_ANSWER),
+                            error = work.outputData.getString(AiChatWorker.KEY_ERROR),
+                            isWorking = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED || work.state == WorkInfo.State.RUNNING
+                        )
+                    }
                 }
+                _aiChatEntries.value = chatEntries
             }
         }
     }

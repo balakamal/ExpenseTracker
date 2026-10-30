@@ -93,6 +93,7 @@ class AiChatWorker @AssistedInject constructor(
     }
 
     companion object {
+        private const val CHANNEL_ID = "ai_chat_response_channel"
         const val WORK_TAG = "ai_chat_response"
         const val KEY_PROMPT = "prompt"
         const val KEY_DISPLAY_PROMPT = "display_prompt"
