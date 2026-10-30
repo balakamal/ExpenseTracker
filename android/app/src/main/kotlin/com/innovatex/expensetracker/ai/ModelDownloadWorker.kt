@@ -22,6 +22,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import androidx.work.workDataOf
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
@@ -130,8 +131,11 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
             setRequestProperty("Accept-Encoding", "identity")
             if (existing > 0) setRequestProperty("Range", "bytes=$existing-")
         }
+        val requestStartedAt = System.currentTimeMillis()
+        var networkStatus = "network error"
         try {
             val response = connection.responseCode
+            networkStatus = response.toString()
             if (response == 416) {
                 val total = connection.getHeaderField("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
                 if (total == AiModelStore.PINNED_MODEL_SIZE_BYTES && total == existing) return
@@ -214,6 +218,7 @@ class ModelDownloadWorker(context: Context, params: WorkerParameters) : Coroutin
                 throw java.io.IOException("Downloaded model checksum does not match the repository")
             }
         } finally {
+            NetworkCallLogger(applicationContext).record("GET", MODEL_URL, networkStatus, System.currentTimeMillis() - requestStartedAt)
             connection.disconnect()
         }
     }

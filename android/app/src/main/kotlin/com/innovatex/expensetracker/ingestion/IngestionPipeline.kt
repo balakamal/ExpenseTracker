@@ -12,6 +12,9 @@ import com.innovatex.expensetracker.domain.usecase.ParseTransactionUseCase
 import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,11 +28,28 @@ class IngestionPipeline @Inject constructor(
     private val localAiClassifier: LocalAiClassifier,
     private val categoryRepository: CategoryRepository
 ) {
+    private val _processingLabel = MutableStateFlow<String?>(null)
+    val processingLabel: StateFlow<String?> = _processingLabel.asStateFlow()
+
     suspend fun processIncomingMessage(
         body: String,
         timestamp: Long,
         source: SourceChannel,
         sender: String? = null
+    ): DeduplicationResult? {
+        _processingLabel.value = "${source.name.lowercase().replaceFirstChar { it.uppercase() }}${sender?.let { " · $it" } ?: " message"}"
+        return try {
+            processMessage(body, timestamp, source, sender)
+        } finally {
+            _processingLabel.value = null
+        }
+    }
+
+    private suspend fun processMessage(
+        body: String,
+        timestamp: Long,
+        source: SourceChannel,
+        sender: String?
     ): DeduplicationResult? {
         val settings = preferencesDataStore.appSettingsFlow.first()
         if (source == SourceChannel.SMS && !settings.smsTrackingEnabled) return null

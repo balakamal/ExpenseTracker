@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
@@ -54,6 +55,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import com.innovatex.expensetracker.presentation.components.ManageSendersBottomSheet
 import com.innovatex.expensetracker.presentation.components.SpamReviewBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -62,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -115,6 +119,10 @@ fun MonthlyDashboardScreen(
     val aiModelSizeBytes by viewModel.aiModelSizeBytes.collectAsState()
     val modelDownloadState by viewModel.modelDownloadState.collectAsState()
     val aiReclassifyState by viewModel.aiReclassifyState.collectAsState()
+    val networkCallLogs by viewModel.networkCallLogs.collectAsState()
+    val processingMessage by viewModel.processingMessage.collectAsState()
+    val aiChatAnswer by viewModel.aiChatAnswer.collectAsState()
+    val aiChatLoading by viewModel.aiChatLoading.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
     val context = LocalContext.current
 
@@ -130,6 +138,9 @@ fun MonthlyDashboardScreen(
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
+    var showAiChat by remember { mutableStateOf(false) }
+    var aiChatDraft by remember { mutableStateOf("") }
+    val aiChatMessages = remember { mutableStateListOf<Pair<Boolean, String>>() }
 
     val openUrl = { url: String ->
         runCatching {
@@ -287,6 +298,9 @@ fun MonthlyDashboardScreen(
                                 color = ApexThemeTokens.TextMuted,
                                 fontSize = 11.sp
                             )
+                            processingMessage?.let { current ->
+                                Text("Processing: $current", color = ApexThemeTokens.AccentCobalt, fontSize = 10.sp, maxLines = 1)
+                            }
                         }
 
                         Spacer(modifier = Modifier.weight(1f))
@@ -339,6 +353,7 @@ fun MonthlyDashboardScreen(
                         }
 
                         // Settings Button in glass circle
+                        TextButton(onClick = { aiChatMessages.clear(); viewModel.clearAiChat(); showAiChat = true }) { Text("Ask AI", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp) }
                         IconButton(
                             onClick = { showSettingsSheet = true },
                             modifier = Modifier
@@ -779,6 +794,7 @@ fun MonthlyDashboardScreen(
             onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
             onToggleBackgroundAiNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
             onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
+            onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
             onOpenReviewSpam = {
                 showSettingsSheet = false
                 showSpamReviewSheet = true
@@ -796,8 +812,55 @@ fun MonthlyDashboardScreen(
                 showSettingsSheet = false
                 selectedUpdateInfoForReview = updateInfo
             },
-            onOpenNotificationSettings = onSettingsClick
+            onOpenNotificationSettings = onSettingsClick,
+            networkCallLogs = networkCallLogs,
+            onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() }
         )
+    }
+
+    if (showAiChat) {
+        ModalBottomSheet(
+            onDismissRequest = { showAiChat = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = ApexThemeTokens.BgSurface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Ask your ledger", color = ApexThemeTokens.TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("Your question and spending summary stay on this device.", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp)
+                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(aiChatMessages.size) { index ->
+                        val (isUser, message) = aiChatMessages[index]
+                        Text(if (isUser) "You: $message" else "Apex AI: $message", color = if (isUser) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextPrimary, fontSize = 13.sp)
+                    }
+                    if (aiChatLoading) item { Text("Thinking on-device…", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp) }
+                }
+                LaunchedEffect(aiChatAnswer) {
+                    aiChatAnswer?.let { answer -> aiChatMessages.add(false to answer) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextField(
+                        value = aiChatDraft,
+                        onValueChange = { aiChatDraft = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Ask about your spending…") },
+                        maxLines = 3,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = ApexThemeTokens.BgSurfaceElevated,
+                            unfocusedContainerColor = ApexThemeTokens.BgSurfaceElevated
+                        )
+                    )
+                    Button(onClick = {
+                        val question = aiChatDraft.trim()
+                        if (question.isNotEmpty() && !aiChatLoading) {
+                            aiChatMessages.add(true to question)
+                            aiChatDraft = ""
+                            viewModel.askAi(question)
+                        }
+                    }, enabled = !aiChatLoading && aiChatDraft.isNotBlank()) { Text("Send") }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+        }
     }
 
     // Review Suspected Spam Bottom Sheet

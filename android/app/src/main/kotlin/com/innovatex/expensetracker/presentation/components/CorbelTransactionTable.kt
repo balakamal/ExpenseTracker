@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.domain.model.PaymentMedium
 import com.innovatex.expensetracker.domain.usecase.CategorySpendItem
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 import java.text.NumberFormat
@@ -61,6 +63,7 @@ fun CorbelTransactionTable(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
+    var selectedMedium by remember { mutableStateOf(PaymentMediumFilter.ALL) }
     var isTableView by remember { mutableStateOf(false) }
 
     val numberFormat = remember {
@@ -79,7 +82,7 @@ fun CorbelTransactionTable(
     }
 
     // Filter transactions based on search and type pill
-    val filteredTransactions = remember(transactions, searchQuery, selectedFilter) {
+    val filteredTransactions = remember(transactions, searchQuery, selectedFilter, selectedMedium) {
         transactions.filter { txn ->
             val matchesFilter = when (selectedFilter) {
                 TransactionFilter.ALL -> txn.isValidTransaction
@@ -97,7 +100,15 @@ fun CorbelTransactionTable(
                     (txn.sender?.contains(searchQuery, ignoreCase = true) == true)
             }
 
-            matchesFilter && matchesSearch
+            val matchesMedium = when (selectedMedium) {
+                PaymentMediumFilter.ALL -> true
+                PaymentMediumFilter.UPI -> txn.paymentMedium == PaymentMedium.UPI
+                PaymentMediumFilter.DEBIT_CARD -> txn.paymentMedium == PaymentMedium.CARD &&
+                    txn.rawSnippet.orEmpty().contains("debit card", ignoreCase = true)
+                PaymentMediumFilter.CREDIT_CARD -> txn.paymentMedium == PaymentMedium.CARD &&
+                    txn.rawSnippet.orEmpty().contains("credit card", ignoreCase = true)
+            }
+            matchesFilter && matchesSearch && matchesMedium
         }
     }
 
@@ -189,6 +200,19 @@ fun CorbelTransactionTable(
                             )
                         }
                     }
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp)
+            ) {
+                PaymentMediumFilter.entries.forEach { filter ->
+                    FilterPill(
+                        label = filter.label,
+                        isSelected = selectedMedium == filter,
+                        onClick = { selectedMedium = filter }
+                    )
                 }
             }
 
@@ -685,4 +709,8 @@ enum class TransactionFilter {
     DEBITS,
     CREDITS,
     PROMO_SPAM
+}
+
+private enum class PaymentMediumFilter(val label: String) {
+    ALL("All methods"), UPI("UPI"), DEBIT_CARD("Debit card"), CREDIT_CARD("Credit card")
 }

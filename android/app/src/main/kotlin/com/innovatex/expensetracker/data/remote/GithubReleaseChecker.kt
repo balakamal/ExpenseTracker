@@ -1,6 +1,7 @@
 package com.innovatex.expensetracker.data.remote
 
 import com.innovatex.expensetracker.di.IoDispatcher
+import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import com.innovatex.expensetracker.domain.model.AppUpdateInfo
 import com.innovatex.expensetracker.domain.repository.AppUpdateRepository
 import kotlinx.coroutines.CoroutineDispatcher
@@ -15,7 +16,8 @@ import javax.inject.Singleton
 
 @Singleton
 class GithubReleaseChecker @Inject constructor(
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val networkCallLogger: NetworkCallLogger
 ) : AppUpdateRepository {
 
     companion object {
@@ -27,6 +29,8 @@ class GithubReleaseChecker @Inject constructor(
     }
 
     override suspend fun checkForUpdate(currentVersion: String): Result<AppUpdateInfo?> = withContext(ioDispatcher) {
+        val startedAt = System.currentTimeMillis()
+        var callStatus = "network error"
         runCatching {
             val url = URL(LATEST_RELEASE_API)
             val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -40,6 +44,7 @@ class GithubReleaseChecker @Inject constructor(
 
             try {
                 val responseCode = connection.responseCode
+                callStatus = responseCode.toString()
                 if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
                     // No GitHub releases published yet
                     return@runCatching null
@@ -106,6 +111,8 @@ class GithubReleaseChecker @Inject constructor(
             } finally {
                 connection.disconnect()
             }
+        }.also { result ->
+            networkCallLogger.record("GET", LATEST_RELEASE_API, callStatus, System.currentTimeMillis() - startedAt)
         }
     }
 

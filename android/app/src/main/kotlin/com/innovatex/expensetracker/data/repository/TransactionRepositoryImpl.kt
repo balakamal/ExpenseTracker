@@ -265,6 +265,7 @@ class TransactionRepositoryImpl @Inject constructor(
             val merchantRaw = domain.merchantRaw
 
             val isSpam = preferencesDataStore.isSpamSender(sender) ||
+                (domain.userOverrideValid != true && domain.aiClassification?.authenticityLabel in setOf(AuthenticityLabel.SPAM_PROMO, AuthenticityLabel.PAYMENT_REMINDER)) ||
                 rawSnippet.containsAny("loan", "pre-approved", "apply now", "credit limit", "insurance", "casino", "lottery", "win") ||
                 merchantRaw.containsAny("loan", "pre-approved", "apply now")
 
@@ -277,6 +278,15 @@ class TransactionRepositoryImpl @Inject constructor(
             transactionDao.deleteTransactionsByIds(spamIds)
         }
         spamIds.size
+    }
+
+    override suspend fun purgeOtpLikeTransactions(): Int = withContext(ioDispatcher) {
+        val ids = transactionDao.getAllTransactions().filter { entity ->
+            val text = "${entity.rawSnippet.orEmpty()} ${entity.merchantRaw}".lowercase()
+            Regex("\\b(otp|one[- ]time password|verification code|authentication code)\\b").containsMatchIn(text)
+        }.map { it.id }
+        if (ids.isNotEmpty()) transactionDao.deleteTransactionsByIds(ids)
+        ids.size
     }
 
     override suspend fun getSuspectedSpamItems(): List<SuspectedSpamItem> = withContext(ioDispatcher) {

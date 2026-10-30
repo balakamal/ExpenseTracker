@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.AiEnginePreference
+import com.innovatex.expensetracker.data.local.NetworkCallLog
 import com.innovatex.expensetracker.domain.model.AppUpdateInfo
 import com.innovatex.expensetracker.presentation.dashboard.AiReclassifyState
 import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
@@ -73,6 +74,7 @@ fun SettingsBottomSheet(
     blockedSendersCount: Int = 0,
     trustedSendersCount: Int = 0,
     onCleanSpam: () -> Unit = {},
+    onCleanOtp: () -> Unit = {},
     onOpenReviewSpam: () -> Unit = {},
     onOpenManageSenders: () -> Unit = {},
     isAiModelReady: Boolean = false,
@@ -97,7 +99,9 @@ fun SettingsBottomSheet(
     onToggleAutoCheckUpdates: (Boolean) -> Unit,
     onCheckForUpdatesManual: () -> Unit,
     onReviewUpdate: (AppUpdateInfo) -> Unit,
-    onOpenNotificationSettings: () -> Unit
+    onOpenNotificationSettings: () -> Unit,
+    networkCallLogs: List<NetworkCallLog> = emptyList(),
+    onClearNetworkCallLogs: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val formattedModelSize = remember(aiModelSizeBytes) {
@@ -475,6 +479,24 @@ fun SettingsBottomSheet(
                         ) {
                             Text(text = "Rules", fontSize = 12.sp)
                         }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onCleanOtp, modifier = Modifier.weight(1f), shape = ApexThemeTokens.RadiusSm) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Delete OTPs", fontSize = 11.sp)
+                    }
+                    Button(
+                        onClick = onCleanSpam,
+                        modifier = Modifier.weight(1f),
+                        shape = ApexThemeTokens.RadiusSm,
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentDanger)
+                    ) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Delete spam & promos", fontSize = 11.sp)
                     }
                 }
 
@@ -1008,6 +1030,29 @@ fun SettingsBottomSheet(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text("NETWORK ACTIVITY LOG", color = ApexThemeTokens.TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusMd)
+                    .background(ApexThemeTokens.BgSurfaceElevated)
+                    .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd).padding(14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${networkCallLogs.size} recent app requests", color = ApexThemeTokens.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Only endpoint, result, and duration are stored. No message contents or account data.", color = ApexThemeTokens.TextTertiary, fontSize = 10.5.sp)
+                    networkCallLogs.take(5).forEach { log ->
+                        Text("${log.method} ${log.endpoint} · ${log.status} · ${log.durationMs} ms", color = ApexThemeTokens.TextSecondary, fontSize = 10.sp, maxLines = 2)
+                    }
+                    TextButton(onClick = onClearNetworkCallLogs, enabled = networkCallLogs.isNotEmpty()) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Clear logs")
                     }
                 }
             }

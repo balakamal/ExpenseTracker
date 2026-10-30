@@ -7,12 +7,15 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
 import com.innovatex.expensetracker.ai.AiModelStore
+import com.innovatex.expensetracker.ai.LlmClassifierEngine
 import com.innovatex.expensetracker.ai.LedgerReprocessingWorker
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
+import com.innovatex.expensetracker.data.local.NetworkCallLogger
+import com.innovatex.expensetracker.data.local.NetworkCallLog
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.MerchantRule
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
@@ -21,6 +24,7 @@ import com.innovatex.expensetracker.domain.usecase.CheckForAppUpdateUseCase
 import com.innovatex.expensetracker.domain.usecase.GetMonthlyDashboardUseCase
 import com.innovatex.expensetracker.domain.usecase.MonthlyDashboardUiState
 import com.innovatex.expensetracker.ingestion.sms.HistoricalSmsScanner
+import com.innovatex.expensetracker.ingestion.IngestionPipeline
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +50,10 @@ class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
-    private val aiModelStore: AiModelStore
+    private val aiModelStore: AiModelStore,
+    private val networkCallLogger: NetworkCallLogger,
+    ingestionPipeline: IngestionPipeline,
+    private val llmClassifierEngine: LlmClassifierEngine
 ) : ViewModel() {
 
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
@@ -85,6 +92,39 @@ class DashboardViewModel @Inject constructor(
 
     private val _cleanSpamStatus = MutableStateFlow<String?>(null)
     val cleanSpamStatus: StateFlow<String?> = _cleanSpamStatus.asStateFlow()
+    val networkCallLogs: StateFlow<List<NetworkCallLog>> = networkCallLogger.logs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val processingMessage: StateFlow<String?> = ingestionPipeline.processingLabel
+    private val _aiChatAnswer = MutableStateFlow<String?>(null)
+    val aiChatAnswer: StateFlow<String?> = _aiChatAnswer.asStateFlow()
+    private val _aiChatLoading = MutableStateFlow(false)
+    val aiChatLoading: StateFlow<Boolean> = _aiChatLoading.asStateFlow()
+
+    fun askAi(question: String) {
+        if (question.isBlank() || _aiChatLoading.value) return
+        viewModelScope.launch {
+            _aiChatLoading.value = true
+            _aiChatAnswer.value = null
+            val snapshot = uiState.value
+            val summary = buildString {
+                appendLine("Period: ${snapshot.displayMonth}")
+                appendLine("Debits: ${snapshot.totalDebit}; credits: ${snapshot.totalCredit}; net: ${snapshot.netBalance}")
+                appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
+                appendLine("Transactions: ${snapshot.transactions.count { it.isValidTransaction }}")
+                snapshot.categoryTotals.forEach { appendLine("Category ${it.category.name}: ${it.totalSpent} across ${it.transactionCount} transactions") }
+                snapshot.transactions.filter { it.isValidTransaction }.take(40).forEach {
+                    appendLine("${it.monthKey} ${it.type} ${it.amount} ${it.currency} at ${it.merchantClean}, category ${it.categoryId}")
+                }
+            }
+            _aiChatAnswer.value = llmClassifierEngine.answerFinanceQuestion(question, summary)
+                ?: "The on-device AI model is unavailable. Download the optional model in Settings to use chat."
+            _aiChatLoading.value = false
+        }
+    }
+
+    fun clearAiChat() { _aiChatAnswer.value = null }
+
+    fun clearNetworkCallLogs() { viewModelScope.launch { networkCallLogger.clear() } }
 
     val spamSenders: StateFlow<Set<String>> = preferencesDataStore.spamSendersFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
@@ -379,6 +419,13 @@ class DashboardViewModel @Inject constructor(
             } else {
                 "No spam detected. Ledger is clean."
             }
+        }
+    }
+
+    fun cleanOtpAndRecalculate() {
+        viewModelScope.launch {
+            val count = transactionRepository.purgeOtpLikeTransactions()
+            _cleanSpamStatus.value = if (count > 0) "Deleted $count OTP-like ledger items." else "No OTP-like items found in the app ledger."
         }
     }
 
