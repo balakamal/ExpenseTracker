@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import com.innovatex.expensetracker.ai.AiModelStore
 import com.innovatex.expensetracker.ai.AiChatWorker
 import com.innovatex.expensetracker.ai.LedgerReprocessingWorker
@@ -49,6 +52,7 @@ data class AiChatEntry(
     val id: String,
     val mode: AiChatMode,
     val prompt: String,
+    val submittedAt: Long,
     val answer: String? = null,
     val error: String? = null,
     val isWorking: Boolean = false
@@ -143,10 +147,17 @@ class DashboardViewModel @Inject constructor(
     fun observeAiChatWork(context: Context) {
         if (aiChatObserverJob?.isActive == true) return
         aiChatObserverJob = viewModelScope.launch {
-            WorkManager.getInstance(context).getWorkInfosByTagFlow(AiChatWorker.WORK_TAG).collect { workInfos: List<WorkInfo> ->
+            val workManager = WorkManager.getInstance(context)
+            while (true) {
+                val workInfos: List<WorkInfo> = withContext(Dispatchers.IO) {
+                    try {
+                        workManager.getWorkInfosByTag(AiChatWorker.WORK_TAG).get()
+                    } catch (_: Exception) {
+                        emptyList<WorkInfo>()
+                    }
+                }
                 val chatEntries = mutableListOf<AiChatEntry>()
-                val sortedWorkInfos: List<WorkInfo> = workInfos.sortedBy { it.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L) }
-                for (work in sortedWorkInfos) {
+                workInfos.forEach { work: WorkInfo ->
                     val mode = if (work.inputData.getString(AiChatWorker.KEY_MODE) == AiChatWorker.MODE_LEDGER) {
                         AiChatMode.FINANCIAL_LEDGER
                     } else AiChatMode.GENERAL
@@ -157,15 +168,22 @@ class DashboardViewModel @Inject constructor(
                             id = work.id.toString(),
                             mode = mode,
                             prompt = prompt,
+                            submittedAt = work.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L),
                             answer = work.outputData.getString(AiChatWorker.KEY_ANSWER),
                             error = work.outputData.getString(AiChatWorker.KEY_ERROR),
                             isWorking = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED || work.state == WorkInfo.State.RUNNING
                         )
                     }
                 }
-                _aiChatEntries.value = chatEntries
+                _aiChatEntries.value = chatEntries.sortedBy(AiChatEntry::submittedAt)
+                delay(1_000)
             }
         }
+    }
+
+    fun stopObservingAiChatWork() {
+        aiChatObserverJob?.cancel()
+        aiChatObserverJob = null
     }
 
     fun clearNetworkCallLogs() { viewModelScope.launch { networkCallLogger.clear() } }

@@ -137,9 +137,7 @@ fun MonthlyDashboardScreen(
     LaunchedEffect(Unit) {
         viewModel.observeModelDownloadWork(context)
         viewModel.observeLedgerReprocessingWork(context)
-        viewModel.observeAiChatWork(context)
     }
-
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showSpamReviewSheet by remember { mutableStateOf(false) }
     var showManageSendersSheet by remember { mutableStateOf(false) }
@@ -150,6 +148,11 @@ fun MonthlyDashboardScreen(
     var selectedMainTab by rememberSaveable { mutableIntStateOf(initialSelectedTab.coerceIn(0, 2)) }
     var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
+
+    LaunchedEffect(selectedMainTab) {
+        if (selectedMainTab == 2) viewModel.observeAiChatWork(context)
+        else viewModel.stopObservingAiChatWork()
+    }
 
     LaunchedEffect(openAiTabSignal) {
         if (openAiTabSignal > 0) selectedMainTab = 2
