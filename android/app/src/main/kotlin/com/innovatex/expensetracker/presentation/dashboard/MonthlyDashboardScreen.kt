@@ -130,6 +130,7 @@ fun MonthlyDashboardScreen(
     val networkCallLogs by viewModel.networkCallLogs.collectAsState()
     val processingMessage by viewModel.processingMessage.collectAsState()
     val aiChatEntries by viewModel.aiChatEntries.collectAsState()
+    val availableCategories by viewModel.availableCategories.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
     val context = LocalContext.current
 
@@ -147,6 +148,7 @@ fun MonthlyDashboardScreen(
     var selectedMainTab by rememberSaveable { mutableIntStateOf(initialSelectedTab.coerceIn(0, 2)) }
     var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
+    var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
     BackHandler(enabled = showSettingsScreen) { showSettingsScreen = false }
 
@@ -367,7 +369,13 @@ fun MonthlyDashboardScreen(
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Ask AI", color = ApexThemeTokens.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            Text("Choose a chat. Replies run locally in the background and appear here when ready.", color = ApexThemeTokens.TextSecondary, fontSize = 13.sp)
+                            Text(
+                                if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) {
+                                    "Ask about your ledger, or request a merchant recategorization. Review and confirm any suggested change before it is applied."
+                                } else "General AI answers questions but cannot change your ledger.",
+                                color = ApexThemeTokens.TextSecondary,
+                                fontSize = 13.sp
+                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 AiModeTab(AiChatMode.FINANCIAL_LEDGER.title, aiChatMode == AiChatMode.FINANCIAL_LEDGER) { aiChatMode = AiChatMode.FINANCIAL_LEDGER }
                                 AiModeTab(AiChatMode.GENERAL.title, aiChatMode == AiChatMode.GENERAL) { aiChatMode = AiChatMode.GENERAL }
@@ -399,6 +407,39 @@ fun MonthlyDashboardScreen(
                                     Text(entry.answer, color = ApexThemeTokens.TextPrimary, fontSize = 14.sp)
                                 }
                                 entry.error != null -> Text(entry.error, color = ApexThemeTokens.AccentDanger, fontSize = 12.sp)
+                            }
+                            entry.ledgerAction?.let { action ->
+                                val targetCategory = availableCategories.firstOrNull { it.id == action.categoryId }
+                                val matchingCount = uiState.allTransactions.count {
+                                    it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId
+                                }
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusSm)
+                                        .background(ApexThemeTokens.AccentCobaltTint)
+                                        .border(1.dp, ApexThemeTokens.AccentCobaltBorder, ApexThemeTokens.RadiusSm)
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("Suggested ledger change", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "${action.merchant} → ${targetCategory?.name ?: "Unknown category"} ($matchingCount transaction${if (matchingCount == 1) "" else "s"})",
+                                        color = ApexThemeTokens.TextPrimary,
+                                        fontSize = 13.sp
+                                    )
+                                    if (action.reason.isNotBlank()) {
+                                        Text(action.reason, color = ApexThemeTokens.TextSecondary, fontSize = 12.sp)
+                                    }
+                                    if (entry.actionStatus != null) {
+                                        Text(entry.actionStatus, color = ApexThemeTokens.AccentPrimary, fontSize = 12.sp)
+                                    } else if (targetCategory != null && matchingCount > 0) {
+                                        OutlinedButton(
+                                            onClick = { pendingAiActionId = entry.id },
+                                            shape = ApexThemeTokens.RadiusSm
+                                        ) { Text("Review change", fontSize = 12.sp) }
+                                    } else {
+                                        Text("This proposal no longer matches an available category or transaction.", color = ApexThemeTokens.AccentSecondary, fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1024,6 +1065,41 @@ fun MonthlyDashboardScreen(
                 }
             },
             onOpenReleasePage = { releaseUrl -> openUrl(releaseUrl) }
+        )
+    }
+
+    val pendingActionEntry = aiChatEntries.firstOrNull { it.id == pendingAiActionId }
+    val pendingAction = pendingActionEntry?.ledgerAction
+    val pendingCategory = pendingAction?.let { action -> availableCategories.firstOrNull { it.id == action.categoryId } }
+    val pendingMatchCount = pendingAction?.let { action ->
+        uiState.allTransactions.count { it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId }
+    } ?: 0
+    if (pendingActionEntry != null && pendingAction != null) {
+        AlertDialog(
+            onDismissRequest = { pendingAiActionId = null },
+            containerColor = ApexThemeTokens.BgSurface,
+            title = { Text("Apply ledger change?", color = ApexThemeTokens.TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (pendingCategory != null) {
+                        "Change the category for $pendingMatchCount transaction${if (pendingMatchCount == 1) "" else "s"} from ${pendingAction.merchant} to ${pendingCategory.name}?"
+                    } else "The target category is unavailable. No transactions will be changed.",
+                    color = ApexThemeTokens.TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.applyAiLedgerAction(pendingActionEntry.id, pendingMatchCount)
+                        pendingAiActionId = null
+                    },
+                    enabled = pendingCategory != null && pendingMatchCount > 0,
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexThemeTokens.AccentPrimary, contentColor = ApexThemeTokens.TextHighContrast)
+                ) { Text("Apply") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingAiActionId = null }) { Text("Cancel") }
+            }
         )
     }
 }

@@ -18,6 +18,7 @@ import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import com.innovatex.expensetracker.data.local.NetworkCallLog
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
+import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MerchantRule
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
@@ -42,6 +43,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import org.json.JSONObject
 
 enum class AiChatMode(val title: String) {
     FINANCIAL_LEDGER("Financial ledger"), GENERAL("General AI")
@@ -54,8 +56,12 @@ data class AiChatEntry(
     val submittedAt: Long,
     val answer: String? = null,
     val error: String? = null,
-    val isWorking: Boolean = false
+    val isWorking: Boolean = false,
+    val ledgerAction: AiLedgerAction? = null,
+    val actionStatus: String? = null
 )
+
+data class AiLedgerAction(val merchant: String, val categoryId: String, val reason: String)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -86,6 +92,7 @@ class DashboardViewModel @Inject constructor(
 
     private var downloadJob: Job? = null
     private var reprocessingObserverJob: Job? = null
+    private val applyingAiActionIds = mutableSetOf<String>()
 
     private val _aiReclassifyState = MutableStateFlow<AiReclassifyState>(AiReclassifyState.Idle)
     val aiReclassifyState: StateFlow<AiReclassifyState> = _aiReclassifyState.asStateFlow()
@@ -121,11 +128,22 @@ class DashboardViewModel @Inject constructor(
                     submittedAt = job.submittedAt,
                     answer = job.answer,
                     error = job.error,
-                    isWorking = job.isWorking
+                    isWorking = job.isWorking,
+                    ledgerAction = job.actionProposalJson?.let(::parseLedgerAction),
+                    actionStatus = job.actionStatus
                 )
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun parseLedgerAction(raw: String): AiLedgerAction? = runCatching {
+        val json = JSONObject(raw)
+        if (json.optString("type") != "recategorize_merchant") return null
+        val merchant = json.optString("merchant").trim()
+        val categoryId = json.optString("categoryId").trim()
+        if (merchant.isBlank() || categoryId.isBlank()) return null
+        AiLedgerAction(merchant, categoryId, json.optString("reason"))
+    }.getOrNull()
 
     fun askAi(context: Context, question: String, mode: AiChatMode) {
         if (question.isBlank()) return
@@ -138,16 +156,19 @@ class DashboardViewModel @Inject constructor(
             append("User: $question")
         }
         val snapshot = uiState.value
-        val ledger = if (mode == AiChatMode.FINANCIAL_LEDGER) buildString {
-            appendLine("Period: ${snapshot.displayMonth}")
-            appendLine("Debits: ${snapshot.totalDebit}; credits: ${snapshot.totalCredit}; net: ${snapshot.netBalance}")
-            appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
-            snapshot.categoryTotals.forEach { appendLine("${it.category.name}: ${it.totalSpent} across ${it.transactionCount} transactions") }
-            snapshot.transactions.filter { it.isValidTransaction }.take(12).forEach {
-                appendLine("${it.monthKey} ${it.type} ${it.amount} ${it.currency} at ${it.merchantClean}, category ${it.categoryId}")
-            }
-        } else null
         viewModelScope.launch {
+            val ledger = if (mode == AiChatMode.FINANCIAL_LEDGER) buildString {
+                val categories = runCatching { categoryRepository.getAllCategories().first() }.getOrDefault(emptyList())
+                appendLine("Period: ${snapshot.displayMonth}")
+                appendLine("Debits: ${snapshot.totalDebit}; credits: ${snapshot.totalCredit}; net: ${snapshot.netBalance}")
+                appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
+                appendLine("Categories (use only these exact IDs):")
+                categories.forEach { appendLine("${it.id} = ${it.name}") }
+                appendLine("Transactions (merchantClean must match exactly):")
+                snapshot.allTransactions.filter { it.isValidTransaction }.take(30).forEach {
+                    appendLine("${it.monthKey} | ${it.type} | ${it.amount} ${it.currency} | merchantClean=${it.merchantClean} | categoryId=${it.categoryId}")
+                }
+            } else null
             AiChatWorker.enqueue(
                 context = context,
                 prompt = prompt,
@@ -156,6 +177,51 @@ class DashboardViewModel @Inject constructor(
                 ledger = ledger,
                 chatJobStore = aiChatJobStore
             )
+        }
+    }
+
+    fun applyAiLedgerAction(jobId: String, expectedCount: Int) {
+        if (!applyingAiActionIds.add(jobId)) return
+        viewModelScope.launch {
+            try {
+                val job = aiChatJobStore.jobs.first().firstOrNull { it.id == jobId } ?: return@launch
+                if (job.actionStatus != null) return@launch
+                val action = job.actionProposalJson?.let(::parseLedgerAction) ?: run {
+                    aiChatJobStore.upsert(job.copy(actionStatus = "This suggested change is invalid."))
+                    return@launch
+                }
+                val category = categoryRepository.getAllCategories().first().firstOrNull { it.id == action.categoryId } ?: run {
+                    aiChatJobStore.upsert(job.copy(actionStatus = "The suggested category no longer exists. No transactions were changed."))
+                    return@launch
+                }
+                val matchingTransactions = transactionRepository.getAllTransactions().first().filter {
+                    it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true)
+                }
+                val targets = matchingTransactions.filter { it.categoryId != category.id }
+                if (targets.size != expectedCount) {
+                    aiChatJobStore.upsert(job.copy(actionStatus = "The ledger changed after review. No transactions were changed; ask again to refresh the proposal."))
+                    return@launch
+                }
+                if (targets.isEmpty()) {
+                    val status = if (matchingTransactions.isEmpty()) {
+                        "No exact merchant matches were found. No transactions were changed."
+                    } else {
+                        "Those transactions already use ${category.name}. No changes were needed."
+                    }
+                    aiChatJobStore.upsert(job.copy(actionStatus = status))
+                    return@launch
+                }
+
+                aiChatJobStore.upsert(job.copy(actionStatus = "Applying change…"))
+                targets.forEach { transactionRepository.updateTransaction(it.copy(categoryId = category.id)) }
+                aiChatJobStore.upsert(job.copy(actionStatus = "Updated ${targets.size} transaction${if (targets.size == 1) "" else "s"} to ${category.name}."))
+            } catch (error: Exception) {
+                aiChatJobStore.jobs.first().firstOrNull { it.id == jobId }?.let { job ->
+                    aiChatJobStore.upsert(job.copy(actionStatus = "Couldn't finish the change: ${error.message ?: "storage error"}."))
+                }
+            } finally {
+                applyingAiActionIds.remove(jobId)
+            }
         }
     }
 
@@ -191,6 +257,9 @@ class DashboardViewModel @Inject constructor(
 
     val settings: StateFlow<AppSettings> = preferencesDataStore.appSettingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+
+    val availableCategories: StateFlow<List<Category>> = categoryRepository.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val uiState: StateFlow<MonthlyDashboardUiState> = kotlinx.coroutines.flow.combine(
         _selectedMonth,

@@ -19,7 +19,9 @@ data class AiChatJobRecord(
     val submittedAt: Long,
     val isWorking: Boolean,
     val answer: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val actionProposalJson: String? = null,
+    val actionStatus: String? = null
 )
 
 /** Local durable chat state so pending prompts and completed replies survive process recreation. */
@@ -49,6 +51,8 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
                     .put("isWorking", job.isWorking)
                     .put("answer", job.answer)
                     .put("error", job.error)
+                    .put("actionProposalJson", job.actionProposalJson)
+                    .put("actionStatus", job.actionStatus)
             )
         }
     }.toString()
@@ -64,7 +68,9 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
                 submittedAt = job.optLong("submittedAt"),
                 isWorking = job.optBoolean("isWorking"),
                 answer = job.optString("answer").takeIf { it.isNotBlank() && it != "null" },
-                error = job.optString("error").takeIf { it.isNotBlank() && it != "null" }
+                error = job.optString("error").takeIf { it.isNotBlank() && it != "null" },
+                actionProposalJson = job.optString("actionProposalJson").takeIf { it.isNotBlank() && it != "null" },
+                actionStatus = job.optString("actionStatus").takeIf { it.isNotBlank() && it != "null" }
             )
         }
     }.getOrDefault(emptyList())

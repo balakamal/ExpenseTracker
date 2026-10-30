@@ -52,17 +52,29 @@ class AiChatWorker @AssistedInject constructor(
         return try {
             chatJobStore.upsert(baseJob)
             val ledger = inputData.getString(KEY_LEDGER)
-            val answer = llmEngine.answerChat(prompt, ledger, mode == MODE_LEDGER)
+            val ledgerResponse = if (mode == MODE_LEDGER) {
+                llmEngine.answerLedgerQuestion(prompt, ledger.orEmpty())
+            } else null
+            val answer = if (mode == MODE_LEDGER) ledgerResponse?.answer else llmEngine.answerChat(prompt, ledger, false)
             if (answer == null) {
                 val error = "The on-device AI model is not ready. Download it in Settings and try again."
                 chatJobStore.upsert(baseJob.copy(isWorking = false, error = error))
                 return Result.failure(workDataOf(KEY_ERROR to error))
             }
-            chatJobStore.upsert(baseJob.copy(isWorking = false, answer = answer))
+            val actionJson = ledgerResponse?.action?.let { action ->
+                org.json.JSONObject()
+                    .put("type", action.type)
+                    .put("merchant", action.merchant)
+                    .put("categoryId", action.categoryId)
+                    .put("reason", action.reason)
+                    .toString()
+            }
+            chatJobStore.upsert(baseJob.copy(isWorking = false, answer = answer, actionProposalJson = actionJson))
             val output = workDataOf(
                 KEY_PROMPT to inputData.getString(KEY_DISPLAY_PROMPT).orEmpty(),
                 KEY_MODE to mode,
                 KEY_ANSWER to answer,
+                KEY_ACTION_PROPOSAL to (actionJson ?: ""),
                 KEY_SUBMITTED_AT to inputData.getLong(KEY_SUBMITTED_AT, System.currentTimeMillis())
             )
             notifyCompletionIfAllowed()
@@ -119,12 +131,13 @@ class AiChatWorker @AssistedInject constructor(
         const val KEY_LEDGER = "ledger"
         const val KEY_MODE = "mode"
         const val KEY_ANSWER = "answer"
+        const val KEY_ACTION_PROPOSAL = "action_proposal"
         const val KEY_ERROR = "error"
         const val KEY_SUBMITTED_AT = "submitted_at"
         const val MODE_LEDGER = "financial_ledger"
         const val MODE_GENERAL = "general"
         const val MAX_PROMPT_CHARS = 900
-        const val MAX_CONTEXT_CHARS = 700
+        const val MAX_CONTEXT_CHARS = 2000
 
         suspend fun enqueue(
             context: Context,
