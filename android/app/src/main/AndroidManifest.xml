@@ -53,6 +53,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- Launcher Activity Alias (Forces OS and Launchers to drop old icon cache) -->

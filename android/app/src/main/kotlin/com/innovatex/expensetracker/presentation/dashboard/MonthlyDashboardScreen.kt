@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -42,19 +44,23 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import com.innovatex.expensetracker.presentation.components.ManageSendersBottomSheet
@@ -65,8 +71,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,7 +111,9 @@ import java.util.Locale
 fun MonthlyDashboardScreen(
     viewModel: DashboardViewModel,
     onSettingsClick: () -> Unit = {},
-    onTransactionClick: (Transaction) -> Unit = {}
+    onTransactionClick: (Transaction) -> Unit = {},
+    initialSelectedTab: Int = 0,
+    openAiTabSignal: Int = 0
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
@@ -121,14 +130,14 @@ fun MonthlyDashboardScreen(
     val aiReclassifyState by viewModel.aiReclassifyState.collectAsState()
     val networkCallLogs by viewModel.networkCallLogs.collectAsState()
     val processingMessage by viewModel.processingMessage.collectAsState()
-    val aiChatAnswer by viewModel.aiChatAnswer.collectAsState()
-    val aiChatLoading by viewModel.aiChatLoading.collectAsState()
+    val aiChatEntries by viewModel.aiChatEntries.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.observeModelDownloadWork(context)
         viewModel.observeLedgerReprocessingWork(context)
+        viewModel.observeAiChatWork(context)
     }
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -138,9 +147,13 @@ fun MonthlyDashboardScreen(
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
-    var showAiChat by remember { mutableStateOf(false) }
+    var selectedMainTab by rememberSaveable { mutableIntStateOf(initialSelectedTab.coerceIn(0, 2)) }
+    var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
-    val aiChatMessages = remember { mutableStateListOf<Pair<Boolean, String>>() }
+
+    LaunchedEffect(openAiTabSignal) {
+        if (openAiTabSignal > 0) selectedMainTab = 2
+    }
 
     val openUrl = { url: String ->
         runCatching {
@@ -250,19 +263,59 @@ fun MonthlyDashboardScreen(
 
         Scaffold(
             containerColor = Color.Transparent,
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { viewModel.triggerHistoricalScan(context) },
-                    containerColor = ApexThemeTokens.AccentPrimary,
-                    contentColor = ApexThemeTokens.TextHighContrast,
-                    shape = CircleShape,
-                    modifier = Modifier.size(52.dp)
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Scan SMS",
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ApexThemeTokens.RadiusFull,
+                        color = ApexThemeTokens.BgSurface.copy(alpha = 0.94f),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 12.dp,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.StrokeHighlight.copy(alpha = 0.55f))
+                    ) {
+                        NavigationBar(
+                            containerColor = Color.Transparent,
+                            tonalElevation = 0.dp,
+                            windowInsets = WindowInsets(0, 0, 0, 0)
+                        ) {
+                            NavigationBarItem(
+                                selected = selectedMainTab == 0,
+                                onClick = { selectedMainTab = 0 },
+                                icon = { Icon(Icons.Default.Home, contentDescription = "Ledger") },
+                                label = { Text("Ledger") }
+                            )
+                            NavigationBarItem(
+                                selected = selectedMainTab == 1,
+                                onClick = { selectedMainTab = 1; showSettingsSheet = true },
+                                icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                                label = { Text("Settings") }
+                            )
+                            NavigationBarItem(
+                                selected = selectedMainTab == 2,
+                                onClick = { selectedMainTab = 2 },
+                                icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "AI Ask") },
+                                label = { Text("AI Ask") }
+                            )
+                        }
+                    }
+                }
+            },
+            floatingActionButton = {
+                if (selectedMainTab == 0) {
+                    FloatingActionButton(
+                        onClick = { viewModel.triggerHistoricalScan(context) },
+                        containerColor = ApexThemeTokens.AccentPrimary,
+                        contentColor = ApexThemeTokens.TextHighContrast,
+                        shape = CircleShape,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Scan SMS", modifier = Modifier.size(22.dp))
+                    }
                 }
             }
         ) { innerPadding ->
@@ -274,6 +327,71 @@ fun MonthlyDashboardScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (selectedMainTab == 2) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Ask AI", color = ApexThemeTokens.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose a chat. Replies run locally in the background and appear here when ready.", color = ApexThemeTokens.TextSecondary, fontSize = 13.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AiModeTab(AiChatMode.FINANCIAL_LEDGER.title, aiChatMode == AiChatMode.FINANCIAL_LEDGER) { aiChatMode = AiChatMode.FINANCIAL_LEDGER }
+                                AiModeTab(AiChatMode.GENERAL.title, aiChatMode == AiChatMode.GENERAL) { aiChatMode = AiChatMode.GENERAL }
+                            }
+                            Text(
+                                if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) "Ask about spending, income, categories, or your budget." else "Chat about everyday questions. This mode does not use your ledger.",
+                                color = ApexThemeTokens.TextTertiary,
+                                fontSize = 12.sp
+                            )
+                            if (!isGenerativeLlmReady) {
+                                Text("Download the on-device language model in Settings to start either chat.", color = ApexThemeTokens.AccentSecondary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    items(aiChatEntries.filter { it.mode == aiChatMode }, key = { it.id }) { entry ->
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusMd)
+                                .background(ApexThemeTokens.BgSurfaceElevated)
+                                .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd).padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("You", color = ApexThemeTokens.AccentCobalt, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(entry.prompt, color = ApexThemeTokens.TextPrimary, fontSize = 14.sp)
+                            when {
+                                entry.isWorking -> Text("Thinking on-device… You can switch tabs; the task will keep running.", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp)
+                                entry.answer != null -> {
+                                    HorizontalDivider(color = ApexThemeTokens.StrokeSubtle)
+                                    Text("Apex AI", color = ApexThemeTokens.AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(entry.answer, color = ApexThemeTokens.TextPrimary, fontSize = 14.sp)
+                                }
+                                entry.error != null -> Text(entry.error, color = ApexThemeTokens.AccentDanger, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextField(
+                                value = aiChatDraft,
+                                onValueChange = { aiChatDraft = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text(if (aiChatMode == AiChatMode.GENERAL) "Ask anything…" else "Ask about your ledger…") },
+                                maxLines = 4,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = ApexThemeTokens.BgSurfaceElevated,
+                                    unfocusedContainerColor = ApexThemeTokens.BgSurfaceElevated
+                                )
+                            )
+                            Button(
+                                onClick = {
+                                    val question = aiChatDraft.trim()
+                                    if (question.isNotEmpty()) {
+                                        viewModel.askAi(context, question, aiChatMode)
+                                        aiChatDraft = ""
+                                    }
+                                },
+                                enabled = aiChatDraft.isNotBlank() && isGenerativeLlmReady
+                            ) { Text("Send") }
+                        }
+                    }
+                } else {
                 // Corbel App Bar: Brand mark, Title, Live Status Pill & Settings
                 item {
                     Row(
@@ -353,9 +471,8 @@ fun MonthlyDashboardScreen(
                         }
 
                         // Settings Button in glass circle
-                        TextButton(onClick = { aiChatMessages.clear(); viewModel.clearAiChat(); showAiChat = true }) { Text("Ask AI", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp) }
                         IconButton(
-                            onClick = { showSettingsSheet = true },
+                            onClick = { selectedMainTab = 1; showSettingsSheet = true },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
@@ -493,6 +610,7 @@ fun MonthlyDashboardScreen(
                             selectedTransactionForDetail = txn
                         }
                     )
+                }
                 }
             }
         }
@@ -797,13 +915,15 @@ fun MonthlyDashboardScreen(
             onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
             onOpenReviewSpam = {
                 showSettingsSheet = false
+                selectedMainTab = 0
                 showSpamReviewSheet = true
             },
             onOpenManageSenders = {
                 showSettingsSheet = false
+                selectedMainTab = 0
                 showManageSendersSheet = true
             },
-            onDismiss = { showSettingsSheet = false },
+            onDismiss = { showSettingsSheet = false; selectedMainTab = 0 },
             onToggleSms = { viewModel.toggleSms(it) },
             onToggleEmail = { viewModel.toggleEmail(it) },
             onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
@@ -816,51 +936,6 @@ fun MonthlyDashboardScreen(
             networkCallLogs = networkCallLogs,
             onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() }
         )
-    }
-
-    if (showAiChat) {
-        ModalBottomSheet(
-            onDismissRequest = { showAiChat = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = ApexThemeTokens.BgSurface
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Ask your ledger", color = ApexThemeTokens.TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text("Your question and spending summary stay on this device.", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp)
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(aiChatMessages.size) { index ->
-                        val (isUser, message) = aiChatMessages[index]
-                        Text(if (isUser) "You: $message" else "Apex AI: $message", color = if (isUser) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextPrimary, fontSize = 13.sp)
-                    }
-                    if (aiChatLoading) item { Text("Thinking on-device…", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp) }
-                }
-                LaunchedEffect(aiChatAnswer) {
-                    aiChatAnswer?.let { answer -> aiChatMessages.add(false to answer) }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextField(
-                        value = aiChatDraft,
-                        onValueChange = { aiChatDraft = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Ask about your spending…") },
-                        maxLines = 3,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = ApexThemeTokens.BgSurfaceElevated,
-                            unfocusedContainerColor = ApexThemeTokens.BgSurfaceElevated
-                        )
-                    )
-                    Button(onClick = {
-                        val question = aiChatDraft.trim()
-                        if (question.isNotEmpty() && !aiChatLoading) {
-                            aiChatMessages.add(true to question)
-                            aiChatDraft = ""
-                            viewModel.askAi(question)
-                        }
-                    }, enabled = !aiChatLoading && aiChatDraft.isNotBlank()) { Text("Send") }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-        }
     }
 
     // Review Suspected Spam Bottom Sheet
@@ -966,6 +1041,19 @@ fun MonthlyDashboardScreen(
             },
             onOpenReleasePage = { releaseUrl -> openUrl(releaseUrl) }
         )
+    }
+}
+
+@Composable
+private fun AiModeTab(title: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.clip(ApexThemeTokens.RadiusFull)
+            .background(if (selected) ApexThemeTokens.AccentCobaltTint else ApexThemeTokens.BgGlassPill)
+            .border(1.dp, if (selected) ApexThemeTokens.AccentCobaltBorder else ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusFull)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+    ) {
+        Text(title, color = if (selected) ApexThemeTokens.AccentCobalt else ApexThemeTokens.TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

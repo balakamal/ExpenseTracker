@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.core.content.ContextCompat
 import com.innovatex.expensetracker.presentation.dashboard.DashboardViewModel
 import com.innovatex.expensetracker.presentation.dashboard.MonthlyDashboardScreen
@@ -21,6 +22,11 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val dashboardViewModel: DashboardViewModel by viewModels()
+    private val openAiTabSignal = mutableIntStateOf(0)
+
+    companion object {
+        const val EXTRA_OPEN_AI_TAB = "com.innovatex.expensetracker.OPEN_AI_TAB"
+    }
 
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -35,6 +41,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (intent.getBooleanExtra(EXTRA_OPEN_AI_TAB, false)) openAiTabSignal.intValue++
 
         checkAndRequestPermissions()
 
@@ -42,6 +49,7 @@ class MainActivity : ComponentActivity() {
             ApexExpenseTrackerTheme {
                 MonthlyDashboardScreen(
                     viewModel = dashboardViewModel,
+                    openAiTabSignal = openAiTabSignal.intValue,
                     onSettingsClick = {
                         // Open Notification Listener Settings to enable Email capture
                         runCatching {
@@ -54,6 +62,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_AI_TAB, false)) openAiTabSignal.intValue++
     }
 
     private fun checkAndRequestPermissions() {

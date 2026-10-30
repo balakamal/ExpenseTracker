@@ -7,7 +7,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
 import com.innovatex.expensetracker.ai.AiModelStore
-import com.innovatex.expensetracker.ai.LlmClassifierEngine
+import com.innovatex.expensetracker.ai.AiChatWorker
 import com.innovatex.expensetracker.ai.LedgerReprocessingWorker
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
@@ -41,6 +41,19 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+enum class AiChatMode(val title: String) {
+    FINANCIAL_LEDGER("Financial ledger"), GENERAL("General AI")
+}
+
+data class AiChatEntry(
+    val id: String,
+    val mode: AiChatMode,
+    val prompt: String,
+    val answer: String? = null,
+    val error: String? = null,
+    val isWorking: Boolean = false
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -52,8 +65,7 @@ class DashboardViewModel @Inject constructor(
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
     private val aiModelStore: AiModelStore,
     private val networkCallLogger: NetworkCallLogger,
-    ingestionPipeline: IngestionPipeline,
-    private val llmClassifierEngine: LlmClassifierEngine
+    ingestionPipeline: IngestionPipeline
 ) : ViewModel() {
 
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
@@ -70,6 +82,7 @@ class DashboardViewModel @Inject constructor(
 
     private var downloadJob: Job? = null
     private var reprocessingObserverJob: Job? = null
+    private var aiChatObserverJob: Job? = null
 
     private val _aiReclassifyState = MutableStateFlow<AiReclassifyState>(AiReclassifyState.Idle)
     val aiReclassifyState: StateFlow<AiReclassifyState> = _aiReclassifyState.asStateFlow()
@@ -95,34 +108,61 @@ class DashboardViewModel @Inject constructor(
     val networkCallLogs: StateFlow<List<NetworkCallLog>> = networkCallLogger.logs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val processingMessage: StateFlow<String?> = ingestionPipeline.processingLabel
-    private val _aiChatAnswer = MutableStateFlow<String?>(null)
-    val aiChatAnswer: StateFlow<String?> = _aiChatAnswer.asStateFlow()
-    private val _aiChatLoading = MutableStateFlow(false)
-    val aiChatLoading: StateFlow<Boolean> = _aiChatLoading.asStateFlow()
+    private val _aiChatEntries = MutableStateFlow<List<AiChatEntry>>(emptyList())
+    val aiChatEntries: StateFlow<List<AiChatEntry>> = _aiChatEntries.asStateFlow()
 
-    fun askAi(question: String) {
-        if (question.isBlank() || _aiChatLoading.value) return
-        viewModelScope.launch {
-            _aiChatLoading.value = true
-            _aiChatAnswer.value = null
-            val snapshot = uiState.value
-            val summary = buildString {
-                appendLine("Period: ${snapshot.displayMonth}")
-                appendLine("Debits: ${snapshot.totalDebit}; credits: ${snapshot.totalCredit}; net: ${snapshot.netBalance}")
-                appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
-                appendLine("Transactions: ${snapshot.transactions.count { it.isValidTransaction }}")
-                snapshot.categoryTotals.forEach { appendLine("Category ${it.category.name}: ${it.totalSpent} across ${it.transactionCount} transactions") }
-                snapshot.transactions.filter { it.isValidTransaction }.take(40).forEach {
-                    appendLine("${it.monthKey} ${it.type} ${it.amount} ${it.currency} at ${it.merchantClean}, category ${it.categoryId}")
-                }
+    fun askAi(context: Context, question: String, mode: AiChatMode) {
+        if (question.isBlank()) return
+        val previous = _aiChatEntries.value.filter { it.mode == mode }.takeLast(6)
+        val prompt = buildString {
+            previous.forEach { entry ->
+                appendLine("User: ${entry.prompt}")
+                entry.answer?.let { appendLine("Assistant: $it") }
             }
-            _aiChatAnswer.value = llmClassifierEngine.answerFinanceQuestion(question, summary)
-                ?: "The on-device AI model is unavailable. Download the optional model in Settings to use chat."
-            _aiChatLoading.value = false
+            append("User: $question")
         }
+        val snapshot = uiState.value
+        val ledger = if (mode == AiChatMode.FINANCIAL_LEDGER) buildString {
+            appendLine("Period: ${snapshot.displayMonth}")
+            appendLine("Debits: ${snapshot.totalDebit}; credits: ${snapshot.totalCredit}; net: ${snapshot.netBalance}")
+            appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
+            snapshot.categoryTotals.forEach { appendLine("${it.category.name}: ${it.totalSpent} across ${it.transactionCount} transactions") }
+            snapshot.transactions.filter { it.isValidTransaction }.take(12).forEach {
+                appendLine("${it.monthKey} ${it.type} ${it.amount} ${it.currency} at ${it.merchantClean}, category ${it.categoryId}")
+            }
+        } else null
+        AiChatWorker.enqueue(
+            context = context,
+            prompt = prompt,
+            displayPrompt = question,
+            mode = if (mode == AiChatMode.FINANCIAL_LEDGER) AiChatWorker.MODE_LEDGER else AiChatWorker.MODE_GENERAL,
+            ledger = ledger
+        )
     }
 
-    fun clearAiChat() { _aiChatAnswer.value = null }
+    fun observeAiChatWork(context: Context) {
+        if (aiChatObserverJob?.isActive == true) return
+        aiChatObserverJob = viewModelScope.launch {
+            WorkManager.getInstance(context).getWorkInfosByTagFlow(AiChatWorker.WORK_TAG).collect { workInfos ->
+                _aiChatEntries.value = workInfos.sortedBy { it.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L) }.mapNotNull { work ->
+                    val mode = if (work.inputData.getString(AiChatWorker.KEY_MODE) == AiChatWorker.MODE_LEDGER) {
+                        AiChatMode.FINANCIAL_LEDGER
+                    } else AiChatMode.GENERAL
+                    val prompt = work.outputData.getString(AiChatWorker.KEY_PROMPT)
+                        ?: work.inputData.getString(AiChatWorker.KEY_DISPLAY_PROMPT)
+                        ?: return@mapNotNull null
+                    AiChatEntry(
+                        id = work.id.toString(),
+                        mode = mode,
+                        prompt = prompt,
+                        answer = work.outputData.getString(AiChatWorker.KEY_ANSWER),
+                        error = work.outputData.getString(AiChatWorker.KEY_ERROR),
+                        isWorking = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED || work.state == WorkInfo.State.RUNNING
+                    )
+                }
+            }
+        }
+    }
 
     fun clearNetworkCallLogs() { viewModelScope.launch { networkCallLogger.clear() } }
 

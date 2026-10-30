@@ -822,7 +822,7 @@ fun SettingsBottomSheet(
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = "When allowed, show model setup and ledger reprocessing progress and completion. Android keeps a minimal notice while work runs.",
+                                text = "When allowed, show background AI reply, model setup, and ledger reprocessing updates.",
                                 color = ApexThemeTokens.TextTertiary,
                                 fontSize = 11.sp,
                                 lineHeight = 15.sp
