@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -56,8 +55,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -75,12 +72,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -94,7 +93,7 @@ import com.innovatex.expensetracker.presentation.components.CorbelCalendar
 import com.innovatex.expensetracker.presentation.components.CorbelCategoryBreakdown
 import com.innovatex.expensetracker.presentation.components.CorbelTransactionTable
 import com.innovatex.expensetracker.presentation.components.CorbelTwoSummaryCards
-import com.innovatex.expensetracker.presentation.components.SettingsBottomSheet
+import com.innovatex.expensetracker.presentation.components.SettingsScreen
 import com.innovatex.expensetracker.presentation.components.ShimmerCardLoader
 import com.innovatex.expensetracker.presentation.components.UpdateAlertBanner
 import com.innovatex.expensetracker.presentation.components.UpdateBadgePill
@@ -138,7 +137,7 @@ fun MonthlyDashboardScreen(
         viewModel.observeModelDownloadWork(context)
         viewModel.observeLedgerReprocessingWork(context)
     }
-    var showSettingsSheet by remember { mutableStateOf(false) }
+    var showSettingsScreen by rememberSaveable { mutableStateOf(initialSelectedTab == 1) }
     var showSpamReviewSheet by remember { mutableStateOf(false) }
     var showManageSendersSheet by remember { mutableStateOf(false) }
     var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
@@ -149,8 +148,13 @@ fun MonthlyDashboardScreen(
     var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
 
+    BackHandler(enabled = showSettingsScreen) { showSettingsScreen = false }
+
     LaunchedEffect(openAiTabSignal) {
-        if (openAiTabSignal > 0) selectedMainTab = 2
+        if (openAiTabSignal > 0) {
+            showSettingsScreen = false
+            selectedMainTab = 2
+        }
     }
 
     val openUrl = { url: String ->
@@ -262,6 +266,7 @@ fun MonthlyDashboardScreen(
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
+                if (!showSettingsScreen) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -276,35 +281,29 @@ fun MonthlyDashboardScreen(
                         shadowElevation = 12.dp,
                         border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.StrokeHighlight.copy(alpha = 0.55f))
                     ) {
-                        NavigationBar(
-                            containerColor = Color.Transparent,
-                            tonalElevation = 0.dp,
-                            windowInsets = WindowInsets(0, 0, 0, 0)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            NavigationBarItem(
-                                selected = selectedMainTab == 0,
-                                onClick = { selectedMainTab = 0 },
-                                icon = { Icon(Icons.Default.Home, contentDescription = "Ledger") },
-                                label = { Text("Ledger") }
-                            )
-                            NavigationBarItem(
-                                selected = selectedMainTab == 1,
-                                onClick = { selectedMainTab = 1; showSettingsSheet = true },
-                                icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                                label = { Text("Settings") }
-                            )
-                            NavigationBarItem(
-                                selected = selectedMainTab == 2,
-                                onClick = { selectedMainTab = 2 },
-                                icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "AI Ask") },
-                                label = { Text("AI Ask") }
-                            )
+                            CorbelNavItem("Ledger", Icons.Default.Home, !showSettingsScreen && selectedMainTab == 0) {
+                                showSettingsScreen = false
+                                selectedMainTab = 0
+                            }
+                            CorbelNavItem("Settings", Icons.Default.Settings, showSettingsScreen) {
+                                showSettingsScreen = true
+                            }
+                            CorbelNavItem("AI Ask", Icons.Default.AutoAwesome, !showSettingsScreen && selectedMainTab == 2) {
+                                showSettingsScreen = false
+                                selectedMainTab = 2
+                            }
                         }
                     }
                 }
+                }
             },
             floatingActionButton = {
-                if (selectedMainTab == 0) {
+                if (!showSettingsScreen && selectedMainTab == 0) {
                     FloatingActionButton(
                         onClick = { viewModel.triggerHistoricalScan(context) },
                         containerColor = ApexThemeTokens.AccentPrimary,
@@ -317,7 +316,46 @@ fun MonthlyDashboardScreen(
                 }
             }
         ) { innerPadding ->
-            LazyColumn(
+            if (showSettingsScreen) {
+                SettingsScreen(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    settings = settings,
+                    updateState = updateState,
+                    cleanSpamStatus = cleanSpamStatus,
+                    suspectedSpamCount = suspectedSpamItems.size,
+                    blockedSendersCount = spamSenders.size,
+                    trustedSendersCount = trustedSenders.size,
+                    isAiModelReady = isAiModelReady,
+                    aiModelSizeBytes = aiModelSizeBytes,
+                    isGenerativeLlmReady = isGenerativeLlmReady,
+                    onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
+                    onDownloadAiModelWithEngine = { engine -> viewModel.downloadAiModel(context, engine) },
+                    downloadState = modelDownloadState,
+                    onDownloadAiModel = { viewModel.downloadAiModel(context) },
+                    onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
+                    onDismissDownloadError = { viewModel.dismissModelDownloadError() },
+                    onDeleteAiModel = { viewModel.deleteAiModel() },
+                    aiReclassifyState = aiReclassifyState,
+                    onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions(context) },
+                    onCancelAiReprocessing = { viewModel.cancelLedgerReprocessing(context) },
+                    onToggleAiClassification = { viewModel.toggleAiClassification(it) },
+                    onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
+                    onToggleBackgroundAiNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
+                    onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
+                    onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
+                    onOpenReviewSpam = { showSettingsScreen = false; selectedMainTab = 0; showSpamReviewSheet = true },
+                    onOpenManageSenders = { showSettingsScreen = false; selectedMainTab = 0; showManageSendersSheet = true },
+                    onToggleSms = { viewModel.toggleSms(it) },
+                    onToggleEmail = { viewModel.toggleEmail(it) },
+                    onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
+                    onCheckForUpdatesManual = { viewModel.checkForUpdates(manual = true) },
+                    onReviewUpdate = { updateInfo -> showSettingsScreen = false; selectedUpdateInfoForReview = updateInfo },
+                    onOpenNotificationSettings = onSettingsClick,
+                    networkCallLogs = networkCallLogs,
+                    onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() },
+                    onBack = { showSettingsScreen = false }
+                )
+            } else LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -470,7 +508,7 @@ fun MonthlyDashboardScreen(
 
                         // Settings Button in glass circle
                         IconButton(
-                            onClick = { selectedMainTab = 1; showSettingsSheet = true },
+                            onClick = { showSettingsScreen = true },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
@@ -884,58 +922,6 @@ fun MonthlyDashboardScreen(
         )
     }
 
-    // Settings Bottom Sheet
-    if (showSettingsSheet) {
-        SettingsBottomSheet(
-            settings = settings,
-            updateState = updateState,
-            cleanSpamStatus = cleanSpamStatus,
-            suspectedSpamCount = suspectedSpamItems.size,
-            blockedSendersCount = spamSenders.size,
-            trustedSendersCount = trustedSenders.size,
-            isAiModelReady = isAiModelReady,
-            aiModelSizeBytes = aiModelSizeBytes,
-            isGenerativeLlmReady = isGenerativeLlmReady,
-            onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
-            onDownloadAiModelWithEngine = { engine -> viewModel.downloadAiModel(context, engine) },
-            downloadState = modelDownloadState,
-            onDownloadAiModel = { viewModel.downloadAiModel(context) },
-            onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
-            onDismissDownloadError = { viewModel.dismissModelDownloadError() },
-            onDeleteAiModel = { viewModel.deleteAiModel() },
-            aiReclassifyState = aiReclassifyState,
-            onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions(context) },
-            onCancelAiReprocessing = { viewModel.cancelLedgerReprocessing(context) },
-            onToggleAiClassification = { viewModel.toggleAiClassification(it) },
-            onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
-            onToggleBackgroundAiNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
-            onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
-            onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
-            onOpenReviewSpam = {
-                showSettingsSheet = false
-                selectedMainTab = 0
-                showSpamReviewSheet = true
-            },
-            onOpenManageSenders = {
-                showSettingsSheet = false
-                selectedMainTab = 0
-                showManageSendersSheet = true
-            },
-            onDismiss = { showSettingsSheet = false; selectedMainTab = 0 },
-            onToggleSms = { viewModel.toggleSms(it) },
-            onToggleEmail = { viewModel.toggleEmail(it) },
-            onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
-            onCheckForUpdatesManual = { viewModel.checkForUpdates(manual = true) },
-            onReviewUpdate = { updateInfo ->
-                showSettingsSheet = false
-                selectedUpdateInfoForReview = updateInfo
-            },
-            onOpenNotificationSettings = onSettingsClick,
-            networkCallLogs = networkCallLogs,
-            onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() }
-        )
-    }
-
     // Review Suspected Spam Bottom Sheet
     if (showSpamReviewSheet) {
         SpamReviewBottomSheet(
@@ -1039,6 +1025,24 @@ fun MonthlyDashboardScreen(
             },
             onOpenReleasePage = { releaseUrl -> openUrl(releaseUrl) }
         )
+    }
+}
+
+@Composable
+private fun CorbelNavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val foreground = if (selected) ApexThemeTokens.TextHighContrast else ApexThemeTokens.TextSecondary
+    Row(
+        modifier = Modifier
+            .clip(ApexThemeTokens.RadiusFull)
+            .background(if (selected) ApexThemeTokens.BgHighContrast else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = label, tint = foreground, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(7.dp))
+        Text(label, color = foreground, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

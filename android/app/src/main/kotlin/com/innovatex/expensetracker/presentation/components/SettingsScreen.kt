@@ -13,15 +13,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
@@ -38,12 +41,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -66,7 +69,8 @@ import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsBottomSheet(
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
     settings: AppSettings,
     updateState: UpdateCheckState,
     cleanSpamStatus: String? = null,
@@ -93,7 +97,6 @@ fun SettingsBottomSheet(
     aiReclassifyState: AiReclassifyState = AiReclassifyState.Idle,
     onRerunAiOnExisting: () -> Unit = {},
     onCancelAiReprocessing: () -> Unit = {},
-    onDismiss: () -> Unit,
     onToggleSms: (Boolean) -> Unit,
     onToggleEmail: (Boolean) -> Unit,
     onToggleAutoCheckUpdates: (Boolean) -> Unit,
@@ -101,9 +104,9 @@ fun SettingsBottomSheet(
     onReviewUpdate: (AppUpdateInfo) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     networkCallLogs: List<NetworkCallLog> = emptyList(),
-    onClearNetworkCallLogs: () -> Unit = {}
+    onClearNetworkCallLogs: () -> Unit = {},
+    onBack: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val formattedModelSize = remember(aiModelSizeBytes) {
         if (aiModelSizeBytes > 0) {
             "%.1f MB".format(aiModelSizeBytes / (1024.0 * 1024.0))
@@ -112,68 +115,28 @@ fun SettingsBottomSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = ApexThemeTokens.BgSurface,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(ApexThemeTokens.RadiusFull)
-                    .background(ApexThemeTokens.StrokeHighlight)
-            )
-        }
-    ) {
+    Surface(modifier = modifier.fillMaxSize(), color = ApexThemeTokens.BgCanvas) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = ApexThemeTokens.TextPrimary)
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Settings", color = ApexThemeTokens.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
         val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
+                .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 48.dp)
         ) {
-            // Header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(ApexThemeTokens.RadiusSm)
-                        .background(ApexThemeTokens.BgGlassPill),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = ApexThemeTokens.AccentPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Text(
-                        text = "CONFIGURATION",
-                        color = ApexThemeTokens.TextTertiary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Settings & Updates",
-                        color = ApexThemeTokens.TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Ingestion Channels Section
             Text(
@@ -1231,6 +1194,7 @@ fun SettingsBottomSheet(
                     }
                 }
             }
+        }
         }
     }
 }
