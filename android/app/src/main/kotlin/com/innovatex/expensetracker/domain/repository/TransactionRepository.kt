@@ -34,6 +34,8 @@ interface TransactionRepository {
     fun getMonthlySummary(monthKey: String): Flow<MonthlySummary>
     fun getOverallSummary(): Flow<MonthlySummary>
     suspend fun purgeDuplicates(): Int
+    suspend fun markLikelyDuplicateTransactionsInvalid(): Int
+    suspend fun markTransactionAsDuplicate(id: String): Boolean
     suspend fun purgeSpamTransactions(): Int
     suspend fun purgeOtpLikeTransactions(): Int
     suspend fun getSuspectedSpamItems(): List<SuspectedSpamItem>

@@ -411,7 +411,7 @@ fun MonthlyDashboardScreen(
                             entry.ledgerAction?.let { action ->
                                 val targetCategory = availableCategories.firstOrNull { it.id == action.categoryId }
                                 val matchingCount = uiState.allTransactions.count {
-                                    it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId
+                                    it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId
                                 }
                                 Column(
                                     modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusSm)
@@ -794,32 +794,58 @@ fun MonthlyDashboardScreen(
 
                 // Authenticity & Validity Status Banner
                 val isValid = txn.isValidTransaction
+                val isSelfTransfer = txn.isSelfTransfer
+                val isLikelyDuplicate = !isValid &&
+                    txn.aiClassification?.authenticityLabel == com.innovatex.expensetracker.domain.model.AuthenticityLabel.DUPLICATE
                 Spacer(modifier = Modifier.height(14.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(ApexThemeTokens.RadiusSm)
-                        .background(if (isValid) ApexThemeTokens.AccentPrimaryTint else ApexThemeTokens.AccentSecondaryTint)
-                        .border(1.dp, if (isValid) ApexThemeTokens.AccentPrimaryBorder else ApexThemeTokens.AccentSecondaryBorder, ApexThemeTokens.RadiusSm)
+                        .background(when {
+                            isSelfTransfer -> ApexThemeTokens.AccentCobaltTint
+                            isValid -> ApexThemeTokens.AccentPrimaryTint
+                            else -> ApexThemeTokens.AccentSecondaryTint
+                        })
+                        .border(1.dp, when {
+                            isSelfTransfer -> ApexThemeTokens.AccentCobaltBorder
+                            isValid -> ApexThemeTokens.AccentPrimaryBorder
+                            else -> ApexThemeTokens.AccentSecondaryBorder
+                        }, ApexThemeTokens.RadiusSm)
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.Shield,
+                            imageVector = if (isSelfTransfer) Icons.Default.Refresh else if (isValid) Icons.Default.CheckCircle else Icons.Default.Shield,
                             contentDescription = null,
-                            tint = if (isValid) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                            tint = if (isSelfTransfer) ApexThemeTokens.AccentCobalt else if (isValid) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = if (isValid) "AUTHENTIC TRANSACTION" else "PROMOTIONAL / MARKETING ALERT",
-                                color = if (isValid) ApexThemeTokens.AccentPrimary else ApexThemeTokens.AccentSecondary,
+                                text = when {
+                                    isSelfTransfer -> "SELF TRANSFER"
+                                    isValid -> "AUTHENTIC TRANSACTION"
+                                    isLikelyDuplicate -> "LIKELY DUPLICATE"
+                                    else -> "PROMOTIONAL / MARKETING ALERT"
+                                },
+                                color = when {
+                                    isSelfTransfer -> ApexThemeTokens.AccentCobalt
+                                    isValid -> ApexThemeTokens.AccentPrimary
+                                    isLikelyDuplicate -> ApexThemeTokens.AccentDanger
+                                    else -> ApexThemeTokens.AccentSecondary
+                                },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (isValid) "Included in dashboard balance & summary cards" else "Excluded from dashboard calculation cards",
+                                text = when {
+                                    isSelfTransfer -> "Kept in the ledger, but excluded from income and spending totals. Delete it below if you don't want it listed."
+                                    isValid -> "Included in dashboard balance & summary cards"
+                                    isLikelyDuplicate -> "Another matching transaction is counted; restore this one if they are separate purchases."
+                                    else -> "Excluded from dashboard calculation cards"
+                                },
                                 color = ApexThemeTokens.TextSecondary,
                                 fontSize = 10.sp
                             )
@@ -830,7 +856,19 @@ fun MonthlyDashboardScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Toggle Authenticity Button (Valid vs Promo/Spam)
-                if (!isValid) {
+                if (isSelfTransfer) {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.markTransactionAsSelfTransfer(txn.id, false)
+                            selectedTransactionForDetail = null
+                        },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = ApexThemeTokens.RadiusFull,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.StrokeHighlight)
+                    ) {
+                        Text("Treat as regular transaction", color = ApexThemeTokens.TextPrimary, fontSize = 12.sp)
+                    }
+                } else if (!isValid) {
                     Button(
                         onClick = {
                             viewModel.markTransactionAsValid(txn.id)
@@ -871,6 +909,22 @@ fun MonthlyDashboardScreen(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+                }
+
+                if (!isSelfTransfer && isValid) {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.markTransactionAsSelfTransfer(txn.id, true)
+                            selectedTransactionForDetail = null
+                        },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = ApexThemeTokens.RadiusFull,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.AccentCobaltBorder)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = ApexThemeTokens.AccentCobalt, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Mark as self transfer (exclude from totals)", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp)
                     }
                 }
 
@@ -1072,7 +1126,7 @@ fun MonthlyDashboardScreen(
     val pendingAction = pendingActionEntry?.ledgerAction
     val pendingCategory = pendingAction?.let { action -> availableCategories.firstOrNull { it.id == action.categoryId } }
     val pendingMatchCount = pendingAction?.let { action ->
-        uiState.allTransactions.count { it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId }
+        uiState.allTransactions.count { it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId }
     } ?: 0
     if (pendingActionEntry != null && pendingAction != null) {
         AlertDialog(

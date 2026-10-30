@@ -68,6 +68,12 @@ class LocalAiClassifier @Inject constructor(
 
     private fun deterministicClassification(text: String, merchant: String): AiClassificationResult {
         val lower = "$text $merchant".lowercase()
+        val selfTransfer = lower.containsAny(
+            "self transfer", "self-transfer", "own account transfer", "transfer to own account",
+            "transfer from own account", "transfer between own accounts", "between my accounts",
+            "between your accounts", "to my own account", "to your own account", "own bank account",
+            "apne account me transfer", "apne khate me transfer", "khud ke account"
+        )
         val reminder = lower.containsAny(
             "reminder", "due on", "due date", "payment due", "amount due", "minimum due", "min due",
             "total due", "overdue", "bill generated", "upcoming payment", "will be debited", "will be deducted",
@@ -87,12 +93,14 @@ class LocalAiClassifier @Inject constructor(
             "paise mil gaye", "jama ho gaye"
         )
         val label = when {
+            selfTransfer -> AuthenticityLabel.SELF_TRANSFER
             reminder -> AuthenticityLabel.PAYMENT_REMINDER
             promotion -> AuthenticityLabel.SPAM_PROMO
             completed -> AuthenticityLabel.REAL_TRANSACTION
             else -> AuthenticityLabel.UNCLASSIFIED
         }
         val confidence = when {
+            selfTransfer -> 0.98f
             reminder || promotion -> 0.94f
             completed -> 0.86f
             else -> 0.0f

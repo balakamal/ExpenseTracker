@@ -86,8 +86,8 @@ fun CorbelTransactionTable(
         transactions.filter { txn ->
             val matchesFilter = when (selectedFilter) {
                 TransactionFilter.ALL -> txn.isValidTransaction
-                TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT && txn.isValidTransaction
-                TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT && txn.isValidTransaction
+                TransactionFilter.DEBITS -> txn.type == TransactionType.DEBIT && txn.isCountableTransaction
+                TransactionFilter.CREDITS -> txn.type == TransactionType.CREDIT && txn.isCountableTransaction
                 TransactionFilter.PROMO_SPAM -> !txn.isValidTransaction
             }
 
@@ -112,8 +112,8 @@ fun CorbelTransactionTable(
         }
     }
 
-    val debitCount = remember(transactions) { transactions.count { it.type == TransactionType.DEBIT && it.isValidTransaction } }
-    val creditCount = remember(transactions) { transactions.count { it.type == TransactionType.CREDIT && it.isValidTransaction } }
+    val debitCount = remember(transactions) { transactions.count { it.type == TransactionType.DEBIT && it.isCountableTransaction } }
+    val creditCount = remember(transactions) { transactions.count { it.type == TransactionType.CREDIT && it.isCountableTransaction } }
     val promoSpamCount = remember(transactions) { transactions.count { !it.isValidTransaction } }
 
     Box(
@@ -246,7 +246,7 @@ fun CorbelTransactionTable(
                     )
                     if (promoSpamCount > 0) {
                         FilterPill(
-                            label = "Reminders/Spam $promoSpamCount",
+                            label = "Excluded $promoSpamCount",
                             isSelected = selectedFilter == TransactionFilter.PROMO_SPAM,
                             activeColor = ApexThemeTokens.AccentSecondary,
                             onClick = { selectedFilter = TransactionFilter.PROMO_SPAM }

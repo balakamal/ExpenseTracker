@@ -4,6 +4,8 @@ enum class AuthenticityLabel {
     REAL_TRANSACTION,
     SPAM_PROMO,
     PAYMENT_REMINDER,
+    DUPLICATE,
+    SELF_TRANSFER,
     UNCLASSIFIED
 }
 

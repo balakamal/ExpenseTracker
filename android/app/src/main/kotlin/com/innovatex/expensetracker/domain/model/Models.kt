@@ -148,12 +148,18 @@ data class Transaction(
             null -> {
                 val label = aiClassification?.authenticityLabel
                 if (label != null) {
-                    label == AuthenticityLabel.REAL_TRANSACTION
+                    label == AuthenticityLabel.REAL_TRANSACTION || label == AuthenticityLabel.SELF_TRANSFER
                 } else {
                     true
                 }
             }
         }
+
+    val isSelfTransfer: Boolean
+        get() = aiClassification?.authenticityLabel == AuthenticityLabel.SELF_TRANSFER
+
+    val isCountableTransaction: Boolean
+        get() = isValidTransaction && !isSelfTransfer
 
     val paymentMedium: PaymentMedium
         get() = PaymentMedium.detect(rawSnippet, merchantRaw, accountLast4, referenceId)

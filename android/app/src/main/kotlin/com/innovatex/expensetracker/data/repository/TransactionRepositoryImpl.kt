@@ -7,9 +7,11 @@ import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
+import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.MonthlySummary
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionDuplicateMatcher
 import com.innovatex.expensetracker.domain.model.TransactionCursor
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
@@ -120,7 +122,7 @@ class TransactionRepositoryImpl @Inject constructor(
             val categoryTotals = mutableMapOf<String, Double>()
 
             // Strictly compute dashboard totals from genuine/valid transactions only
-            val validTransactions = transactions.filter { it.isValidTransaction }
+            val validTransactions = transactions.filter { it.isCountableTransaction }
 
             for (txn in validTransactions) {
                 when (txn.type) {
@@ -152,7 +154,7 @@ class TransactionRepositoryImpl @Inject constructor(
             var totalCredit = 0.0
             val categoryTotals = mutableMapOf<String, Double>()
 
-            val validTransactions = transactions.filter { it.isValidTransaction }
+            val validTransactions = transactions.filter { it.isCountableTransaction }
 
             for (txn in validTransactions) {
                 when (txn.type) {
@@ -181,42 +183,19 @@ class TransactionRepositoryImpl @Inject constructor(
     override suspend fun purgeDuplicates(): Int = withContext(ioDispatcher) {
         val allEntities = transactionDao.getAllTransactions().sortedBy { it.timestamp }
         val retained = mutableListOf<Transaction>()
-        val duplicateIds = mutableListOf<String>()
+        var invalidatedCount = 0
 
         for (entity in allEntities) {
             currentCoroutineContext().ensureActive()
             val candidate = entity.toDomain()
-            // Look for matching existing transaction in retained pool within 30 minutes
+            if (!candidate.isValidTransaction) continue
+            if (candidate.userOverrideValid == true) {
+                retained += candidate
+                continue
+            }
+
             val matchIndex = retained.indexOfLast { existing ->
-                if (existing.currency != candidate.currency) return@indexOfLast false
-                if (existing.type != candidate.type) return@indexOfLast false
-                if (kotlin.math.abs(existing.amount - candidate.amount) >= 0.01) return@indexOfLast false
-
-                val timeDiff = kotlin.math.abs(existing.timestamp - candidate.timestamp)
-                if (timeDiff > 30 * 60 * 1000L) return@indexOfLast false
-
-                // Rule 1: Reference ID match
-                val refMatch = !existing.referenceId.isNullOrBlank() &&
-                    !candidate.referenceId.isNullOrBlank() &&
-                    existing.referenceId.equals(candidate.referenceId, ignoreCase = true)
-                if (refMatch) return@indexOfLast true
-
-                // Rule 2: Same Account within 30 min
-                val acctMatch = !existing.accountLast4.isNullOrBlank() &&
-                    !candidate.accountLast4.isNullOrBlank() &&
-                    existing.accountLast4 == candidate.accountLast4
-                if (acctMatch) return@indexOfLast true
-
-                // Rule 3: Similar merchant within 15 min
-                val normExisting = existing.merchantClean.trim().lowercase()
-                val normCandidate = candidate.merchantClean.trim().lowercase()
-                val merchantMatch = (normExisting == normCandidate ||
-                    normExisting.contains(normCandidate) || normCandidate.contains(normExisting)) &&
-                    timeDiff <= 15 * 60 * 1000L
-                if (merchantMatch) return@indexOfLast true
-
-                // Rule 4: Very close in time (<= 90 sec) for identical amounts
-                timeDiff <= 90_000L
+                TransactionDuplicateMatcher.isLikelyDuplicate(existing, candidate)
             }
 
             if (matchIndex != -1) {
@@ -242,17 +221,108 @@ class TransactionRepositoryImpl @Inject constructor(
                 )
                 retained[matchIndex] = updated
                 transactionDao.updateTransaction(TransactionEntity.fromDomain(updated))
-                duplicateIds.add(entity.id)
+                val duplicateClassification = candidate.aiClassification?.copy(
+                    authenticityLabel = AuthenticityLabel.DUPLICATE,
+                    authenticityConfidence = 1f,
+                    ranByAi = false
+                ) ?: AiClassificationResult(
+                    authenticityLabel = AuthenticityLabel.DUPLICATE,
+                    authenticityConfidence = 1f,
+                    categoryId = candidate.categoryId,
+                    categoryConfidence = null,
+                    impliedTransactionType = candidate.type,
+                    ranByAi = false
+                )
+                transactionDao.updateTransaction(
+                    TransactionEntity.fromDomain(
+                        candidate.copy(userOverrideValid = false, aiClassification = duplicateClassification)
+                    )
+                )
+                invalidatedCount++
             } else {
                 retained.add(candidate)
             }
         }
 
-        if (duplicateIds.isNotEmpty()) {
-            transactionDao.deleteTransactionsByIds(duplicateIds)
-        }
-        duplicateIds.size
+        invalidatedCount
     }
+
+    override suspend fun markLikelyDuplicateTransactionsInvalid(): Int = withContext(ioDispatcher) {
+        val candidates = transactionDao.getAllTransactions()
+            .map { it.toDomain() }
+            .filter { it.isValidTransaction }
+            .sortedWith(
+                compareByDescending<Transaction> { it.userOverrideValid == true }
+                    .thenByDescending { duplicateEvidenceScore(it) }
+                    .thenBy { it.timestamp }
+            )
+        val retained = mutableListOf<Transaction>()
+        var invalidatedCount = 0
+
+        for (candidate in candidates) {
+            currentCoroutineContext().ensureActive()
+            if (candidate.userOverrideValid == true) {
+                retained += candidate
+                continue
+            }
+            val matched = retained.any { existing ->
+                TransactionDuplicateMatcher.isLikelyDuplicate(existing, candidate)
+            }
+            if (!matched) {
+                retained += candidate
+                continue
+            }
+
+            val duplicateClassification = candidate.aiClassification?.copy(
+                authenticityLabel = AuthenticityLabel.DUPLICATE,
+                authenticityConfidence = 1f,
+                ranByAi = false
+            ) ?: AiClassificationResult(
+                authenticityLabel = AuthenticityLabel.DUPLICATE,
+                authenticityConfidence = 1f,
+                categoryId = candidate.categoryId,
+                categoryConfidence = null,
+                impliedTransactionType = candidate.type,
+                ranByAi = false
+            )
+            transactionDao.updateTransaction(
+                TransactionEntity.fromDomain(
+                    candidate.copy(userOverrideValid = false, aiClassification = duplicateClassification)
+                )
+            )
+            invalidatedCount++
+        }
+        invalidatedCount
+    }
+
+    override suspend fun markTransactionAsDuplicate(id: String): Boolean = withContext(ioDispatcher) {
+        val transaction = transactionDao.getTransactionById(id)?.toDomain() ?: return@withContext false
+        if (!transaction.isValidTransaction || transaction.userOverrideValid == true) return@withContext false
+        val duplicateClassification = transaction.aiClassification?.copy(
+            authenticityLabel = AuthenticityLabel.DUPLICATE,
+            authenticityConfidence = 1f,
+            ranByAi = true
+        ) ?: AiClassificationResult(
+            authenticityLabel = AuthenticityLabel.DUPLICATE,
+            authenticityConfidence = 1f,
+            categoryId = transaction.categoryId,
+            categoryConfidence = null,
+            impliedTransactionType = transaction.type,
+            ranByAi = true
+        )
+        transactionDao.updateTransaction(
+            TransactionEntity.fromDomain(
+                transaction.copy(userOverrideValid = false, aiClassification = duplicateClassification)
+            )
+        )
+        true
+    }
+
+    private fun duplicateEvidenceScore(transaction: Transaction): Int =
+        (if (!transaction.referenceId.isNullOrBlank()) 4 else 0) +
+            (if (!transaction.accountLast4.isNullOrBlank()) 2 else 0) +
+            (if (!transaction.rawSnippet.isNullOrBlank()) 1 else 0) +
+            transaction.sources.distinct().size
 
     override suspend fun purgeSpamTransactions(): Int = withContext(ioDispatcher) {
         val allEntities = transactionDao.getAllTransactions()

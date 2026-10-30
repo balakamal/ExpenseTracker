@@ -958,7 +958,7 @@ fun SettingsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Verified ${aiReclassifyState.updatedCount} txns • Merged ${aiReclassifyState.deduplicatedCount} duplicate alerts",
+                                            text = "Verified ${aiReclassifyState.updatedCount} txns • Suppressed ${aiReclassifyState.deduplicatedCount} duplicate records",
                                             color = ApexThemeTokens.AccentPrimary,
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.SemiBold

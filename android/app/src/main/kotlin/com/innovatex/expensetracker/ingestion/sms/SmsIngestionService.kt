@@ -134,10 +134,11 @@ class HistoricalSmsScanner @Inject constructor(
         }
 
         // Clean up any historical duplicate entries in the database
-        transactionRepository.purgeDuplicates()
+        val mergedDuplicateCount = transactionRepository.purgeDuplicates()
+        val invalidatedDuplicateCount = transactionRepository.markLikelyDuplicateTransactionsInvalid()
 
         preferencesDataStore.setHistoricalScanCompleted(true)
-        if (count > 0) {
+        if (count > 0 || mergedDuplicateCount + invalidatedDuplicateCount > 0) {
             widgetSyncManager.notifyDataChanged(context)
         }
         count

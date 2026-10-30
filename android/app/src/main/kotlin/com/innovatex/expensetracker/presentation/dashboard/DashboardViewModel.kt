@@ -18,6 +18,7 @@ import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import com.innovatex.expensetracker.data.local.NetworkCallLog
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
+import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MerchantRule
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
@@ -27,6 +28,7 @@ import com.innovatex.expensetracker.domain.usecase.GetMonthlyDashboardUseCase
 import com.innovatex.expensetracker.domain.usecase.MonthlyDashboardUiState
 import com.innovatex.expensetracker.ingestion.sms.HistoricalSmsScanner
 import com.innovatex.expensetracker.ingestion.IngestionPipeline
+import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +76,7 @@ class DashboardViewModel @Inject constructor(
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
     private val aiModelStore: AiModelStore,
     private val networkCallLogger: NetworkCallLogger,
+    private val widgetSyncManager: ExpenseWidgetSyncManager,
     ingestionPipeline: IngestionPipeline,
     private val aiChatJobStore: AiChatJobStore
 ) : ViewModel() {
@@ -165,7 +168,7 @@ class DashboardViewModel @Inject constructor(
                 appendLine("Categories (use only these exact IDs):")
                 categories.forEach { appendLine("${it.id} = ${it.name}") }
                 appendLine("Transactions (merchantClean must match exactly):")
-                snapshot.allTransactions.filter { it.isValidTransaction }.take(30).forEach {
+                snapshot.allTransactions.filter { it.isCountableTransaction }.take(30).forEach {
                     appendLine("${it.monthKey} | ${it.type} | ${it.amount} ${it.currency} | merchantClean=${it.merchantClean} | categoryId=${it.categoryId}")
                 }
             } else null
@@ -195,7 +198,7 @@ class DashboardViewModel @Inject constructor(
                     return@launch
                 }
                 val matchingTransactions = transactionRepository.getAllTransactions().first().filter {
-                    it.isValidTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true)
+                    it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true)
                 }
                 val targets = matchingTransactions.filter { it.categoryId != category.id }
                 if (targets.size != expectedCount) {
@@ -246,7 +249,11 @@ class DashboardViewModel @Inject constructor(
                 preferencesDataStore.setAiClassificationEnabled(false)
                 refreshAiModelState()
             }
-            transactionRepository.purgeDuplicates()
+            val mergedDuplicateCount = transactionRepository.purgeDuplicates()
+            val invalidatedDuplicateCount = transactionRepository.markLikelyDuplicateTransactionsInvalid()
+            if (mergedDuplicateCount + invalidatedDuplicateCount > 0) {
+                widgetSyncManager.notifyDataChanged()
+            }
             refreshSuspectedSpam()
             val currentSettings = preferencesDataStore.appSettingsFlow.first()
             if (currentSettings.autoCheckUpdates) {
@@ -406,6 +413,29 @@ class DashboardViewModel @Inject constructor(
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             transactionRepository.deleteTransaction(id)
+        }
+    }
+
+    fun markTransactionAsSelfTransfer(transactionId: String, isSelfTransfer: Boolean) {
+        viewModelScope.launch {
+            val txn = transactionRepository.getTransactionById(transactionId) ?: return@launch
+            val label = if (isSelfTransfer) AuthenticityLabel.SELF_TRANSFER else AuthenticityLabel.REAL_TRANSACTION
+            val classification = txn.aiClassification?.copy(
+                authenticityLabel = label,
+                authenticityConfidence = 1f,
+                ranByAi = false
+            ) ?: AiClassificationResult(
+                authenticityLabel = label,
+                authenticityConfidence = 1f,
+                categoryId = txn.categoryId,
+                categoryConfidence = null,
+                impliedTransactionType = txn.type,
+                ranByAi = false
+            )
+            transactionRepository.updateTransaction(
+                txn.copy(aiClassification = classification, userOverrideValid = true)
+            )
+            widgetSyncManager.notifyDataChanged()
         }
     }
 
@@ -755,7 +785,7 @@ class DashboardViewModel @Inject constructor(
                             val updated = workInfo.outputData.getInt(LedgerReprocessingWorker.KEY_UPDATED, 0)
                             val merged = workInfo.outputData.getInt(LedgerReprocessingWorker.KEY_DEDUPLICATED, 0)
                             _aiReclassifyState.value = AiReclassifyState.Done(updatedCount = updated, deduplicatedCount = merged)
-                            _cleanSpamStatus.value = "AI verification complete: $updated transactions verified, $merged duplicate alerts merged."
+                            _cleanSpamStatus.value = "AI verification complete: $updated transactions verified, $merged duplicate records marked and excluded from totals."
                             refreshSuspectedSpam()
                         }
                         WorkInfo.State.FAILED -> {

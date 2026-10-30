@@ -25,10 +25,12 @@ import com.innovatex.expensetracker.MainActivity
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.MerchantRule
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.TransactionCursor
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.ingestion.IngestionPipeline
+import com.innovatex.expensetracker.widget.ExpenseWidgetSyncManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -45,8 +47,10 @@ class LedgerReprocessingWorker @AssistedInject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val localAiClassifier: LocalAiClassifier,
+    private val aiDuplicateReview: AiDuplicateReview,
     private val preferences: PreferencesDataStore,
     private val checkpointStore: LedgerReprocessingCheckpointStore,
+    private val widgetSyncManager: ExpenseWidgetSyncManager,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(ioDispatcher) {
@@ -112,9 +116,15 @@ class LedgerReprocessingWorker @AssistedInject constructor(
                         (aiResult.categoryConfidence ?: 0f) >= IngestionPipeline.AI_CATEGORY_CONFIDENCE_THRESHOLD
                     ) aiResult.categoryId else transaction.categoryId
 
+                    // Reclassification must not erase an explicit self-transfer label.
+                    val classification = if (
+                        (transaction.isSelfTransfer && aiResult?.authenticityLabel != AuthenticityLabel.SELF_TRANSFER) ||
+                        (transaction.userOverrideValid == false &&
+                            transaction.aiClassification?.authenticityLabel == AuthenticityLabel.DUPLICATE)
+                    ) transaction.aiClassification else aiResult ?: transaction.aiClassification
                     val enriched = transaction.copy(
                         categoryId = newCategory,
-                        aiClassification = aiResult ?: transaction.aiClassification
+                        aiClassification = classification
                     )
                     try {
                         transactionRepository.updateTransaction(enriched)
@@ -137,8 +147,12 @@ class LedgerReprocessingWorker @AssistedInject constructor(
             }
 
             ensureActive()
-            val deduplicatedCount = transactionRepository.purgeDuplicates()
+            val mergedCount = transactionRepository.purgeDuplicates()
+            val markedInvalidCount = transactionRepository.markLikelyDuplicateTransactionsInvalid()
+            val aiMarkedCount = aiDuplicateReview.reviewUncertainDuplicates()
+            val deduplicatedCount = mergedCount + markedInvalidCount + aiMarkedCount
             checkpointStore.clear(id.toString())
+            widgetSyncManager.notifyDataChanged()
             notifyCompletionIfAllowed()
             Result.success(
                 workDataOf(
@@ -217,7 +231,7 @@ class LedgerReprocessingWorker @AssistedInject constructor(
         )
         val notification = NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("Ledger verification complete")
-            .setContentText("Existing transactions have been re-verified and duplicate alerts merged.")
+            .setContentText("Existing transactions were verified and likely duplicates were marked and excluded from totals.")
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -256,7 +270,7 @@ class LedgerReprocessingWorker @AssistedInject constructor(
         private const val NOTIFICATION_CHANNEL_ID = "ai_model_download_channel"
         private const val BATCH_SIZE = 20
         private const val STATUS_REVERIFYING = "Re-verifying existing transactions"
-        private const val STATUS_DEDUPLICATING = "Merging duplicate transaction alerts"
+        private const val STATUS_DEDUPLICATING = "Checking for duplicate transaction alerts"
 
         fun enqueue(context: Context) {
             val request = OneTimeWorkRequestBuilder<LedgerReprocessingWorker>()

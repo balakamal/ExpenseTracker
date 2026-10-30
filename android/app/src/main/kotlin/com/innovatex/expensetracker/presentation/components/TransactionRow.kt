@@ -131,7 +131,13 @@ fun TransactionRow(
                     Spacer(modifier = Modifier.width(5.dp))
 
                     // Source Badge (SMS / Email / SMS+Email)
-                    SourceBadge(sources = transaction.sources, isDeduplicated = transaction.isDeduplicated)
+                    SourceBadge(
+                        sources = transaction.sources,
+                        isDeduplicated = transaction.isDeduplicated,
+                        isDuplicate = !transaction.isValidTransaction &&
+                            transaction.aiClassification?.authenticityLabel == com.innovatex.expensetracker.domain.model.AuthenticityLabel.DUPLICATE,
+                        isSelfTransfer = transaction.isSelfTransfer
+                    )
                 }
             }
 
@@ -152,9 +158,13 @@ fun TransactionRow(
 fun SourceBadge(
     sources: List<SourceChannel>,
     isDeduplicated: Boolean,
+    isDuplicate: Boolean = false,
+    isSelfTransfer: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val text = when {
+        isDuplicate -> "DUPLICATE"
+        isSelfTransfer -> "SELF TRANSFER"
         isDeduplicated || (sources.contains(SourceChannel.SMS) && sources.contains(SourceChannel.EMAIL)) -> "SMS + EMAIL"
         sources.contains(SourceChannel.EMAIL) -> "EMAIL"
         sources.contains(SourceChannel.SMS) -> "SMS"
@@ -162,6 +172,8 @@ fun SourceBadge(
     }
 
     val badgeColor = when {
+        isDuplicate -> ApexThemeTokens.AccentDanger
+        isSelfTransfer -> ApexThemeTokens.AccentCobalt
         isDeduplicated -> ApexThemeTokens.AccentCobalt
         sources.contains(SourceChannel.EMAIL) -> ApexThemeTokens.AccentSecondary
         else -> ApexThemeTokens.TextTertiary
