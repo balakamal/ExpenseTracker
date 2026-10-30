@@ -6,11 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import com.innovatex.expensetracker.ai.AiModelStore
 import com.innovatex.expensetracker.ai.AiChatWorker
+import com.innovatex.expensetracker.ai.AiChatJobStore
 import com.innovatex.expensetracker.ai.LedgerReprocessingWorker
 import com.innovatex.expensetracker.ai.ModelDownloadWorker
 import com.innovatex.expensetracker.BuildConfig
@@ -35,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -69,7 +68,8 @@ class DashboardViewModel @Inject constructor(
     private val checkForAppUpdateUseCase: CheckForAppUpdateUseCase,
     private val aiModelStore: AiModelStore,
     private val networkCallLogger: NetworkCallLogger,
-    ingestionPipeline: IngestionPipeline
+    ingestionPipeline: IngestionPipeline,
+    private val aiChatJobStore: AiChatJobStore
 ) : ViewModel() {
 
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
@@ -86,7 +86,6 @@ class DashboardViewModel @Inject constructor(
 
     private var downloadJob: Job? = null
     private var reprocessingObserverJob: Job? = null
-    private var aiChatObserverJob: Job? = null
 
     private val _aiReclassifyState = MutableStateFlow<AiReclassifyState>(AiReclassifyState.Idle)
     val aiReclassifyState: StateFlow<AiReclassifyState> = _aiReclassifyState.asStateFlow()
@@ -112,12 +111,25 @@ class DashboardViewModel @Inject constructor(
     val networkCallLogs: StateFlow<List<NetworkCallLog>> = networkCallLogger.logs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val processingMessage: StateFlow<String?> = ingestionPipeline.processingLabel
-    private val _aiChatEntries = MutableStateFlow<List<AiChatEntry>>(emptyList())
-    val aiChatEntries: StateFlow<List<AiChatEntry>> = _aiChatEntries.asStateFlow()
+    val aiChatEntries: StateFlow<List<AiChatEntry>> = aiChatJobStore.jobs
+        .map { jobs ->
+            jobs.map { job ->
+                AiChatEntry(
+                    id = job.id,
+                    mode = if (job.mode == AiChatWorker.MODE_LEDGER) AiChatMode.FINANCIAL_LEDGER else AiChatMode.GENERAL,
+                    prompt = job.prompt,
+                    submittedAt = job.submittedAt,
+                    answer = job.answer,
+                    error = job.error,
+                    isWorking = job.isWorking
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun askAi(context: Context, question: String, mode: AiChatMode) {
         if (question.isBlank()) return
-        val previous = _aiChatEntries.value.filter { it.mode == mode }.takeLast(6)
+        val previous = aiChatEntries.value.filter { it.mode == mode }.takeLast(6)
         val prompt = buildString {
             previous.forEach { entry ->
                 appendLine("User: ${entry.prompt}")
@@ -135,55 +147,16 @@ class DashboardViewModel @Inject constructor(
                 appendLine("${it.monthKey} ${it.type} ${it.amount} ${it.currency} at ${it.merchantClean}, category ${it.categoryId}")
             }
         } else null
-        AiChatWorker.enqueue(
-            context = context,
-            prompt = prompt,
-            displayPrompt = question,
-            mode = if (mode == AiChatMode.FINANCIAL_LEDGER) AiChatWorker.MODE_LEDGER else AiChatWorker.MODE_GENERAL,
-            ledger = ledger
-        )
-    }
-
-    fun observeAiChatWork(context: Context) {
-        if (aiChatObserverJob?.isActive == true) return
-        aiChatObserverJob = viewModelScope.launch {
-            val workManager = WorkManager.getInstance(context)
-            while (true) {
-                val workInfos: List<WorkInfo> = withContext(Dispatchers.IO) {
-                    try {
-                        workManager.getWorkInfosByTag(AiChatWorker.WORK_TAG).get()
-                    } catch (_: Exception) {
-                        emptyList<WorkInfo>()
-                    }
-                }
-                val chatEntries = mutableListOf<AiChatEntry>()
-                workInfos.forEach { work: WorkInfo ->
-                    val mode = if (work.inputData.getString(AiChatWorker.KEY_MODE) == AiChatWorker.MODE_LEDGER) {
-                        AiChatMode.FINANCIAL_LEDGER
-                    } else AiChatMode.GENERAL
-                    val prompt = work.outputData.getString(AiChatWorker.KEY_PROMPT)
-                        ?: work.inputData.getString(AiChatWorker.KEY_DISPLAY_PROMPT)
-                    if (prompt != null) {
-                        chatEntries += AiChatEntry(
-                            id = work.id.toString(),
-                            mode = mode,
-                            prompt = prompt,
-                            submittedAt = work.inputData.getLong(AiChatWorker.KEY_SUBMITTED_AT, 0L),
-                            answer = work.outputData.getString(AiChatWorker.KEY_ANSWER),
-                            error = work.outputData.getString(AiChatWorker.KEY_ERROR),
-                            isWorking = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED || work.state == WorkInfo.State.RUNNING
-                        )
-                    }
-                }
-                _aiChatEntries.value = chatEntries.sortedBy(AiChatEntry::submittedAt)
-                delay(1_000)
-            }
+        viewModelScope.launch {
+            AiChatWorker.enqueue(
+                context = context,
+                prompt = prompt,
+                displayPrompt = question,
+                mode = if (mode == AiChatMode.FINANCIAL_LEDGER) AiChatWorker.MODE_LEDGER else AiChatWorker.MODE_GENERAL,
+                ledger = ledger,
+                chatJobStore = aiChatJobStore
+            )
         }
-    }
-
-    fun stopObservingAiChatWork() {
-        aiChatObserverJob?.cancel()
-        aiChatObserverJob = null
     }
 
     fun clearNetworkCallLogs() { viewModelScope.launch { networkCallLogger.clear() } }

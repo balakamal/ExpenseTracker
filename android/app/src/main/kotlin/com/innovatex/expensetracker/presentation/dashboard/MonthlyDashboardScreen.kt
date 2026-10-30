@@ -149,11 +149,6 @@ fun MonthlyDashboardScreen(
     var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
 
-    LaunchedEffect(selectedMainTab) {
-        if (selectedMainTab == 2) viewModel.observeAiChatWork(context)
-        else viewModel.stopObservingAiChatWork()
-    }
-
     LaunchedEffect(openAiTabSignal) {
         if (openAiTabSignal > 0) selectedMainTab = 2
     }

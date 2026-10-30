@@ -31,18 +31,34 @@ class AiChatWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
     private val llmEngine: LlmClassifierEngine,
-    private val preferences: PreferencesDataStore
+    private val preferences: PreferencesDataStore,
+    private val chatJobStore: AiChatJobStore
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         val prompt = inputData.getString(KEY_PROMPT).orEmpty()
         val mode = inputData.getString(KEY_MODE).orEmpty()
+        val submittedAt = inputData.getLong(KEY_SUBMITTED_AT, System.currentTimeMillis())
+        val jobId = id.toString()
         if (prompt.isBlank()) return Result.failure(workDataOf(KEY_ERROR to "Enter a question to start."))
 
+        val baseJob = AiChatJobRecord(
+            id = jobId,
+            mode = mode,
+            prompt = inputData.getString(KEY_DISPLAY_PROMPT).orEmpty(),
+            submittedAt = submittedAt,
+            isWorking = true
+        )
         return try {
+            chatJobStore.upsert(baseJob)
             val ledger = inputData.getString(KEY_LEDGER)
             val answer = llmEngine.answerChat(prompt, ledger, mode == MODE_LEDGER)
-                ?: return Result.failure(workDataOf(KEY_ERROR to "The on-device AI model is not ready. Download it in Settings and try again."))
+            if (answer == null) {
+                val error = "The on-device AI model is not ready. Download it in Settings and try again."
+                chatJobStore.upsert(baseJob.copy(isWorking = false, error = error))
+                return Result.failure(workDataOf(KEY_ERROR to error))
+            }
+            chatJobStore.upsert(baseJob.copy(isWorking = false, answer = answer))
             val output = workDataOf(
                 KEY_PROMPT to inputData.getString(KEY_DISPLAY_PROMPT).orEmpty(),
                 KEY_MODE to mode,
@@ -52,9 +68,12 @@ class AiChatWorker @AssistedInject constructor(
             notifyCompletionIfAllowed()
             Result.success(output)
         } catch (cancelled: CancellationException) {
+            runCatching { chatJobStore.upsert(baseJob.copy(isWorking = false, error = "This AI request was interrupted. You can send it again.")) }
             throw cancelled
         } catch (error: Exception) {
-            Result.failure(workDataOf(KEY_ERROR to (error.message ?: "AI could not generate a response.")))
+            val message = error.message ?: "AI could not generate a response."
+            runCatching { chatJobStore.upsert(baseJob.copy(isWorking = false, error = message)) }
+            Result.failure(workDataOf(KEY_ERROR to message))
         }
     }
 
@@ -107,19 +126,39 @@ class AiChatWorker @AssistedInject constructor(
         const val MAX_PROMPT_CHARS = 900
         const val MAX_CONTEXT_CHARS = 700
 
-        fun enqueue(context: Context, prompt: String, displayPrompt: String, mode: String, ledger: String?) {
+        suspend fun enqueue(
+            context: Context,
+            prompt: String,
+            displayPrompt: String,
+            mode: String,
+            ledger: String?,
+            chatJobStore: AiChatJobStore
+        ) {
+            val submittedAt = System.currentTimeMillis()
             val data = Data.Builder()
                 .putString(KEY_PROMPT, prompt.take(MAX_PROMPT_CHARS))
                 .putString(KEY_DISPLAY_PROMPT, displayPrompt.take(500))
                 .putString(KEY_MODE, mode)
-                .putLong(KEY_SUBMITTED_AT, System.currentTimeMillis())
+                .putLong(KEY_SUBMITTED_AT, submittedAt)
                 .apply { if (!ledger.isNullOrBlank()) putString(KEY_LEDGER, ledger.take(MAX_CONTEXT_CHARS)) }
                 .build()
             val request = OneTimeWorkRequestBuilder<AiChatWorker>()
                 .setInputData(data)
                 .addTag(WORK_TAG)
                 .build()
-            WorkManager.getInstance(context).enqueue(request)
+            val queuedJob = AiChatJobRecord(
+                id = request.id.toString(),
+                mode = mode,
+                prompt = displayPrompt.take(500),
+                submittedAt = submittedAt,
+                isWorking = true
+            )
+            chatJobStore.upsert(queuedJob)
+            try {
+                WorkManager.getInstance(context).enqueue(request)
+            } catch (error: Exception) {
+                chatJobStore.upsert(queuedJob.copy(isWorking = false, error = error.message ?: "Could not queue the AI request."))
+            }
         }
     }
 }
