@@ -16,11 +16,7 @@ import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.NetworkCallLog
-import com.innovatex.expensetracker.data.local.LocalDataExportService
-import com.innovatex.expensetracker.domain.model.Transaction
-import com.innovatex.expensetracker.domain.model.TransactionType
-import com.innovatex.expensetracker.domain.model.SourceChannelger
-import com.innovatex.expensetracker.data.local.NetworkCallLog
+import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import com.innovatex.expensetracker.data.local.LocalDataExportService
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
@@ -85,7 +81,7 @@ class DashboardViewModel @Inject constructor(
     private val aiModelStore: AiModelStore,
     private val networkCallLogger: NetworkCallLogger,
     private val widgetSyncManager: ExpenseWidgetSyncManager,
-    ingestionPipeline: IngestionPipeline,
+    private val ingestionPipeline: IngestionPipeline,
     private val aiChatJobStore: AiChatJobStore,
     private val localDataExportService: LocalDataExportService
 ) : ViewModel() {
