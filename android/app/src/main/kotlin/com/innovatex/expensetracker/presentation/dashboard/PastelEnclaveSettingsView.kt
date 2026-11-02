@@ -64,6 +64,8 @@ import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.presentation.theme.PastelKineticTokens
 import java.io.File
 
+private data class StorageBreakdown(val dbSizeMb: String, val cacheSizeMb: String, val modelMb: String, val totalAppMb: String)
+
 @Composable
 fun PastelEnclaveSettingsView(
     settings: AppSettings,
@@ -92,19 +94,22 @@ fun PastelEnclaveSettingsView(
     // Real dynamic storage sizes
     val (dbSizeMb, cacheSizeMb, modelMb, totalAppMb) = remember(aiModelSizeBytes) {
         val dbFile = context.getDatabasePath("expense_tracker.db")
-        val walFile = File(dbFile.parentFile, "expense_tracker.db-wal")
-        val shmFile = File(dbFile.parentFile, "expense_tracker.db-shm")
+        val dbParent = dbFile.parentFile ?: context.filesDir
+        val walFile = File(dbParent, "expense_tracker.db-wal")
+        val shmFile = File(dbParent, "expense_tracker.db-shm")
         val dbBytes = (if (dbFile.exists()) dbFile.length() else 0L) +
             (if (walFile.exists()) walFile.length() else 0L) +
             (if (shmFile.exists()) shmFile.length() else 0L)
-        val cacheBytes = context.cacheDir.walkTopDown().filter { it.isFile }.map { it.length() }.sum()
+        val cacheBytes = runCatching {
+            context.cacheDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        }.getOrDefault(0L)
 
         val dbMbVal = (dbBytes / (1024.0 * 1024.0)).coerceAtLeast(0.1)
         val cacheMbVal = (cacheBytes / (1024.0 * 1024.0)).coerceAtLeast(0.1)
         val modelMbVal = if (aiModelSizeBytes > 0) (aiModelSizeBytes / (1024.0 * 1024.0)) else 475.0
         val total = dbMbVal + cacheMbVal + modelMbVal
 
-        Quadruple(
+        StorageBreakdown(
             String.format(java.util.Locale.US, "%.1f MB", dbMbVal),
             String.format(java.util.Locale.US, "%.1f MB", cacheMbVal),
             String.format(java.util.Locale.US, "%.1f MB", modelMbVal),
@@ -672,7 +677,7 @@ fun PastelEnclaveSettingsView(
     }
 }
 
-private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
 
 @Composable
 private fun PermissionToggleRow(

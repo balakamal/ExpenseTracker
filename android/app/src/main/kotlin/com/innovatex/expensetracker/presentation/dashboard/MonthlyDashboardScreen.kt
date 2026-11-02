@@ -145,9 +145,17 @@ fun MonthlyDashboardScreen(
         viewModel.observeModelDownloadWork(context)
         viewModel.observeLedgerReprocessingWork(context)
     }
-        var showSpamReviewSheet by remember { mutableStateOf(false) }
-
+    var showSpamReviewSheet by remember { mutableStateOf(false) }
     var showLogExpenseSheet by remember { mutableStateOf(false) }
+    var showManageSendersSheet by remember { mutableStateOf(false) }
+    var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
+    var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
+    var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
+    var selectedMainTab by rememberSaveable { mutableIntStateOf(if (initialSelectedTab == 1) 3 else initialSelectedTab.coerceIn(0, 3)) }
+    var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
+    var aiChatDraft by remember { mutableStateOf("") }
+    var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
     val receiptPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -167,16 +175,6 @@ fun MonthlyDashboardScreen(
             }
         }
     }
-
-    var showManageSendersSheet by remember { mutableStateOf(false) }
-    var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
-    var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
-    var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
-    var selectedMainTab by rememberSaveable { mutableIntStateOf(if (initialSelectedTab == 1) 3 else initialSelectedTab.coerceIn(0, 3)) }
-    var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
-    var aiChatDraft by remember { mutableStateOf("") }
-    var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
     BackHandler(enabled = selectedMainTab != 0) { selectedMainTab = 0 }
 

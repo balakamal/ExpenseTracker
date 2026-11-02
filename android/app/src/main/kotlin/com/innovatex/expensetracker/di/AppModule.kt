@@ -68,11 +68,6 @@ object DatabaseModule {
     @Provides
     @DefaultDispatcher
     fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
-
-    @Provides
-    @Singleton
-    fun provideLocalDataExportService(): com.innovatex.expensetracker.data.local.LocalDataExportService =
-        com.innovatex.expensetracker.data.local.LocalDataExportService()
 }
 
 @Module
