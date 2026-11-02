@@ -1019,7 +1019,11 @@ fun PastelEnclaveSettingsView(
                         }
 
                         when (aiReclassifyState) {
-                            is AiReclassifyState.Processing -> {
+                            is AiReclassifyState.Running -> {
+                                val progressFraction = if (aiReclassifyState.total > 0)
+                                    (aiReclassifyState.processed.toFloat() / aiReclassifyState.total.toFloat()).coerceIn(0f, 1f)
+                                else 0f
+                                val progressPercent = (progressFraction * 100).toInt()
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1034,20 +1038,20 @@ fun PastelEnclaveSettingsView(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = "Re-verifying ledger...",
+                                            text = aiReclassifyState.statusText,
                                             color = PastelKineticTokens.TextPrimary,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "${aiReclassifyState.progressPercent}%",
+                                            text = "$progressPercent% (${aiReclassifyState.processed}/${aiReclassifyState.total})",
                                             color = PastelKineticTokens.AnchorPrimary,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.ExtraBold
                                         )
                                     }
                                     LinearProgressIndicator(
-                                        progress = { aiReclassifyState.progressPercent / 100f },
+                                        progress = { progressFraction },
                                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(PastelKineticTokens.RadiusFull),
                                         color = PastelKineticTokens.AnchorPrimary,
                                         trackColor = PastelKineticTokens.SurfaceContainer
@@ -1058,7 +1062,7 @@ fun PastelEnclaveSettingsView(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = aiReclassifyState.currentMerchant.ifBlank { "Evaluating items..." },
+                                            text = "Processing ledger items...",
                                             color = PastelKineticTokens.TextSecondary,
                                             fontSize = 11.sp,
                                             maxLines = 1,
@@ -1078,7 +1082,7 @@ fun PastelEnclaveSettingsView(
                                     }
                                 }
                             }
-                            is AiReclassifyState.Completed -> {
+                            is AiReclassifyState.Done -> {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1120,7 +1124,7 @@ fun PastelEnclaveSettingsView(
                                         .padding(10.dp)
                                 ) {
                                     Text(
-                                        text = "Verification error: ${aiReclassifyState.errorReason}",
+                                        text = "Verification error: ${aiReclassifyState.message}",
                                         color = PastelKineticTokens.Error,
                                         fontSize = 12.sp
                                     )
@@ -1458,10 +1462,11 @@ fun PastelEnclaveSettingsView(
                                 HorizontalDivider(color = PastelKineticTokens.SurfaceContainer, modifier = Modifier.padding(vertical = 4.dp))
                                 Text("Recent Network Connections", color = PastelKineticTokens.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 networkCallLogs.take(5).forEach { log ->
+                                    val isBlocked = log.status.contains("BLOCK", ignoreCase = true) || log.status.startsWith("4") || log.status.startsWith("5")
                                     AuditStreamRow(
-                                        "${log.method} ${log.url.take(30)}",
-                                        log.statusCode?.toString() ?: (if (log.blocked) "Blocked" else "OK"),
-                                        if (log.blocked) PastelKineticTokens.Error else PastelKineticTokens.SkyAccent
+                                        "${log.method} ${log.endpoint.take(30)}",
+                                        "${log.status} • ${log.durationMs}ms",
+                                        if (isBlocked) PastelKineticTokens.Error else PastelKineticTokens.SkyAccent
                                     )
                                 }
                                 Box(

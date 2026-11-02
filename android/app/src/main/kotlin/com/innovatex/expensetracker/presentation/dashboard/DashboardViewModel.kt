@@ -755,12 +755,6 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun setPreferredAiEngine(engine: AiEnginePreference) {
-        viewModelScope.launch {
-            preferencesDataStore.setPreferredAiEngine(engine)
-        }
-    }
-
     fun untrustSender(sender: String) {
         viewModelScope.launch {
             preferencesDataStore.removeSenderFromTrusted(sender)
