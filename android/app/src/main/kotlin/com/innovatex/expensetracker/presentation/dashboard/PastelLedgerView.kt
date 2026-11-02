@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -262,7 +264,7 @@ fun PastelLedgerView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 6.dp),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    colors = TextFieldDefaults.colors(
                         focusedContainerColor = PastelKineticTokens.SurfaceCard,
                         unfocusedContainerColor = PastelKineticTokens.SurfaceCard,
                         focusedIndicatorColor = PastelKineticTokens.AnchorPrimary,
@@ -543,7 +545,6 @@ fun PastelLedgerView(
                                         .clip(PastelKineticTokens.RadiusFull)
                                         .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.85f))
                                         .padding(horizontal = 10.dp, vertical = 3.dp)
-                                Strange Text:
                                 ) {
                                     Text(
                                         text = "Inflow",
