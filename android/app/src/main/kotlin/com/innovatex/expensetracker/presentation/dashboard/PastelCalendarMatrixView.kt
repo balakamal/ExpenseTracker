@@ -622,7 +622,7 @@ fun PastelCalendarMatrixView(
 
                     // Dynamic Category Ratio Bar
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (dayCategoryDistribution.isEmpty()) {
+                        if (dayCategoryDistribution.isEmpty() || dayDebitTotal <= 0.0) {
                             Text(
                                 text = "No category spend recorded for this period",
                                 color = PastelKineticTokens.AmberTextVariant,
@@ -662,7 +662,7 @@ fun PastelCalendarMatrixView(
                             ) {
                                 val colors = listOf(PastelKineticTokens.AnchorPrimary, PastelKineticTokens.SkyDeep, PastelKineticTokens.SurfaceCard)
                                 top3.forEachIndexed { i, item ->
-                                    val weight = (item.second / dayDebitTotal).toFloat().coerceIn(0.05f, 1f)
+                                    val weight = if (dayDebitTotal > 0.0) (item.second / dayDebitTotal).toFloat().coerceIn(0.05f, 1f) else 1f
                                     Box(
                                         modifier = Modifier
                                             .weight(weight)
@@ -715,7 +715,7 @@ fun PastelCalendarMatrixView(
                         Box(
                             modifier = Modifier.fillMaxWidth().height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.5f))
                         ) {
-                            Box(modifier = Modifier.fillMaxWidth(consumedRatio.toFloat().coerceAtLeast(0.04f)).height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SkyText))
+                            Box(modifier = Modifier.fillMaxWidth(consumedRatio.toFloat().coerceIn(0.04f, 1f)).height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SkyText))
                         }
                     }
                 }

@@ -461,7 +461,7 @@ fun PastelLedgerView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(fraction = progressFraction.coerceAtLeast(0.04f))
+                                    .fillMaxWidth(fraction = progressFraction.coerceIn(0.04f, 1f))
                                     .height(6.dp)
                                     .clip(PastelKineticTokens.RadiusFull)
                                     .background(PastelKineticTokens.AnchorPrimary)
@@ -819,7 +819,7 @@ fun PastelLedgerView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(fraction = capRatio.coerceAtLeast(0.02f))
+                                    .fillMaxWidth(fraction = capRatio.coerceIn(0.02f, 1f))
                                     .height(8.dp)
                                     .clip(PastelKineticTokens.RadiusFull)
                                     .background(if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.AmberAccent)

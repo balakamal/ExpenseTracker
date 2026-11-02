@@ -64,7 +64,19 @@ fun LogExpenseBottomSheet(
     var amountText by remember { mutableStateOf("") }
     var merchantText by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(TransactionType.DEBIT) }
-    var selectedCategoryId by remember { mutableStateOf(availableCategories.firstOrNull()?.id ?: "food_dining") }
+    val displayCategories = if (availableCategories.isNotEmpty()) availableCategories else remember {
+        listOf(
+            Category("food_dining", "Food & Dining", "utensils", "#F97316"),
+            Category("shopping", "Shopping", "shopping_bag", "#EC4899"),
+            Category("transportation", "Transportation", "car", "#3B82F6"),
+            Category("bills_utilities", "Bills & Utilities", "zap", "#EAB308"),
+            Category("entertainment", "Entertainment", "film", "#06B6D4"),
+            Category("health", "Health", "heart_pulse", "#14B8A6"),
+            Category("income", "Income", "trending_up", "#22C55E"),
+            Category("general", "General", "more_horizontal", "#64748B")
+        )
+    }
+    var selectedCategoryId by remember { mutableStateOf(displayCategories.firstOrNull()?.id ?: "food_dining") }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -253,7 +265,7 @@ fun LogExpenseBottomSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                availableCategories.forEach { category ->
+                displayCategories.forEach { category ->
                     val isSelected = category.id == selectedCategoryId
                     Box(
                         modifier = Modifier
