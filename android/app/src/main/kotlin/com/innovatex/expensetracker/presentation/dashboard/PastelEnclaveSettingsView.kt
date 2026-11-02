@@ -412,7 +412,7 @@ fun PastelEnclaveSettingsView(
                         iconTint = PastelKineticTokens.SkyText,
                         title = "SMS Ingestion Engine",
                         subtitle = "Capture local transactional notifications",
-                        checked = settings.isSmsEnabled,
+                        checked = settings.smsTrackingEnabled,
                         onCheckedChange = onToggleSms
                     )
 

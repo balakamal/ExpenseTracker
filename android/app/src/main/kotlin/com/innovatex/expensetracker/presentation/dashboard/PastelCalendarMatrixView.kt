@@ -716,14 +716,14 @@ fun PastelCalendarMatrixView(
                             ) {
                                 Icon(
                                     imageVector = if (isCredit) Icons.Default.ReceiptLong else Icons.Default.LunchDining,
-                                    contentDescription = tx.category,
+                                    contentDescription = tx.categoryId,
                                     tint = if (isCredit) PastelKineticTokens.AmberDeep else PastelKineticTokens.SkyText,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = tx.merchant.ifBlank { tx.description },
+                                    text = tx.merchantClean.ifBlank { tx.merchantRaw },
                                     color = PastelKineticTokens.TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
@@ -742,7 +742,7 @@ fun PastelCalendarMatrixView(
                                             .background(PastelKineticTokens.SurfaceContainer)
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
-                                        Text(text = tx.category, color = PastelKineticTokens.TextSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text(text = tx.categoryId.replaceFirstChar { it.titlecase() }, color = PastelKineticTokens.TextSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -756,7 +756,7 @@ fun PastelCalendarMatrixView(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = tx.channel.name,
+                                text = tx.sources.firstOrNull()?.name ?: "SMS",
                                 color = PastelKineticTokens.TextOutline,
                                 fontSize = 10.sp
                             )

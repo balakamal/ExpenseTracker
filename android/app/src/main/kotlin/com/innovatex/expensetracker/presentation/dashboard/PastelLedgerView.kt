@@ -100,16 +100,25 @@ fun PastelLedgerView(
         list
     }
 
+    val categoryMap = remember(categoryTotals) {
+        categoryTotals.associate { it.category.id to it.category.name }
+    }
+
     val filterCategories = remember(categoryTotals) {
         val list = mutableListOf("All Items")
         categoryTotals.forEach { list.add(it.category.name) }
         list
     }
 
-    val filteredTransactions = remember(transactions, selectedCategoryFilter, searchQuery) {
+    val filteredTransactions = remember(transactions, selectedCategoryFilter, searchQuery, categoryMap) {
         transactions.filter { tx ->
-            val matchesCategory = selectedCategoryFilter == "All Items" || tx.category.equals(selectedCategoryFilter, ignoreCase = true)
-            val matchesSearch = searchQuery.isBlank() || tx.merchant.contains(searchQuery, ignoreCase = true) || tx.description.contains(searchQuery, ignoreCase = true)
+            val catName = categoryMap[tx.categoryId] ?: tx.categoryId
+            val matchesCategory = selectedCategoryFilter == "All Items" ||
+                catName.equals(selectedCategoryFilter, ignoreCase = true) ||
+                tx.categoryId.equals(selectedCategoryFilter, ignoreCase = true)
+            val matchesSearch = searchQuery.isBlank() ||
+                tx.merchantClean.contains(searchQuery, ignoreCase = true) ||
+                tx.merchantRaw.contains(searchQuery, ignoreCase = true)
             matchesCategory && matchesSearch
         }
     }
@@ -624,7 +633,7 @@ fun PastelLedgerView(
         // 5. Interactive Budget Goal Tracker Card
         item {
             val topCategory = categoryTotals.firstOrNull()?.category?.name ?: "Dining & Treats"
-            val topCategorySpent = categoryTotals.firstOrNull()?.totalAmount ?: (totalDebit * 0.45).coerceAtLeast(0.0)
+            val topCategorySpent = categoryTotals.firstOrNull()?.totalSpent ?: (totalDebit * 0.45).coerceAtLeast(0.0)
             val budgetCap = (topCategorySpent * 1.3).coerceAtLeast(100.0)
 
             Box(
@@ -840,7 +849,7 @@ fun PastelLedgerView(
                             ) {
                                 Icon(
                                     imageVector = if (isCredit) Icons.Default.ArrowDownward else Icons.Default.ReceiptLong,
-                                    contentDescription = tx.category,
+                                    contentDescription = tx.categoryId,
                                     tint = if (isCredit) PastelKineticTokens.AmberDeep else PastelKineticTokens.SkyText,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -848,7 +857,7 @@ fun PastelLedgerView(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = tx.merchant.ifBlank { tx.description },
+                                    text = tx.merchantClean.ifBlank { tx.merchantRaw },
                                     color = PastelKineticTokens.TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
@@ -867,7 +876,7 @@ fun PastelLedgerView(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = tx.channel.name,
+                                            text = tx.sources.firstOrNull()?.name ?: "SMS",
                                             color = PastelKineticTokens.TextSecondary,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold
@@ -890,7 +899,7 @@ fun PastelLedgerView(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = tx.category,
+                                text = categoryMap[tx.categoryId] ?: tx.categoryId.replaceFirstChar { it.titlecase() },
                                 color = PastelKineticTokens.TextSecondary,
                                 fontSize = 11.sp
                             )
