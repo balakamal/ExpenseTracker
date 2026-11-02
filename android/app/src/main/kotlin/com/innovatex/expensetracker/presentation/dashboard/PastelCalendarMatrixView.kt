@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.presentation.components.getCategoryIconVector
@@ -66,12 +67,19 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+enum class CalendarSelectionMode {
+    SINGLE_DAY,
+    DATE_RANGE,
+    WHOLE_MONTH
+}
+
 @Composable
 fun PastelCalendarMatrixView(
     currentMonthMillis: Long,
     allTransactions: List<Transaction>,
     currencySymbol: String = "₹",
     monthlyBudget: Double = 25000.0,
+    salaryCreditDay: Int = 1,
     onTransactionClick: (Transaction) -> Unit = {},
     onLogForDayClick: () -> Unit = {},
     onExportClick: () -> Unit = {},
@@ -86,13 +94,18 @@ fun PastelCalendarMatrixView(
         }
     }
 
-    var isRangeMode by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(CalendarSelectionMode.WHOLE_MONTH) }
     var selectedDayOffset by remember { mutableIntStateOf(3) }
     var rangeStartOffset by remember { mutableIntStateOf(1) }
     var rangeEndOffset by remember { mutableIntStateOf(5) }
 
-    val monthHeader = remember(currentMonthMillis) {
-        SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(currentMonthMillis))
+    val monthHeader = remember(currentMonthMillis, salaryCreditDay) {
+        if (salaryCreditDay == 1) {
+            SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(currentMonthMillis))
+        } else {
+            val key = SalaryCycleHelper.getCycleMonthKey(currentMonthMillis, salaryCreditDay)
+            SalaryCycleHelper.formatCycleLabel(key, salaryCreditDay)
+        }
     }
 
     val weekNumber = remember(currentMonthMillis) {
@@ -114,47 +127,74 @@ fun PastelCalendarMatrixView(
         list
     }
 
-    // Determine target timestamp bounds
+    // Determine target timestamp bounds based on active selection mode
     val selectedDayMillis = weekDays.getOrNull(selectedDayOffset)?.third ?: currentMonthMillis
-    val (filterStartMillis, filterEndMillis) = remember(isRangeMode, selectedDayOffset, rangeStartOffset, rangeEndOffset, weekDays) {
-        if (!isRangeMode) {
-            val start = Calendar.getInstance().apply {
-                timeInMillis = selectedDayMillis
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            Pair(start, start + 86400000L)
-        } else {
-            val minOffset = minOf(rangeStartOffset, rangeEndOffset)
-            val maxOffset = maxOf(rangeStartOffset, rangeEndOffset)
-            val startDay = weekDays.getOrNull(minOffset)?.third ?: currentMonthMillis
-            val endDay = weekDays.getOrNull(maxOffset)?.third ?: currentMonthMillis
-            val start = Calendar.getInstance().apply {
-                timeInMillis = startDay
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            val end = Calendar.getInstance().apply {
-                timeInMillis = endDay
-                set(Calendar.HOUR_OF_DAY, 23)
-                set(Calendar.MINUTE, 59)
-                set(Calendar.SECOND, 59)
-                set(Calendar.MILLISECOND, 999)
-            }.timeInMillis
-            Pair(start, end)
+    val (filterStartMillis, filterEndMillis) = remember(
+        selectionMode,
+        selectedDayOffset,
+        rangeStartOffset,
+        rangeEndOffset,
+        weekDays,
+        currentMonthMillis,
+        salaryCreditDay
+    ) {
+        when (selectionMode) {
+            CalendarSelectionMode.SINGLE_DAY -> {
+                val start = Calendar.getInstance().apply {
+                    timeInMillis = selectedDayMillis
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                Pair(start, start + 86400000L - 1)
+            }
+            CalendarSelectionMode.DATE_RANGE -> {
+                val minOffset = minOf(rangeStartOffset, rangeEndOffset)
+                val maxOffset = maxOf(rangeStartOffset, rangeEndOffset)
+                val startDay = weekDays.getOrNull(minOffset)?.third ?: currentMonthMillis
+                val endDay = weekDays.getOrNull(maxOffset)?.third ?: currentMonthMillis
+                val start = Calendar.getInstance().apply {
+                    timeInMillis = startDay
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                val end = Calendar.getInstance().apply {
+                    timeInMillis = endDay
+                    set(Calendar.HOUR_OF_DAY, 23)
+                    set(Calendar.MINUTE, 59)
+                    set(Calendar.SECOND, 59)
+                    set(Calendar.MILLISECOND, 999)
+                }.timeInMillis
+                Pair(start, end)
+            }
+            CalendarSelectionMode.WHOLE_MONTH -> {
+                SalaryCycleHelper.getCycleRangeForTimestamp(currentMonthMillis, salaryCreditDay)
+            }
         }
     }
 
-    val selectedDayTitle = remember(isRangeMode, filterStartMillis, filterEndMillis) {
-        if (!isRangeMode) {
-            SimpleDateFormat("EEEE, dd MMM", Locale.getDefault()).format(Date(filterStartMillis))
-        } else {
-            val df = SimpleDateFormat("dd MMM", Locale.getDefault())
-            "${df.format(Date(filterStartMillis))} - ${df.format(Date(filterEndMillis))}"
+    val selectedDayTitle = remember(selectionMode, filterStartMillis, filterEndMillis, salaryCreditDay, currentMonthMillis) {
+        when (selectionMode) {
+            CalendarSelectionMode.SINGLE_DAY -> {
+                SimpleDateFormat("EEEE, dd MMM", Locale.getDefault()).format(Date(filterStartMillis))
+            }
+            CalendarSelectionMode.DATE_RANGE -> {
+                val df = SimpleDateFormat("dd MMM", Locale.getDefault())
+                "${df.format(Date(filterStartMillis))} - ${df.format(Date(filterEndMillis))}"
+            }
+            CalendarSelectionMode.WHOLE_MONTH -> {
+                if (salaryCreditDay == 1) {
+                    "Whole Month · " + SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(filterStartMillis))
+                } else {
+                    "Cycle · " + SalaryCycleHelper.formatCycleLabel(
+                        SalaryCycleHelper.getCycleMonthKey(currentMonthMillis, salaryCreditDay),
+                        salaryCreditDay
+                    )
+                }
+            }
         }
     }
 
@@ -167,10 +207,24 @@ fun PastelCalendarMatrixView(
     val dayDebitTotal = dayDebits.sumOf { it.amount }
 
     // Dynamic Daily Cap & Pacing
-    val dailyCap = if (monthlyBudget > 0) (monthlyBudget / 30.0) else 800.0
-    val consumedRatio = (dayDebitTotal / dailyCap).coerceIn(0.0, 1.0)
-    val isUnderCap = dayDebitTotal <= dailyCap
-    val capDifference = kotlin.math.abs(dailyCap - dayDebitTotal)
+    val daysInActivePeriod = remember(selectionMode, currentMonthMillis, salaryCreditDay) {
+        if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) {
+            SalaryCycleHelper.getDaysInCycle(
+                SalaryCycleHelper.getCycleMonthKey(currentMonthMillis, salaryCreditDay),
+                salaryCreditDay
+            )
+        } else {
+            30
+        }
+    }
+    val effectiveBudgetLimit = if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) {
+        monthlyBudget
+    } else {
+        if (monthlyBudget > 0) (monthlyBudget / daysInActivePeriod.toDouble()) else 800.0
+    }
+    val consumedRatio = if (effectiveBudgetLimit > 0) (dayDebitTotal / effectiveBudgetLimit).coerceIn(0.0, 1.0) else 0.0
+    val isUnderCap = dayDebitTotal <= effectiveBudgetLimit
+    val capDifference = kotlin.math.abs(effectiveBudgetLimit - dayDebitTotal)
 
     // Dynamic Category Ratio for the day
     val dayCategoryDistribution = remember(dayDebits) {
@@ -265,7 +319,7 @@ fun PastelCalendarMatrixView(
             }
         }
 
-        // 2. Mode Selector: Single Day vs Date Range
+        // 2. Mode Selector: Single Day vs Date Range vs Whole Month
         item {
             Row(
                 modifier = Modifier
@@ -273,59 +327,90 @@ fun PastelCalendarMatrixView(
                     .clip(PastelKineticTokens.RadiusFull)
                     .background(PastelKineticTokens.SurfaceContainer)
                     .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                // Day Mode
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(PastelKineticTokens.RadiusFull)
-                        .background(if (!isRangeMode) PastelKineticTokens.SurfaceCard else Color.Transparent)
-                        .clickable { isRangeMode = false }
+                        .background(if (selectionMode == CalendarSelectionMode.SINGLE_DAY) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                        .clickable { selectionMode = CalendarSelectionMode.SINGLE_DAY }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "Single Day",
-                            tint = if (!isRangeMode) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (selectionMode == CalendarSelectionMode.SINGLE_DAY) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
+                            modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = "Single Day",
-                            color = if (!isRangeMode) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
-                            fontSize = 12.sp,
+                            text = "Day",
+                            color = if (selectionMode == CalendarSelectionMode.SINGLE_DAY) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
+                // Range Mode
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(PastelKineticTokens.RadiusFull)
-                        .background(if (isRangeMode) PastelKineticTokens.SurfaceCard else Color.Transparent)
-                        .clickable { isRangeMode = true }
+                        .background(if (selectionMode == CalendarSelectionMode.DATE_RANGE) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                        .clickable { selectionMode = CalendarSelectionMode.DATE_RANGE }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.DateRange,
                             contentDescription = "Date Range",
-                            tint = if (isRangeMode) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (selectionMode == CalendarSelectionMode.DATE_RANGE) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
+                            modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = "Date Range",
-                            color = if (isRangeMode) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
-                            fontSize = 12.sp,
+                            text = "Range",
+                            color = if (selectionMode == CalendarSelectionMode.DATE_RANGE) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Whole Month Mode
+                Box(
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .clip(PastelKineticTokens.RadiusFull)
+                        .background(if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                        .clickable { selectionMode = CalendarSelectionMode.WHOLE_MONTH }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "Whole Month",
+                            tint = if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Whole Month",
+                            color = if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -333,7 +418,7 @@ fun PastelCalendarMatrixView(
             }
         }
 
-        // 3. Month Navigation Header with Dynamic Week Number
+        // 3. Month Navigation Header with Dynamic Week / Cycle Info
         item {
             Row(
                 modifier = Modifier
@@ -342,9 +427,9 @@ fun PastelCalendarMatrixView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "EXPENSE MATRIX",
+                        text = if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) "MONTHLY OVERVIEW" else "EXPENSE MATRIX",
                         color = PastelKineticTokens.TextSecondary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -357,21 +442,39 @@ fun PastelCalendarMatrixView(
                         Text(
                             text = monthHeader,
                             color = PastelKineticTokens.TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = if (salaryCreditDay > 1) 15.sp else 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.AmberFixed)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "Week $weekNumber",
-                                color = PastelKineticTokens.AmberText,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(PastelKineticTokens.SkyFixed)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "$daysInActivePeriod Days",
+                                    color = PastelKineticTokens.SkyText,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(PastelKineticTokens.AmberFixed)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Week $weekNumber",
+                                    color = PastelKineticTokens.AmberText,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -411,87 +514,151 @@ fun PastelCalendarMatrixView(
             }
         }
 
-        // 4. Weekly Horizontal Date Strip with Real Status Dots
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                weekDays.forEachIndexed { index, triple ->
-                    val isSelectedInSingle = !isRangeMode && selectedDayOffset == index
-                    val isSelectedInRange = isRangeMode && (
-                        (index >= minOf(rangeStartOffset, rangeEndOffset)) &&
-                        (index <= maxOf(rangeStartOffset, rangeEndOffset))
-                    )
-                    val isActive = isSelectedInSingle || isSelectedInRange
-
-                    // Check transactions for this specific day
-                    val dayStart = Calendar.getInstance().apply {
-                        timeInMillis = triple.third
-                        set(Calendar.HOUR_OF_DAY, 0)
-                        set(Calendar.MINUTE, 0)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    val dayEnd = dayStart + 86400000L
-                    val dayHasCredit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.CREDIT }
-                    val dayHasDebit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.DEBIT }
-
-                    val dotColor = when {
-                        dayHasDebit -> PastelKineticTokens.AmberAccent
-                        dayHasCredit -> PastelKineticTokens.SkyAccent
-                        else -> PastelKineticTokens.SurfaceDim
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .width(46.dp)
-                            .height(76.dp)
-                            .shadow(
-                                elevation = if (isActive) 6.dp else 0.dp,
-                                shape = PastelKineticTokens.RadiusLg,
-                                spotColor = Color(0x20121316)
-                            )
-                            .clip(PastelKineticTokens.RadiusLg)
-                            .background(
-                                if (isActive) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceLow
-                            )
-                            .clickable {
-                                if (!isRangeMode) {
-                                    selectedDayOffset = index
-                                } else {
-                                    if (rangeStartOffset == rangeEndOffset) {
-                                        rangeEndOffset = index
-                                    } else {
-                                        rangeStartOffset = index
-                                        rangeEndOffset = index
-                                    }
-                                }
-                            }
-                            .padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceBetween
+        // 4. In Whole Month Mode: Show Month Status Banner; In Day/Range Mode: Show Weekly Date Strip
+        if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(PastelKineticTokens.RadiusCard)
+                        .background(PastelKineticTokens.SurfaceCard)
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PastelKineticTokens.AmberFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = PastelKineticTokens.AmberText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = if (salaryCreditDay == 1) "Full Month Active" else "Salary Cycle Active",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${dayTransactions.size} transactions across $daysInActivePeriod days",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
                         Box(
                             modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(dotColor)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.AnchorPrimary)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "-$currencySymbol${numberFormat.format(dayDebitTotal)}",
+                                color = PastelKineticTokens.AmberAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    weekDays.forEachIndexed { index, triple ->
+                        val isSelectedInSingle = selectionMode == CalendarSelectionMode.SINGLE_DAY && selectedDayOffset == index
+                        val isSelectedInRange = selectionMode == CalendarSelectionMode.DATE_RANGE && (
+                            (index >= minOf(rangeStartOffset, rangeEndOffset)) &&
+                            (index <= maxOf(rangeStartOffset, rangeEndOffset))
                         )
-                        Text(
-                            text = triple.first,
-                            color = if (isActive) PastelKineticTokens.SurfaceHighest else PastelKineticTokens.TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "${triple.second}",
-                            color = if (isActive) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold
-                        )
+                        val isActive = isSelectedInSingle || isSelectedInRange
+
+                        // Check transactions for this specific day
+                        val dayStart = Calendar.getInstance().apply {
+                            timeInMillis = triple.third
+                            set(Calendar.HOUR_OF_DAY, 0)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val dayEnd = dayStart + 86400000L
+                        val dayHasCredit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.CREDIT }
+                        val dayHasDebit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.DEBIT }
+
+                        val dotColor = when {
+                            dayHasDebit -> PastelKineticTokens.AmberAccent
+                            dayHasCredit -> PastelKineticTokens.SkyAccent
+                            else -> PastelKineticTokens.SurfaceDim
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .width(46.dp)
+                                .height(76.dp)
+                                .shadow(
+                                    elevation = if (isActive) 6.dp else 0.dp,
+                                    shape = PastelKineticTokens.RadiusLg,
+                                    spotColor = Color(0x20121316)
+                                )
+                                .clip(PastelKineticTokens.RadiusLg)
+                                .background(
+                                    if (isActive) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceLow
+                                )
+                                .clickable {
+                                    if (selectionMode == CalendarSelectionMode.SINGLE_DAY) {
+                                        selectedDayOffset = index
+                                    } else {
+                                        if (rangeStartOffset == rangeEndOffset) {
+                                            rangeEndOffset = index
+                                        } else {
+                                            rangeStartOffset = index
+                                            rangeEndOffset = index
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                            Text(
+                                text = triple.first,
+                                color = if (isActive) PastelKineticTokens.SurfaceHighest else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${triple.second}",
+                                color = if (isActive) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

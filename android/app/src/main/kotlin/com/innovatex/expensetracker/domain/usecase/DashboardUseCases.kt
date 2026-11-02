@@ -2,6 +2,7 @@ package com.innovatex.expensetracker.domain.usecase
 
 import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MonthlySummary
+import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
@@ -56,7 +57,8 @@ class GetMonthlyDashboardUseCase @Inject constructor(
     operator fun invoke(
         monthKey: String? = null,
         startDateMillis: Long? = null,
-        endDateMillis: Long? = null
+        endDateMillis: Long? = null,
+        salaryCreditDay: Int = 1
     ): Flow<MonthlyDashboardUiState> {
         val allTransactionsFlow = transactionRepository.getAllTransactions()
         val categoriesFlow = categoryRepository.getAllCategories()
@@ -66,8 +68,18 @@ class GetMonthlyDashboardUseCase @Inject constructor(
             allTransactionsFlow,
             categoriesFlow,
             monthsFlow
-        ) { allTransactions, categories, availableMonths ->
+        ) { allTransactions, categories, rawMonths ->
             val categoryMap = categories.associateBy { it.id }
+
+            // Dynamic available months aligned with salary credit day
+            val availableMonths = if (salaryCreditDay == 1) {
+                rawMonths
+            } else {
+                allTransactions
+                    .map { SalaryCycleHelper.getCycleMonthKey(it.timestamp, salaryCreditDay) }
+                    .distinct()
+                    .sortedDescending()
+            }
 
             // Determine filtered list based on date range or month selection
             val (filteredTransactions, displayTitle, isOverall) = when {
@@ -87,8 +99,10 @@ class GetMonthlyDashboardUseCase @Inject constructor(
                     Triple(list, title, false)
                 }
                 monthKey != null && monthKey != "ALL" -> {
-                    val list = allTransactions.filter { it.monthKey == monthKey }
-                    Triple(list, formatMonthDisplay(monthKey), false)
+                    val (cycleStart, cycleEnd) = SalaryCycleHelper.getCycleRange(monthKey, salaryCreditDay)
+                    val list = allTransactions.filter { it.timestamp in cycleStart..cycleEnd }
+                    val title = SalaryCycleHelper.formatCycleLabel(monthKey, salaryCreditDay)
+                    Triple(list, title, false)
                 }
                 else -> {
                     Triple(allTransactions, "Overall Ledger", true)
@@ -211,11 +225,12 @@ class ParseTransactionUseCase @Inject constructor(
         body: String,
         timestamp: Long = System.currentTimeMillis(),
         source: SourceChannel = SourceChannel.SMS,
-        sender: String? = null
+        sender: String? = null,
+        salaryCreditDay: Int = 1
     ): Transaction? {
         val candidate = parserEngine.parse(body, timestamp, source, sender) ?: return null
         val categoryId = resolveCategory(candidate)
-        val monthKey = formatMonthKey(candidate.transactionTimestamp)
+        val monthKey = SalaryCycleHelper.getCycleMonthKey(candidate.transactionTimestamp, salaryCreditDay)
 
         val stableId = if (!candidate.referenceId.isNullOrBlank()) {
             "ref_${candidate.referenceId.trim().lowercase()}"

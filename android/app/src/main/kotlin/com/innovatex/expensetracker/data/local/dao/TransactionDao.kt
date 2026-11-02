@@ -98,4 +98,7 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET user_override_valid = :isValid WHERE id = :id")
     suspend fun updateTransactionValidity(id: String, isValid: Boolean?)
+
+    @Query("UPDATE transactions SET month_key = :monthKey WHERE id = :id")
+    suspend fun updateMonthKey(id: String, monthKey: String)
 }

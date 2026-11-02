@@ -44,4 +44,5 @@ interface TransactionRepository {
     suspend fun deleteTransactionsBySender(sender: String): Int
     suspend fun setTransactionValidity(id: String, isValid: Boolean)
     suspend fun recordUserFeedback(sender: String?, merchantClean: String, rawSnippet: String?, label: AuthenticityLabel)
+    suspend fun repartitionTransactionsForSalaryCycle(salaryCreditDay: Int): Int
 }

@@ -25,6 +25,7 @@ import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.Category
 import com.innovatex.expensetracker.domain.model.MerchantRule
+import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.repository.CategoryRepository
 import com.innovatex.expensetracker.domain.repository.TransactionRepository
 import com.innovatex.expensetracker.domain.usecase.CheckForAppUpdateUseCase
@@ -275,14 +276,16 @@ class DashboardViewModel @Inject constructor(
 
     val uiState: StateFlow<MonthlyDashboardUiState> = kotlinx.coroutines.flow.combine(
         _selectedMonth,
-        _selectedDateRange
-    ) { monthKey, dateRange ->
-        Pair(monthKey, dateRange)
-    }.flatMapLatest { (monthKey, dateRange) ->
+        _selectedDateRange,
+        preferencesDataStore.appSettingsFlow
+    ) { monthKey, dateRange, currentSettings ->
+        Triple(monthKey, dateRange, currentSettings.salaryCreditDay)
+    }.flatMapLatest { (monthKey, dateRange, salaryCreditDay) ->
         getMonthlyDashboardUseCase(
             monthKey = if (monthKey == "ALL") null else monthKey,
             startDateMillis = dateRange?.first,
-            endDateMillis = dateRange?.second
+            endDateMillis = dateRange?.second,
+            salaryCreditDay = salaryCreditDay
         )
     }.stateIn(
         viewModelScope,
@@ -744,6 +747,20 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun setSalaryCreditDay(day: Int) {
+        viewModelScope.launch {
+            preferencesDataStore.setSalaryCreditDay(day)
+            transactionRepository.repartitionTransactionsForSalaryCycle(day)
+            widgetSyncManager.notifyDataChanged()
+        }
+    }
+
+    fun setPreferredAiEngine(engine: AiEnginePreference) {
+        viewModelScope.launch {
+            preferencesDataStore.setPreferredAiEngine(engine)
+        }
+    }
+
     fun untrustSender(sender: String) {
         viewModelScope.launch {
             preferencesDataStore.removeSenderFromTrusted(sender)
@@ -813,7 +830,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val currentSettings = preferencesDataStore.appSettingsFlow.first()
             val now = System.currentTimeMillis()
-            val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(Date(now))
+            val monthKey = SalaryCycleHelper.getCycleMonthKey(now, currentSettings.salaryCreditDay)
             val txn = Transaction(
                 amount = amount,
                 currency = currentSettings.defaultCurrency,

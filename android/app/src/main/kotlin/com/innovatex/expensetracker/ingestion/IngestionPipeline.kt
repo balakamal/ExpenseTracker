@@ -61,7 +61,7 @@ class IngestionPipeline @Inject constructor(
         }
 
         // Step 1: Regex parse as hard safety gate
-        val candidate = parseTransactionUseCase.parse(body, timestamp, source, sender) ?: return null
+        val candidate = parseTransactionUseCase.parse(body, timestamp, source, sender, settings.salaryCreditDay) ?: return null
 
         // Step 2: AI Classification (runs if model downloaded and enabled)
         // Keep deterministic safety screening enabled when AI is toggled off; only the optional SLM is disabled.

@@ -9,6 +9,7 @@ import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.MonthlySummary
+import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.model.SuspectedSpamItem
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionDuplicateMatcher
@@ -458,6 +459,19 @@ class TransactionRepositoryImpl @Inject constructor(
                 assignedLabel = label
             )
         )
+    }
+
+    override suspend fun repartitionTransactionsForSalaryCycle(salaryCreditDay: Int): Int = withContext(ioDispatcher) {
+        val allEntities = transactionDao.getAllTransactions()
+        var updatedCount = 0
+        for (entity in allEntities) {
+            val expectedMonthKey = SalaryCycleHelper.getCycleMonthKey(entity.timestamp, salaryCreditDay)
+            if (entity.monthKey != expectedMonthKey) {
+                transactionDao.updateMonthKey(entity.id, expectedMonthKey)
+                updatedCount++
+            }
+        }
+        updatedCount
     }
 
     private fun String.containsAny(vararg keywords: String): Boolean =

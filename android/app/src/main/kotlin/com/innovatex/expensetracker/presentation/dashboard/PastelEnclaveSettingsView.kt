@@ -19,11 +19,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fingerprint
@@ -33,6 +39,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
@@ -40,11 +47,18 @@ import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import com.innovatex.expensetracker.data.local.AiEnginePreference
+import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +88,9 @@ fun PastelEnclaveSettingsView(
     blockedSendersCount: Int = 0,
     trustedSendersCount: Int = 0,
     aiModelSizeBytes: Long = 0L,
+    isAiModelReady: Boolean = false,
+    isGenerativeLlmReady: Boolean = false,
+    downloadState: ModelDownloadUiState = ModelDownloadUiState.Idle,
     cleanStatusText: String? = null,
     onCleanSpam: () -> Unit = {},
     onCleanOtp: () -> Unit = {},
@@ -85,6 +102,12 @@ fun PastelEnclaveSettingsView(
     onToggleAiClassification: (Boolean) -> Unit = {},
     onToggleAiSpamDetection: (Boolean) -> Unit = {},
     onToggleNotifications: (Boolean) -> Unit = {},
+    onDownloadAiModel: (AiEnginePreference) -> Unit = {},
+    onCancelDownloadAiModel: () -> Unit = {},
+    onDeleteAiModel: () -> Unit = {},
+    onDismissDownloadError: () -> Unit = {},
+    onSelectAiEngine: (AiEnginePreference) -> Unit = {},
+    onSetSalaryCreditDay: (Int) -> Unit = {},
     onExportVaultClick: () -> Unit = {},
     onPurgeBufferClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -437,7 +460,521 @@ fun PastelEnclaveSettingsView(
             }
         }
 
-        // 4. Subsystem Permissions & Core Ingestion Card (White)
+        // 4. Monthly Salary Credit Date & Billing Cycle Card
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x10121316))
+                    .clip(PastelKineticTokens.RadiusCard)
+                    .background(PastelKineticTokens.SurfaceCard)
+                    .padding(18.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PastelKineticTokens.AmberFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Salary Date",
+                                    tint = PastelKineticTokens.AmberText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Salary Credit Date & Cycle",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Customizes monthly partitions & pacing",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.AmberFixed)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Day ${settings.salaryCreditDay}",
+                                color = PastelKineticTokens.AmberText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Cycle Description Pill
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PastelKineticTokens.RadiusSm)
+                            .background(PastelKineticTokens.SurfaceLow)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = if (settings.salaryCreditDay == 1)
+                                    "Standard Calendar Month Cycle (1st to end of month)"
+                                else
+                                    "Salary Cycle: ${settings.salaryCreditDay}th of month to ${settings.salaryCreditDay - 1}th of next month",
+                                color = PastelKineticTokens.TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Monthly ledger calculations, calendar 'Whole Month' view, and budget burn rate all align to this date.",
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 10.5.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+
+                    // Quick Preset Chips
+                    Text(
+                        text = "QUICK PRESET",
+                        color = PastelKineticTokens.TextSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val presets = listOf(
+                            1 to "1st (Default)",
+                            25 to "25th",
+                            28 to "28th",
+                            30 to "30th"
+                        )
+                        presets.forEach { (day, label) ->
+                            val isSelected = settings.salaryCreditDay == day
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(
+                                        if (isSelected) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceContainer
+                                    )
+                                    .clickable { onSetSalaryCreditDay(day) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Interactive Day Stepper
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(PastelKineticTokens.SurfaceContainer)
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.SurfaceCard)
+                                .clickable {
+                                    val newDay = (settings.salaryCreditDay - 1).coerceAtLeast(1)
+                                    onSetSalaryCreditDay(newDay)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Remove,
+                                contentDescription = "Decrease day",
+                                tint = PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Day ${settings.salaryCreditDay} of every month",
+                            color = PastelKineticTokens.TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.SurfaceCard)
+                                .clickable {
+                                    val newDay = (settings.salaryCreditDay + 1).coerceAtMost(31)
+                                    onSetSalaryCreditDay(newDay)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Increase day",
+                                tint = PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. On-Device Neural LLM Engine Card
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x10121316))
+                    .clip(PastelKineticTokens.RadiusCard)
+                    .background(PastelKineticTokens.SurfaceCard)
+                    .padding(18.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Header Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PastelKineticTokens.SkyFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "On-Device LLM",
+                                    tint = PastelKineticTokens.SkyText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "On-Device Neural LLM",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "LiteRT-LM Qwen3 0.6B • 100% Offline",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        // Status Badge
+                        val isReady = isAiModelReady || isGenerativeLlmReady
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(
+                                    when {
+                                        isReady -> PastelKineticTokens.Success.copy(alpha = 0.15f)
+                                        downloadState is ModelDownloadUiState.Downloading -> PastelKineticTokens.SkyFixed
+                                        downloadState is ModelDownloadUiState.Failed -> PastelKineticTokens.Error.copy(alpha = 0.15f)
+                                        else -> PastelKineticTokens.SurfaceContainer
+                                    }
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = when {
+                                    isReady -> "Ready (${if (aiModelSizeBytes > 0) "${aiModelSizeBytes / (1024 * 1024)} MB" else "~475 MB"})"
+                                    downloadState is ModelDownloadUiState.Downloading -> "Downloading ${downloadState.progressPercent}%"
+                                    downloadState is ModelDownloadUiState.Failed -> "Failed"
+                                    else -> "Not Installed"
+                                },
+                                color = when {
+                                    isReady -> PastelKineticTokens.Success
+                                    downloadState is ModelDownloadUiState.Downloading -> PastelKineticTokens.SkyText
+                                    downloadState is ModelDownloadUiState.Failed -> PastelKineticTokens.Error
+                                    else -> PastelKineticTokens.TextSecondary
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Runs directly on your smartphone's NPU/CPU to screen ambiguous financial SMS and power offline conversational inquiries. Zero telemetry or personal financial data leaves your phone.",
+                        color = PastelKineticTokens.TextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+
+                    HorizontalDivider(color = PastelKineticTokens.SurfaceContainer)
+
+                    // Download in progress state
+                    if (downloadState is ModelDownloadUiState.Downloading) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(PastelKineticTokens.RadiusSm)
+                                .background(PastelKineticTokens.SurfaceLow)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = PastelKineticTokens.AnchorPrimary
+                                    )
+                                    Text(
+                                        text = downloadState.statusText,
+                                        color = PastelKineticTokens.TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Text(
+                                    text = "${downloadState.progressPercent}%",
+                                    color = PastelKineticTokens.AnchorPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            LinearProgressIndicator(
+                                progress = { downloadState.progressPercent / 100f },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(PastelKineticTokens.RadiusFull),
+                                color = PastelKineticTokens.AnchorPrimary,
+                                trackColor = PastelKineticTokens.SurfaceContainer
+                            )
+
+                            OutlinedButton(
+                                onClick = onCancelDownloadAiModel,
+                                shape = PastelKineticTokens.RadiusFull,
+                                modifier = Modifier.fillMaxWidth().height(34.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("Cancel Download", fontSize = 11.sp, color = PastelKineticTokens.TextSecondary)
+                            }
+                        }
+                    }
+
+                    // Download failed state
+                    if (downloadState is ModelDownloadUiState.Failed) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(PastelKineticTokens.RadiusSm)
+                                .background(PastelKineticTokens.Error.copy(alpha = 0.08f))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = PastelKineticTokens.Error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Download Interrupted",
+                                        color = PastelKineticTokens.Error,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = "Dismiss",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.clickable { onDismissDownloadError() }
+                                )
+                            }
+                            Text(
+                                text = downloadState.errorMessage,
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                            Button(
+                                onClick = { onDownloadAiModel(settings.preferredAiEngine) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PastelKineticTokens.Error,
+                                    contentColor = Color.White
+                                ),
+                                shape = PastelKineticTokens.RadiusFull,
+                                modifier = Modifier.fillMaxWidth().height(34.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Retry Download", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Ready state vs Not downloaded state buttons
+                    val isReady = isAiModelReady || isGenerativeLlmReady
+                    if (isReady) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Active",
+                                    tint = PastelKineticTokens.Success,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Model ready & actively sandboxed",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = onDeleteAiModel,
+                                shape = PastelKineticTokens.RadiusFull,
+                                modifier = Modifier.height(34.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(14.dp), tint = PastelKineticTokens.Error)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete", fontSize = 11.sp, color = PastelKineticTokens.Error)
+                            }
+                        }
+                    } else if (downloadState !is ModelDownloadUiState.Downloading) {
+                        Button(
+                            onClick = { onDownloadAiModel(AiEnginePreference.GENERATIVE_LLM) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PastelKineticTokens.AnchorPrimary,
+                                contentColor = PastelKineticTokens.OnAnchor
+                            ),
+                            shape = PastelKineticTokens.RadiusFull,
+                            modifier = Modifier.fillMaxWidth().height(42.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Download On-Device LLM (~475 MB)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Engine Mode Picker: SLM vs Rules Only
+                    Text(
+                        text = "ENGINE PREFERENCE",
+                        color = PastelKineticTokens.TextSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(PastelKineticTokens.SurfaceContainer)
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val isLlm = settings.preferredAiEngine == AiEnginePreference.GENERATIVE_LLM
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(if (isLlm) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                                .clickable { onSelectAiEngine(AiEnginePreference.GENERATIVE_LLM) }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Hybrid (SLM + Rules)",
+                                color = if (isLlm) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = if (isLlm) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(if (!isLlm) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                                .clickable { onSelectAiEngine(AiEnginePreference.HEURISTIC_ONLY) }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Rules & Heuristics Only",
+                                color = if (!isLlm) PastelKineticTokens.TextPrimary else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = if (!isLlm) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Subsystem Permissions & Core Ingestion Card (White)
         item {
             Box(
                 modifier = Modifier

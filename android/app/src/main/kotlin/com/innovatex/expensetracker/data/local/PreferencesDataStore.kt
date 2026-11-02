@@ -38,7 +38,8 @@ data class AppSettings(
     val aiClassificationEnabled: Boolean = true,
     val aiSpamDetectionEnabled: Boolean = true,
     val backgroundAiNotificationsEnabled: Boolean = true,
-    val preferredAiEngine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM
+    val preferredAiEngine: AiEnginePreference = AiEnginePreference.GENERATIVE_LLM,
+    val salaryCreditDay: Int = 1
 )
 
 @Singleton
@@ -61,6 +62,7 @@ class PreferencesDataStore @Inject constructor(
         val KEY_AI_SPAM_DETECTION_ENABLED = booleanPreferencesKey("key_ai_spam_detection_enabled")
         val KEY_BACKGROUND_AI_NOTIFICATIONS_ENABLED = booleanPreferencesKey("key_model_download_notifications_enabled")
         val KEY_PREFERRED_AI_ENGINE = stringPreferencesKey("key_preferred_ai_engine")
+        val KEY_SALARY_CREDIT_DAY = intPreferencesKey("key_salary_credit_day")
     }
 
     val spamSendersFlow: Flow<Set<String>> = dataStore.data.map { preferences ->
@@ -143,7 +145,8 @@ class PreferencesDataStore @Inject constructor(
             backgroundAiNotificationsEnabled = preferences[KEY_BACKGROUND_AI_NOTIFICATIONS_ENABLED] ?: true,
             preferredAiEngine = preferences[KEY_PREFERRED_AI_ENGINE]?.let { name ->
                 runCatching { AiEnginePreference.valueOf(name) }.getOrNull()
-            }?.takeUnless { it == AiEnginePreference.FINANCIAL_TRANSFORMER } ?: AiEnginePreference.GENERATIVE_LLM
+            }?.takeUnless { it == AiEnginePreference.FINANCIAL_TRANSFORMER } ?: AiEnginePreference.GENERATIVE_LLM,
+            salaryCreditDay = (preferences[KEY_SALARY_CREDIT_DAY] ?: 1).coerceIn(1, 31)
         )
     }
 
@@ -189,5 +192,10 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setPreferredAiEngine(engine: AiEnginePreference) {
         dataStore.edit { it[KEY_PREFERRED_AI_ENGINE] = engine.name }
+    }
+
+    suspend fun setSalaryCreditDay(day: Int) {
+        val clamped = day.coerceIn(1, 31)
+        dataStore.edit { it[KEY_SALARY_CREDIT_DAY] = clamped }
     }
 }
