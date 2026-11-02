@@ -90,7 +90,7 @@ class IngestionPipelineAiTest {
     @Test
     fun `test pipeline retains promotional alerts in ledger tagged as SPAM_PROMO with isValidTransaction false`() = runTest {
         val sms = "Congratulations! Instant pre-approved loan of Rs 50000! Apply bit.ly"
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any(), any()) } returns sampleCandidate
         coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.SPAM_PROMO,
             authenticityConfidence = 0.95f,
@@ -112,7 +112,7 @@ class IngestionPipelineAiTest {
     @Test
     fun `test pipeline retains payment reminders in ledger tagged as PAYMENT_REMINDER with isValidTransaction false`() = runTest {
         val sms = "Your postpaid bill of Rs 499 is due on 28-Oct. Pay now."
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any(), any()) } returns sampleCandidate
         coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.PAYMENT_REMINDER,
             authenticityConfidence = 0.90f,
@@ -139,7 +139,7 @@ class IngestionPipelineAiTest {
             categoryId = "general",
             type = TransactionType.DEBIT
         )
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns unclassifiedCandidate
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any(), any()) } returns unclassifiedCandidate
         coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.98f,
@@ -175,7 +175,7 @@ class IngestionPipelineAiTest {
             merchantClean = "Star Supermarket",
             categoryId = "general"
         )
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns candidate
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any(), any()) } returns candidate
         coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.REAL_TRANSACTION,
             authenticityConfidence = 0.95f,
@@ -198,7 +198,7 @@ class IngestionPipelineAiTest {
     @Test
     fun `uncertain classification is retained outside financial totals`() = runTest {
         val sms = "Paid Rs 250 to Uber on 28-Oct."
-        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any()) } returns sampleCandidate
+        coEvery { mockParseUseCase.parse(sms, any(), SourceChannel.SMS, any(), any()) } returns sampleCandidate
         coEvery { mockAiClassifier.classify(sms, any(), any(), any()) } returns AiClassificationResult(
             authenticityLabel = AuthenticityLabel.UNCLASSIFIED,
             authenticityConfidence = 0f,

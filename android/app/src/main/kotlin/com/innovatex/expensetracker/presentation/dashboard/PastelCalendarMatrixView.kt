@@ -222,6 +222,7 @@ fun PastelCalendarMatrixView(
     } else {
         if (monthlyBudget > 0) (monthlyBudget / daysInActivePeriod.toDouble()) else 800.0
     }
+    val dailyCap = effectiveBudgetLimit
     val consumedRatio = if (effectiveBudgetLimit > 0) (dayDebitTotal / effectiveBudgetLimit).coerceIn(0.0, 1.0) else 0.0
     val isUnderCap = dayDebitTotal <= effectiveBudgetLimit
     val capDifference = kotlin.math.abs(effectiveBudgetLimit - dayDebitTotal)
@@ -871,7 +872,12 @@ fun PastelCalendarMatrixView(
                                     .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.7f))
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Text("Daily Cap", color = PastelKineticTokens.SkyText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = if (selectionMode == CalendarSelectionMode.WHOLE_MONTH) "Monthly Budget" else "Daily Cap",
+                                    color = PastelKineticTokens.SkyText,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                             Icon(imageVector = Icons.Default.Speed, contentDescription = "Cap", tint = PastelKineticTokens.SkyText, modifier = Modifier.size(16.dp))
                         }
