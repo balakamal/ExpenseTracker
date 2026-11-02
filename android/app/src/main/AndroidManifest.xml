@@ -43,6 +43,16 @@
                 tools:node="remove" />
         </provider>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Foreground Service for long-running AI model downloads without 10-minute OS timeout -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
@@ -58,7 +68,7 @@
 
         <!-- Launcher Activity Alias (Forces OS and Launchers to drop old icon cache) -->
         <activity-alias
-            android:name=".ExpenseTrackerLauncher"
+            android:name=".SpendWellLauncher"
             android:targetActivity=".MainActivity"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_expense"

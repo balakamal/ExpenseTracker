@@ -106,6 +106,7 @@ import com.innovatex.expensetracker.presentation.dashboard.PastelCalendarMatrixV
 import com.innovatex.expensetracker.presentation.dashboard.PastelAiAssistantView
 import com.innovatex.expensetracker.presentation.dashboard.PastelEnclaveSettingsView
 import com.innovatex.expensetracker.presentation.transaction.CategoryPickerBottomSheet
+import com.innovatex.expensetracker.presentation.transaction.LogExpenseBottomSheet
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -145,6 +146,28 @@ fun MonthlyDashboardScreen(
         viewModel.observeLedgerReprocessingWork(context)
     }
         var showSpamReviewSheet by remember { mutableStateOf(false) }
+
+    var showLogExpenseSheet by remember { mutableStateOf(false) }
+
+    val receiptPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            showLogExpenseSheet = true
+        }
+    }
+
+    val speechRecognizerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                viewModel.askAi(context, spoken, aiChatMode)
+            }
+        }
+    }
+
     var showManageSendersSheet by remember { mutableStateOf(false) }
     var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
@@ -196,30 +219,49 @@ fun MonthlyDashboardScreen(
                         debitCount = uiState.debitTransactionCount,
                         transactions = uiState.transactions,
                         categoryTotals = uiState.categoryTotals,
+                        currencySymbol = "₹",
+                        monthlyBudget = settings.defaultMonthlyBudget,
                         onTransactionClick = { txn -> selectedTransactionForDetail = txn },
-                        onLogExpenseClick = { viewModel.triggerHistoricalScan(context) }
+                        onLogExpenseClick = { showLogExpenseSheet = true }
                     )
                     1 -> PastelCalendarMatrixView(
                         currentMonthMillis = calendarMonthMillis,
                         allTransactions = uiState.allTransactions,
+                        currencySymbol = "₹",
+                        monthlyBudget = settings.defaultMonthlyBudget,
                         onTransactionClick = { txn -> selectedTransactionForDetail = txn },
-                        onLogForDayClick = { viewModel.triggerHistoricalScan(context) },
-                        onExportClick = { /* Export */ },
+                        onLogForDayClick = { showLogExpenseSheet = true },
+                        onExportClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Month_${uiState.monthKey}") },
                         onPreviousMonth = { viewModel.previousCalendarMonth() },
                         onNextMonth = { viewModel.nextCalendarMonth() }
                     )
                     2 -> PastelAiAssistantView(
+                        aiChatEntries = aiChatEntries,
+                        currencySymbol = "₹",
                         isAiModelReady = isAiModelReady,
                         aiModelSizeBytes = aiModelSizeBytes,
+                        topCategoryName = uiState.categoryTotals.firstOrNull()?.category?.name,
+                        topCategorySpent = uiState.categoryTotals.firstOrNull()?.totalSpent ?: 0.0,
+                        monthlyDebit = uiState.totalDebit,
                         onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
-                        onScanReceiptClick = { /* Scan Receipt */ },
-                        onExportLedgerClick = { /* Export */ }
+                        onApplyLedgerAction = { jobId, count -> viewModel.applyAiLedgerAction(jobId, count) },
+                        onScanReceiptClick = { receiptPickerLauncher.launch("image/*") },
+                        onVoiceInputClick = {
+                            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Gemma about your finances...")
+                            }
+                            runCatching { speechRecognizerLauncher.launch(intent) }
+                        },
+                        onExportLedgerClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Ledger") }
                     )
                     3 -> PastelEnclaveSettingsView(
                         settings = settings,
                         suspectedSpamCount = suspectedSpamItems.size,
                         blockedSendersCount = spamSenders.size,
                         trustedSendersCount = trustedSenders.size,
+                        aiModelSizeBytes = aiModelSizeBytes,
+                        cleanStatusText = cleanSpamStatus,
                         onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
                         onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
                         onOpenReviewSpam = { showSpamReviewSheet = true },
@@ -227,12 +269,29 @@ fun MonthlyDashboardScreen(
                         onToggleSms = { viewModel.toggleSms(it) },
                         onToggleEmail = { viewModel.toggleEmail(it) },
                         onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
-                        onExportVaultClick = { /* Export Vault */ },
+                        onToggleAiClassification = { viewModel.toggleAiClassification(it) },
+                        onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
+                        onToggleNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
+                        onExportVaultClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Vault_Export") },
                         onPurgeBufferClick = { viewModel.cleanSpamAndRecalculate() }
                     )
                 }
             }
         }
+    }
+
+    
+    // Log New Expense Bottom Sheet
+    if (showLogExpenseSheet) {
+        LogExpenseBottomSheet(
+            availableCategories = availableCategories,
+            currencySymbol = "₹",
+            onDismissRequest = { showLogExpenseSheet = false },
+            onSaveExpense = { amount, merchant, categoryId, type ->
+                viewModel.addManualExpense(amount, merchant, categoryId, type)
+            },
+            onScanSmsClick = { viewModel.triggerHistoricalScan(context) }
+        )
     }
 
     // Transaction Details Bottom Sheet
@@ -758,71 +817,75 @@ private fun DetailRow(label: String, value: String) {
 fun ExpenseTrackerLogoMark(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clip(ApexThemeTokens.RadiusSm)
-            .background(ApexThemeTokens.BgSurfaceCard)
-            .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusSm),
+            .clip(PastelKineticTokens.RadiusSm)
+            .background(PastelKineticTokens.SurfaceCard)
+            .border(1.dp, PastelKineticTokens.OutlineVariant, PastelKineticTokens.RadiusSm),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(24.dp)) {
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val radius = size.width * 0.42f
-            val strokeW = size.width * 0.16f
-            val gap = size.height * 0.08f
+            val w = size.width
+            val h = size.height
 
-            // Upper Cash-Flow Arc (Corbel Mint Inflow)
-            drawArc(
-                color = ApexThemeTokens.AccentPrimary,
-                startAngle = 186f,
-                sweepAngle = 168f,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius - gap / 2f),
-                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = strokeW,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
+            // 1. Back Sky Document
+            drawRoundRect(
+                color = Color(0xFFA7CAEF),
+                topLeft = Offset(w * 0.18f, h * 0.12f),
+                size = androidx.compose.ui.geometry.Size(w * 0.52f, h * 0.68f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.14f, w * 0.14f)
             )
 
-            // Lower Cash-Flow Arc (Corbel Coral Outflow)
-            drawArc(
-                color = ApexThemeTokens.AccentDanger,
-                startAngle = 6f,
-                sweepAngle = 168f,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius + gap / 2f),
-                size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = strokeW,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
+            // 2. Front Obsidian Document
+            drawRoundRect(
+                color = Color(0xFF121824),
+                topLeft = Offset(w * 0.30f, h * 0.20f),
+                size = androidx.compose.ui.geometry.Size(w * 0.54f, h * 0.70f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.14f, w * 0.14f)
             )
 
-            // Credit Plus Sign (+) in Crisp White
-            val plusY = center.y - size.height * 0.17f
-            val plusSize = size.width * 0.11f
+            // 3. Header lines
             drawLine(
                 color = Color.White,
-                start = Offset(center.x - plusSize, plusY),
-                end = Offset(center.x + plusSize, plusY),
+                start = Offset(w * 0.40f, h * 0.35f),
+                end = Offset(w * 0.68f, h * 0.35f),
                 strokeWidth = 2.dp.toPx(),
                 cap = androidx.compose.ui.graphics.StrokeCap.Round
             )
             drawLine(
-                color = Color.White,
-                start = Offset(center.x, plusY - plusSize),
-                end = Offset(center.x, plusY + plusSize),
+                color = Color(0xFFD8D5F6),
+                start = Offset(w * 0.40f, h * 0.46f),
+                end = Offset(w * 0.58f, h * 0.46f),
                 strokeWidth = 2.dp.toPx(),
                 cap = androidx.compose.ui.graphics.StrokeCap.Round
             )
 
-            // Debit Minus Sign (-) in Crisp White
-            val minusY = center.y + size.height * 0.17f
+            // 4. Bar chart columns
             drawLine(
-                color = Color.White,
-                start = Offset(center.x - plusSize, minusY),
-                end = Offset(center.x + plusSize, minusY),
-                strokeWidth = 2.dp.toPx(),
+                color = Color(0xFFCEE5FF),
+                start = Offset(w * 0.44f, h * 0.76f),
+                end = Offset(w * 0.44f, h * 0.64f),
+                strokeWidth = 2.5.dp.toPx(),
                 cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = Color(0xFFA7CAEF),
+                start = Offset(w * 0.53f, h * 0.76f),
+                end = Offset(w * 0.53f, h * 0.58f),
+                strokeWidth = 2.5.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = Color(0xFFD8D5F6),
+                start = Offset(w * 0.62f, h * 0.76f),
+                end = Offset(w * 0.62f, h * 0.52f),
+                strokeWidth = 2.5.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+
+            // 5. Golden Amber sparkle star
+            drawCircle(
+                color = Color(0xFFFFB84C),
+                radius = w * 0.08f,
+                center = Offset(w * 0.82f, h * 0.38f)
             )
         }
     }

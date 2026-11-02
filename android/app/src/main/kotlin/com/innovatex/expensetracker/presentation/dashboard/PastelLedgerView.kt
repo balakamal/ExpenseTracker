@@ -25,10 +25,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.usecase.CategorySpendItem
+import com.innovatex.expensetracker.presentation.components.getCategoryIconVector
 import com.innovatex.expensetracker.presentation.theme.PastelKineticTokens
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -67,6 +70,7 @@ fun PastelLedgerView(
     transactions: List<Transaction>,
     categoryTotals: List<CategorySpendItem>,
     currencySymbol: String = "₹",
+    monthlyBudget: Double = 25000.0,
     onTransactionClick: (Transaction) -> Unit = {},
     onLogExpenseClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -79,22 +83,32 @@ fun PastelLedgerView(
     }
 
     val netCashflow = totalCredit - totalDebit
-    val formattedNet = "$currencySymbol${numberFormat.format(netCashflow)}"
+    val formattedNet = "${if (netCashflow >= 0) "" else "-"}$currencySymbol${numberFormat.format(kotlin.math.abs(netCashflow))}"
     val formattedInflow = "+$currencySymbol${numberFormat.format(totalCredit)}"
     val formattedOutflow = "-$currencySymbol${numberFormat.format(totalDebit)}"
 
-    var selectedDayIndex by remember { mutableIntStateOf(3) } // Mid-week active
+    // Dynamic savings rate or deficit velocity
+    val savingsRate = if (totalCredit > 0) (((totalCredit - totalDebit) / totalCredit) * 100).toInt() else 0
+    val velocityPositive = netCashflow >= 0
+    val velocityLabel = if (totalCredit > 0) {
+        if (savingsRate >= 0) "+$savingsRate% saved" else "$savingsRate% deficit"
+    } else {
+        if (totalDebit > 0) "100% outflow" else "0% activity"
+    }
+
+    var selectedDayIndex by remember { mutableStateOf<Int?>(null) } // null = all days
     var selectedCategoryFilter by remember { mutableStateOf("All Items") }
+    var balancePodFilter by remember { mutableIntStateOf(0) } // 0 = All, 1 = Inflow Only, 2 = Outflow Only
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
     val daysOfWeek = remember {
         val cal = Calendar.getInstance()
         cal.set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
-        val list = mutableListOf<Pair<String, Int>>()
+        val list = mutableListOf<Triple<String, Int, Int>>() // DayName, DayOfMonth, DayOfYear
         val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
         for (i in 0 until 7) {
-            list.add(Pair(dayFormat.format(cal.time), cal.get(Calendar.DAY_OF_MONTH)))
+            list.add(Triple(dayFormat.format(cal.time), cal.get(Calendar.DAY_OF_MONTH), cal.get(Calendar.DAY_OF_YEAR)))
             cal.add(Calendar.DAY_OF_MONTH, 1)
         }
         list
@@ -110,16 +124,44 @@ fun PastelLedgerView(
         list
     }
 
-    val filteredTransactions = remember(transactions, selectedCategoryFilter, searchQuery, categoryMap) {
+    // Filter transactions dynamically
+    val filteredTransactions = remember(
+        transactions,
+        selectedCategoryFilter,
+        searchQuery,
+        categoryMap,
+        selectedDayIndex,
+        balancePodFilter
+    ) {
         transactions.filter { tx ->
+            // Category filter
             val catName = categoryMap[tx.categoryId] ?: tx.categoryId
             val matchesCategory = selectedCategoryFilter == "All Items" ||
                 catName.equals(selectedCategoryFilter, ignoreCase = true) ||
                 tx.categoryId.equals(selectedCategoryFilter, ignoreCase = true)
+
+            // Search filter
             val matchesSearch = searchQuery.isBlank() ||
                 tx.merchantClean.contains(searchQuery, ignoreCase = true) ||
                 tx.merchantRaw.contains(searchQuery, ignoreCase = true)
-            matchesCategory && matchesSearch
+
+            // Balance pod filter (Inflow / Outflow)
+            val matchesPod = when (balancePodFilter) {
+                1 -> tx.type == TransactionType.CREDIT
+                2 -> tx.type == TransactionType.DEBIT
+                else -> true
+            }
+
+            // Day of week filter
+            val matchesDay = if (selectedDayIndex != null) {
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+                val targetDayOfYear = daysOfWeek.getOrNull(selectedDayIndex!!)?.third
+                targetDayOfYear == null || txCal.get(Calendar.DAY_OF_YEAR) == targetDayOfYear
+            } else {
+                true
+            }
+
+            matchesCategory && matchesSearch && matchesPod && matchesDay
         }
     }
 
@@ -179,14 +221,14 @@ fun PastelLedgerView(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PastelKineticTokens.SurfaceContainer)
+                            .background(if (isSearchActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceContainer)
                             .clickable { isSearchActive = !isSearchActive },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Search,
+                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = PastelKineticTokens.TextPrimary,
+                            tint = if (isSearchActive) PastelKineticTokens.AmberText else PastelKineticTokens.TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -211,7 +253,7 @@ fun PastelLedgerView(
         // Search Bar (Expandable)
         item {
             AnimatedVisibility(visible = isSearchActive) {
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search transactions, vendors...", fontSize = 14.sp) },
@@ -230,52 +272,77 @@ fun PastelLedgerView(
             }
         }
 
-        // 2. Weekly Horizontal Day Strip
+        // 2. Weekly Horizontal Day Strip with Toggle
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(PastelKineticTokens.RadiusLg)
-                    .background(PastelKineticTokens.SurfaceCard)
-                    .padding(6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                daysOfWeek.forEachIndexed { index, pair ->
-                    val isActive = selectedDayIndex == index
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(64.dp)
-                            .clip(PastelKineticTokens.RadiusMd)
-                            .background(
-                                if (isActive) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceLow
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(PastelKineticTokens.RadiusLg)
+                        .background(PastelKineticTokens.SurfaceCard)
+                        .padding(6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    daysOfWeek.forEachIndexed { index, triple ->
+                        val isActive = selectedDayIndex == index
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .clip(PastelKineticTokens.RadiusMd)
+                                .background(
+                                    if (isActive) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceLow
+                                )
+                                .clickable {
+                                    selectedDayIndex = if (selectedDayIndex == index) null else index
+                                }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            if (isActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(PastelKineticTokens.AmberAccent)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+                            Text(
+                                text = triple.first,
+                                color = if (isActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
-                            .clickable { selectedDayIndex = index }
-                            .padding(vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        if (isActive) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(PastelKineticTokens.AmberAccent)
+                            Text(
+                                text = "${triple.second}",
+                                color = if (isActive) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                         }
+                    }
+                }
+                if (selectedDayIndex != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = pair.first,
-                            color = if (isActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.TextSecondary,
+                            text = "Filtered by ${daysOfWeek[selectedDayIndex!!].first}, day ${daysOfWeek[selectedDayIndex!!].second}",
+                            color = PastelKineticTokens.TextSecondary,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "${pair.second}",
-                            color = if (isActive) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
+                            text = "Reset day",
+                            color = PastelKineticTokens.AmberDeep,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { selectedDayIndex = null }
                         )
                     }
                 }
@@ -327,13 +394,13 @@ fun PastelLedgerView(
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.TrendingUp,
-                                    contentDescription = "Trending Up",
-                                    tint = PastelKineticTokens.AmberAccent,
+                                    imageVector = if (velocityPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                                    contentDescription = "Velocity",
+                                    tint = if (velocityPositive) PastelKineticTokens.AmberAccent else PastelKineticTokens.Error,
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Text(
-                                    text = "+14.2%",
+                                    text = velocityLabel,
                                     color = PastelKineticTokens.OnAnchor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -359,27 +426,29 @@ fun PastelLedgerView(
                     }
 
                     // Safe Pacing Progress Bar
+                    val budgetCap = if (monthlyBudget > 0) monthlyBudget else 25000.0
+                    val allocatedRatio = ((totalDebit / budgetCap) * 100).toInt().coerceIn(0, 100)
+                    val progressFraction = (totalDebit / budgetCap).toFloat().coerceIn(0f, 1f)
+
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Safe pacing",
+                                text = "Monthly pacing",
                                 color = PastelKineticTokens.TextPrimary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            val ratio = if (totalCredit > 0) ((totalDebit / totalCredit) * 100).toInt().coerceIn(0, 100) else 0
                             Text(
-                                text = "$ratio% allocated",
+                                text = "$allocatedRatio% allocated ($currencySymbol${numberFormat.format(totalDebit)} / $currencySymbol${numberFormat.format(budgetCap)})",
                                 color = PastelKineticTokens.TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
 
-                        val progressFraction = if (totalCredit > 0) (totalDebit / totalCredit).toFloat().coerceIn(0f, 1f) else 0f
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -418,18 +487,28 @@ fun PastelLedgerView(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clickable { /* Filter option */ }
+                        modifier = Modifier
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(if (balancePodFilter != 0) PastelKineticTokens.AmberFixed else Color.Transparent)
+                            .clickable {
+                                balancePodFilter = (balancePodFilter + 1) % 3
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "Filter",
-                            color = PastelKineticTokens.TextSecondary,
+                            text = when (balancePodFilter) {
+                                1 -> "Inflow Only"
+                                2 -> "Outflow Only"
+                                else -> "Filter Pods"
+                            },
+                            color = if (balancePodFilter != 0) PastelKineticTokens.AmberText else PastelKineticTokens.TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = "Filter",
-                            tint = PastelKineticTokens.TextSecondary,
+                            tint = if (balancePodFilter != 0) PastelKineticTokens.AmberText else PastelKineticTokens.TextSecondary,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -440,12 +519,14 @@ fun PastelLedgerView(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Left Pod: Honey Peach (Income Inflow)
+                    val isPodActive = balancePodFilter == 0 || balancePodFilter == 1
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x18825500))
                             .clip(PastelKineticTokens.RadiusCard)
-                            .background(PastelKineticTokens.AmberFixed)
+                            .background(if (isPodActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceLow)
+                            .clickable { balancePodFilter = if (balancePodFilter == 1) 0 else 1 }
                             .padding(16.dp)
                     ) {
                         Column(
@@ -462,6 +543,7 @@ fun PastelLedgerView(
                                         .clip(PastelKineticTokens.RadiusFull)
                                         .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.85f))
                                         .padding(horizontal = 10.dp, vertical = 3.dp)
+                                Strange Text:
                                 ) {
                                     Text(
                                         text = "Inflow",
@@ -488,7 +570,7 @@ fun PastelLedgerView(
 
                             Column {
                                 Text(
-                                    text = "Direct & Gigs",
+                                    text = if (creditCount > 0) "Income & Deposits" else "No deposits yet",
                                     color = PastelKineticTokens.AmberTextVariant,
                                     fontSize = 12.sp
                                 )
@@ -524,7 +606,7 @@ fun PastelLedgerView(
                                     )
                                 }
                                 Text(
-                                    text = "Active",
+                                    text = if (totalCredit > 0) "Active" else "Empty",
                                     color = PastelKineticTokens.AmberText,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -534,12 +616,16 @@ fun PastelLedgerView(
                     }
 
                     // Right Pod: Soft Sky Glaze (Spent Outflow)
+                    val isOutflowPodActive = balancePodFilter == 0 || balancePodFilter == 2
+                    val budgetCapVal = if (monthlyBudget > 0) monthlyBudget else 25000.0
+                    val outflowLimitPct = ((totalDebit / budgetCapVal) * 100).toInt()
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x18001D33))
                             .clip(PastelKineticTokens.RadiusCard)
-                            .background(PastelKineticTokens.SkyFixed)
+                            .background(if (isOutflowPodActive) PastelKineticTokens.SkyFixed else PastelKineticTokens.SurfaceLow)
+                            .clickable { balancePodFilter = if (balancePodFilter == 2) 0 else 2 }
                             .padding(16.dp)
                     ) {
                         Column(
@@ -582,7 +668,7 @@ fun PastelLedgerView(
 
                             Column {
                                 Text(
-                                    text = "Fixed & Flex",
+                                    text = if (debitCount > 0) "Debits & Bills" else "No expenses yet",
                                     color = PastelKineticTokens.SkyTextVariant,
                                     fontSize = 12.sp
                                 )
@@ -618,7 +704,7 @@ fun PastelLedgerView(
                                     )
                                 }
                                 Text(
-                                    text = "73% limit",
+                                    text = "$outflowLimitPct% limit",
                                     color = PastelKineticTokens.SkyText,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -630,11 +716,15 @@ fun PastelLedgerView(
             }
         }
 
-        // 5. Interactive Budget Goal Tracker Card
+        // 5. Interactive Budget Goal Tracker Card (Dynamic Top Category)
         item {
-            val topCategory = categoryTotals.firstOrNull()?.category?.name ?: "Dining & Treats"
-            val topCategorySpent = categoryTotals.firstOrNull()?.totalSpent ?: (totalDebit * 0.45).coerceAtLeast(0.0)
-            val budgetCap = (topCategorySpent * 1.3).coerceAtLeast(100.0)
+            val topCategoryItem = categoryTotals.firstOrNull()
+            val topCategoryName = topCategoryItem?.category?.name ?: "General Budget"
+            val topCategorySpent = topCategoryItem?.totalSpent ?: totalDebit
+            val budgetCap = topCategoryItem?.category?.monthlyBudgetLimit
+                ?: (if (topCategoryItem != null) (topCategoryItem.totalSpent * 1.3).coerceAtLeast(1000.0) else monthlyBudget)
+            val capRatio = if (budgetCap > 0) (topCategorySpent / budgetCap).toFloat().coerceIn(0f, 1f) else 0f
+            val isOverBudget = topCategorySpent > budgetCap
 
             Box(
                 modifier = Modifier
@@ -662,21 +752,21 @@ fun PastelLedgerView(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.LocalCafe,
-                                    contentDescription = topCategory,
+                                    imageVector = topCategoryItem?.let { getCategoryIconVector(it.category.id) } ?: Icons.Default.LocalCafe,
+                                    contentDescription = topCategoryName,
                                     tint = PastelKineticTokens.AmberText,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             Column {
                                 Text(
-                                    text = topCategory,
+                                    text = topCategoryName,
                                     color = PastelKineticTokens.TextPrimary,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Monthly budget quota",
+                                    text = "Monthly category quota",
                                     color = PastelKineticTokens.TextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -686,12 +776,12 @@ fun PastelLedgerView(
                         Box(
                             modifier = Modifier
                                 .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.SurfaceLow)
+                                .background(if (isOverBudget) PastelKineticTokens.ErrorContainer else PastelKineticTokens.SurfaceLow)
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "On Track",
-                                color = PastelKineticTokens.TextPrimary,
+                                text = if (isOverBudget) "Over Quota" else "On Track",
+                                color = if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.TextPrimary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -718,7 +808,6 @@ fun PastelLedgerView(
                             )
                         }
 
-                        val capRatio = if (budgetCap > 0) (topCategorySpent / budgetCap).toFloat().coerceIn(0f, 1f) else 0f
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -729,10 +818,10 @@ fun PastelLedgerView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(fraction = capRatio)
+                                    .fillMaxWidth(fraction = capRatio.coerceAtLeast(0.02f))
                                     .height(8.dp)
                                     .clip(PastelKineticTokens.RadiusFull)
-                                    .background(PastelKineticTokens.AmberAccent)
+                                    .background(if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.AmberAccent)
                             )
                         }
                     }
@@ -748,7 +837,7 @@ fun PastelLedgerView(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                filterCategories.take(6).forEach { category ->
+                filterCategories.take(8).forEach { category ->
                     val isSelected = selectedCategoryFilter == category
                     Box(
                         modifier = Modifier
@@ -780,17 +869,22 @@ fun PastelLedgerView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Recent Activity",
+                    text = "Recent Activity (${filteredTransactions.size})",
                     color = PastelKineticTokens.TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "View all",
+                    text = "Reset filters",
                     color = PastelKineticTokens.TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable { selectedCategoryFilter = "All Items" }
+                    modifier = Modifier.clickable {
+                        selectedCategoryFilter = "All Items"
+                        selectedDayIndex = null
+                        balancePodFilter = 0
+                        searchQuery = ""
+                    }
                 )
             }
         }
@@ -805,14 +899,14 @@ fun PastelLedgerView(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No transactions found",
+                        text = "No transactions found matching active filters",
                         color = PastelKineticTokens.TextOutline,
                         fontSize = 14.sp
                     )
                 }
             }
         } else {
-            items(filteredTransactions.take(20), key = { it.id }) { tx ->
+            items(filteredTransactions.take(30), key = { it.id }) { tx ->
                 val isCredit = tx.type == TransactionType.CREDIT
                 val formattedAmt = "${if (isCredit) "+" else "-"}$currencySymbol${numberFormat.format(tx.amount)}"
                 val timeString = remember(tx.timestamp) {
@@ -848,7 +942,7 @@ fun PastelLedgerView(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isCredit) Icons.Default.ArrowDownward else Icons.Default.ReceiptLong,
+                                    imageVector = if (isCredit) Icons.Default.ArrowDownward else getCategoryIconVector(tx.categoryId),
                                     contentDescription = tx.categoryId,
                                     tint = if (isCredit) PastelKineticTokens.AmberDeep else PastelKineticTokens.SkyText,
                                     modifier = Modifier.size(20.dp)
@@ -876,7 +970,7 @@ fun PastelLedgerView(
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = tx.sources.firstOrNull()?.name ?: "SMS",
+                                            text = tx.sources.firstOrNull()?.name ?: "MANUAL",
                                             color = PastelKineticTokens.TextSecondary,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold
@@ -943,4 +1037,3 @@ fun PastelLedgerView(
         }
     }
 }
-

@@ -29,13 +29,13 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.LocalCafe
-import androidx.compose.material.icons.filled.LunchDining
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SentimentDissatisfied
 import androidx.compose.material.icons.filled.SentimentSatisfied
-import androidx.compose.material.icons.filled.ShoppingBasket
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Icon
@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.presentation.components.getCategoryIconVector
 import com.innovatex.expensetracker.presentation.theme.PastelKineticTokens
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -69,6 +70,7 @@ fun PastelCalendarMatrixView(
     currentMonthMillis: Long,
     allTransactions: List<Transaction>,
     currencySymbol: String = "₹",
+    monthlyBudget: Double = 25000.0,
     onTransactionClick: (Transaction) -> Unit = {},
     onLogForDayClick: () -> Unit = {},
     onExportClick: () -> Unit = {},
@@ -84,17 +86,17 @@ fun PastelCalendarMatrixView(
     }
 
     var isRangeMode by remember { mutableStateOf(false) }
-    var selectedDayOffset by remember { mutableIntStateOf(3) } // Wednesday active
+    var selectedDayOffset by remember { mutableIntStateOf(3) }
+    var rangeStartOffset by remember { mutableIntStateOf(1) }
+    var rangeEndOffset by remember { mutableIntStateOf(5) }
 
     val monthHeader = remember(currentMonthMillis) {
         SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(currentMonthMillis))
     }
 
-    val cal = remember(currentMonthMillis) {
-        Calendar.getInstance().apply {
-            timeInMillis = currentMonthMillis
-            set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
-        }
+    val weekNumber = remember(currentMonthMillis) {
+        val cal = Calendar.getInstance().apply { timeInMillis = currentMonthMillis }
+        cal.get(Calendar.WEEK_OF_YEAR)
     }
 
     val weekDays = remember(currentMonthMillis) {
@@ -111,27 +113,71 @@ fun PastelCalendarMatrixView(
         list
     }
 
+    // Determine target timestamp bounds
     val selectedDayMillis = weekDays.getOrNull(selectedDayOffset)?.third ?: currentMonthMillis
-    val selectedDayTitle = remember(selectedDayMillis) {
-        SimpleDateFormat("EEEE, dd MMM", Locale.getDefault()).format(Date(selectedDayMillis))
+    val (filterStartMillis, filterEndMillis) = remember(isRangeMode, selectedDayOffset, rangeStartOffset, rangeEndOffset, weekDays) {
+        if (!isRangeMode) {
+            val start = Calendar.getInstance().apply {
+                timeInMillis = selectedDayMillis
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            Pair(start, start + 86400000L)
+        } else {
+            val minOffset = minOf(rangeStartOffset, rangeEndOffset)
+            val maxOffset = maxOf(rangeStartOffset, rangeEndOffset)
+            val startDay = weekDays.getOrNull(minOffset)?.third ?: currentMonthMillis
+            val endDay = weekDays.getOrNull(maxOffset)?.third ?: currentMonthMillis
+            val start = Calendar.getInstance().apply {
+                timeInMillis = startDay
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val end = Calendar.getInstance().apply {
+                timeInMillis = endDay
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }.timeInMillis
+            Pair(start, end)
+        }
+    }
+
+    val selectedDayTitle = remember(isRangeMode, filterStartMillis, filterEndMillis) {
+        if (!isRangeMode) {
+            SimpleDateFormat("EEEE, dd MMM", Locale.getDefault()).format(Date(filterStartMillis))
+        } else {
+            val df = SimpleDateFormat("dd MMM", Locale.getDefault())
+            "${df.format(Date(filterStartMillis))} - ${df.format(Date(filterEndMillis))}"
+        }
     }
 
     // Filter day's transactions
-    val dayTransactions = remember(allTransactions, selectedDayMillis) {
-        val dayStart = Calendar.getInstance().apply {
-            timeInMillis = selectedDayMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val dayEnd = dayStart + 86400000L
-
-        allTransactions.filter { it.timestamp in dayStart until dayEnd }
+    val dayTransactions = remember(allTransactions, filterStartMillis, filterEndMillis) {
+        allTransactions.filter { it.timestamp in filterStartMillis..filterEndMillis }
     }
 
     val dayDebits = dayTransactions.filter { it.type == TransactionType.DEBIT }
     val dayDebitTotal = dayDebits.sumOf { it.amount }
+
+    // Dynamic Daily Cap & Pacing
+    val dailyCap = if (monthlyBudget > 0) (monthlyBudget / 30.0) else 800.0
+    val consumedRatio = (dayDebitTotal / dailyCap).coerceIn(0.0, 1.0)
+    val isUnderCap = dayDebitTotal <= dailyCap
+    val capDifference = kotlin.math.abs(dailyCap - dayDebitTotal)
+
+    // Dynamic Category Ratio for the day
+    val dayCategoryDistribution = remember(dayDebits) {
+        dayDebits.groupBy { it.categoryId }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .toList()
+            .sortedByDescending { it.second }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -189,12 +235,13 @@ fun PastelCalendarMatrixView(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PastelKineticTokens.SurfaceContainer),
+                            .background(PastelKineticTokens.SurfaceContainer)
+                            .clickable { onExportClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
+                            imageVector = Icons.Default.IosShare,
+                            contentDescription = "Export CSV",
                             tint = PastelKineticTokens.TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -285,7 +332,7 @@ fun PastelCalendarMatrixView(
             }
         }
 
-        // 3. Month Navigation Header
+        // 3. Month Navigation Header with Dynamic Week Number
         item {
             Row(
                 modifier = Modifier
@@ -319,7 +366,7 @@ fun PastelCalendarMatrixView(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "Week 43",
+                                text = "Week $weekNumber",
                                 color = PastelKineticTokens.AmberText,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -363,7 +410,7 @@ fun PastelCalendarMatrixView(
             }
         }
 
-        // 4. Weekly Horizontal Date Strip with Indicator Dots
+        // 4. Weekly Horizontal Date Strip with Real Status Dots
         item {
             Row(
                 modifier = Modifier
@@ -372,7 +419,31 @@ fun PastelCalendarMatrixView(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 weekDays.forEachIndexed { index, triple ->
-                    val isActive = selectedDayOffset == index
+                    val isSelectedInSingle = !isRangeMode && selectedDayOffset == index
+                    val isSelectedInRange = isRangeMode && (
+                        (index >= minOf(rangeStartOffset, rangeEndOffset)) &&
+                        (index <= maxOf(rangeStartOffset, rangeEndOffset))
+                    )
+                    val isActive = isSelectedInSingle || isSelectedInRange
+
+                    // Check transactions for this specific day
+                    val dayStart = Calendar.getInstance().apply {
+                        timeInMillis = triple.third
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val dayEnd = dayStart + 86400000L
+                    val dayHasCredit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.CREDIT }
+                    val dayHasDebit = allTransactions.any { it.timestamp in dayStart until dayEnd && it.type == TransactionType.DEBIT }
+
+                    val dotColor = when {
+                        dayHasDebit -> PastelKineticTokens.AmberAccent
+                        dayHasCredit -> PastelKineticTokens.SkyAccent
+                        else -> PastelKineticTokens.SurfaceDim
+                    }
+
                     Column(
                         modifier = Modifier
                             .width(46.dp)
@@ -386,7 +457,18 @@ fun PastelCalendarMatrixView(
                             .background(
                                 if (isActive) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceLow
                             )
-                            .clickable { selectedDayOffset = index }
+                            .clickable {
+                                if (!isRangeMode) {
+                                    selectedDayOffset = index
+                                } else {
+                                    if (rangeStartOffset == rangeEndOffset) {
+                                        rangeEndOffset = index
+                                    } else {
+                                        rangeStartOffset = index
+                                        rangeEndOffset = index
+                                    }
+                                }
+                            }
                             .padding(vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.SpaceBetween
@@ -395,13 +477,7 @@ fun PastelCalendarMatrixView(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    when (index % 3) {
-                                        0 -> PastelKineticTokens.SkyAccent
-                                        1 -> PastelKineticTokens.AmberAccent
-                                        else -> PastelKineticTokens.SurfaceDim
-                                    }
-                                )
+                                .background(dotColor)
                         )
                         Text(
                             text = triple.first,
@@ -501,11 +577,12 @@ fun PastelCalendarMatrixView(
                                 Icon(
                                     imageVector = Icons.Default.Verified,
                                     contentDescription = "Safe",
-                                    tint = PastelKineticTokens.AmberFixed,
+                                    tint = if (isUnderCap) PastelKineticTokens.AmberFixed else PastelKineticTokens.Error,
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Text(
-                                    text = "Safe Buffer +$currencySymbol 42",
+                                    text = if (isUnderCap) "Safe Buffer +$currencySymbol${numberFormat.format(capDifference)}"
+                                           else "Over Limit -$currencySymbol${numberFormat.format(capDifference)}",
                                     color = PastelKineticTokens.OnAnchor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -534,7 +611,7 @@ fun PastelCalendarMatrixView(
                                 letterSpacing = (-0.6).sp
                             )
                             Text(
-                                text = "across ${dayDebits.size} tabs",
+                                text = "across ${dayDebits.size} entries",
                                 color = PastelKineticTokens.AmberTextVariant,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(bottom = 3.dp)
@@ -542,28 +619,58 @@ fun PastelCalendarMatrixView(
                         }
                     }
 
-                    // Category Ratio Bar
+                    // Dynamic Category Ratio Bar
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Food (65%)", color = PastelKineticTokens.AmberText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text("Treats (20%)", color = PastelKineticTokens.AmberText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text("Groceries (15%)", color = PastelKineticTokens.AmberText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.5f))
-                                .padding(1.dp),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Box(modifier = Modifier.weight(0.65f).height(6.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.AnchorPrimary))
-                            Box(modifier = Modifier.weight(0.20f).height(6.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SkyDeep))
-                            Box(modifier = Modifier.weight(0.15f).height(6.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SurfaceCard))
+                        if (dayCategoryDistribution.isEmpty()) {
+                            Text(
+                                text = "No category spend recorded for this period",
+                                color = PastelKineticTokens.AmberTextVariant,
+                                fontSize = 11.sp
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.5f))
+                            )
+                        } else {
+                            val top3 = dayCategoryDistribution.take(3)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                top3.forEach { item ->
+                                    val pct = if (dayDebitTotal > 0) ((item.second / dayDebitTotal) * 100).toInt() else 0
+                                    Text(
+                                        text = "${item.first.replaceFirstChar { it.titlecase() }} ($pct%)",
+                                        color = PastelKineticTokens.AmberText,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.5f))
+                                    .padding(1.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                val colors = listOf(PastelKineticTokens.AnchorPrimary, PastelKineticTokens.SkyDeep, PastelKineticTokens.SurfaceCard)
+                                top3.forEachIndexed { i, item ->
+                                    val weight = (item.second / dayDebitTotal).toFloat().coerceIn(0.05f, 1f)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(weight)
+                                            .height(6.dp)
+                                            .clip(PastelKineticTokens.RadiusFull)
+                                            .background(colors.getOrElse(i) { PastelKineticTokens.SurfaceCard })
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -601,13 +708,13 @@ fun PastelCalendarMatrixView(
                             Icon(imageVector = Icons.Default.Speed, contentDescription = "Cap", tint = PastelKineticTokens.SkyText, modifier = Modifier.size(16.dp))
                         }
                         Column {
-                            Text("$currencySymbol 120.00", color = PastelKineticTokens.SkyText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("65% consumed", color = PastelKineticTokens.SkyTextVariant, fontSize = 11.sp)
+                            Text("$currencySymbol${numberFormat.format(dailyCap)}", color = PastelKineticTokens.SkyText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("${(consumedRatio * 100).toInt()}% consumed", color = PastelKineticTokens.SkyTextVariant, fontSize = 11.sp)
                         }
                         Box(
                             modifier = Modifier.fillMaxWidth().height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.5f))
                         ) {
-                            Box(modifier = Modifier.fillMaxWidth(0.65f).height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SkyText))
+                            Box(modifier = Modifier.fillMaxWidth(consumedRatio.toFloat().coerceAtLeast(0.04f)).height(5.dp).clip(PastelKineticTokens.RadiusFull).background(PastelKineticTokens.SkyText))
                         }
                     }
                 }
@@ -634,18 +741,33 @@ fun PastelCalendarMatrixView(
                             ) {
                                 Text("Pacing", color = PastelKineticTokens.TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
-                            Icon(imageVector = Icons.Default.SentimentSatisfied, contentDescription = "Gentle", tint = PastelKineticTokens.AmberDeep, modifier = Modifier.size(16.dp))
+                            Icon(
+                                imageVector = if (isUnderCap) Icons.Default.SentimentSatisfied else Icons.Default.SentimentDissatisfied,
+                                contentDescription = "Pacing",
+                                tint = if (isUnderCap) PastelKineticTokens.AmberDeep else PastelKineticTokens.Error,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                         Column {
-                            Text("Gentle", color = PastelKineticTokens.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("+$currencySymbol 14 under curve", color = PastelKineticTokens.TextSecondary, fontSize = 11.sp)
+                            Text(if (isUnderCap) "Under Cap" else "Over Cap", color = PastelKineticTokens.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (isUnderCap) "+$currencySymbol${numberFormat.format(capDifference)} under curve"
+                                else "-$currencySymbol${numberFormat.format(capDifference)} over curve",
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp
+                            )
                         }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(PastelKineticTokens.AmberDeep))
-                            Text("Target met", color = PastelKineticTokens.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (isUnderCap) PastelKineticTokens.AmberDeep else PastelKineticTokens.Error))
+                            Text(
+                                text = if (isUnderCap) "Target met" else "Cap exceeded",
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }
@@ -709,18 +831,21 @@ fun PastelCalendarMatrixView(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(if (isCredit) PastelKineticTokens.AmberFixed else PastelKineticTokens.SkyFixed),
+                                    .background(
+                                        if (isCredit) PastelKineticTokens.AmberFixed.copy(alpha = 0.6f) else PastelKineticTokens.SkyFixed.copy(alpha = 0.5f)
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isCredit) Icons.Default.ReceiptLong else Icons.Default.LunchDining,
+                                    imageVector = if (isCredit) Icons.Default.ArrowDownward else getCategoryIconVector(tx.categoryId),
                                     contentDescription = tx.categoryId,
                                     tint = if (isCredit) PastelKineticTokens.AmberDeep else PastelKineticTokens.SkyText,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = tx.merchantClean.ifBlank { tx.merchantRaw },
@@ -735,15 +860,24 @@ fun PastelCalendarMatrixView(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.padding(top = 2.dp)
                                 ) {
-                                    Text(text = timeString, color = PastelKineticTokens.TextSecondary, fontSize = 11.sp)
                                     Box(
                                         modifier = Modifier
                                             .clip(PastelKineticTokens.RadiusFull)
-                                            .background(PastelKineticTokens.SurfaceContainer)
+                                            .background(PastelKineticTokens.SurfaceLow)
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
-                                        Text(text = tx.categoryId.replaceFirstChar { it.titlecase() }, color = PastelKineticTokens.TextSecondary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = tx.sources.firstOrNull()?.name ?: "MANUAL",
+                                            color = PastelKineticTokens.TextSecondary,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
+                                    Text(
+                                        text = timeString,
+                                        color = PastelKineticTokens.TextSecondary,
+                                        fontSize = 11.sp
+                                    )
                                 }
                             }
                         }
@@ -756,60 +890,14 @@ fun PastelCalendarMatrixView(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = tx.sources.firstOrNull()?.name ?: "SMS",
-                                color = PastelKineticTokens.TextOutline,
-                                fontSize = 10.sp
+                                text = tx.categoryId.replaceFirstChar { it.titlecase() },
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp
                             )
                         }
                     }
                 }
             }
         }
-
-        // 10. Bottom Actions: Log for this Day + Export
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(PastelKineticTokens.RadiusFull)
-                        .background(PastelKineticTokens.AnchorPrimary)
-                        .clickable { onLogForDayClick() }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "Log", tint = PastelKineticTokens.OnAnchor, modifier = Modifier.size(16.dp))
-                        Text("Log for this Day", color = PastelKineticTokens.OnAnchor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .clip(PastelKineticTokens.RadiusFull)
-                        .background(PastelKineticTokens.SurfaceContainer)
-                        .clickable { onExportClick() }
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = "Export", tint = PastelKineticTokens.TextPrimary, modifier = Modifier.size(16.dp))
-                        Text("Export", color = PastelKineticTokens.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
     }
 }
-

@@ -4,31 +4,48 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Upper Cash-Flow Arc: Deep Forest Emerald (+ Credits) -->
-    <path
-        android:strokeColor="#2D6A4F"
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:pathData="M 28,51 A 26,26 0 0,1 80,51" />
 
-    <!-- Lower Cash-Flow Arc: Warm Brick Crimson (- Debits) -->
+    <!-- 1. Layered Back Squircle: Sky Glaze Document Sheet -->
     <path
-        android:strokeColor="#9A3412"
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:pathData="M 28,57 A 26,26 0 0,0 80,57" />
+        android:fillColor="#A7CAEF"
+        android:pathData="M 39,26 L 62,26 A 11,11 0 0,1 73,37 L 73,63 A 11,11 0 0,1 62,74 L 39,74 A 11,11 0 0,1 28,63 L 28,37 A 11,11 0 0,1 39,26 Z" />
 
-    <!-- Credit Plus Sign (+): Crisp White -->
+    <!-- 2. Layered Front Squircle: Obsidian Tactile Document Card -->
+    <path
+        android:fillColor="#121824"
+        android:pathData="M 47,32 L 67,32 A 11,11 0 0,1 78,43 L 78,71 A 11,11 0 0,1 67,82 L 47,82 A 11,11 0 0,1 36,71 L 36,43 A 11,11 0 0,1 47,32 Z" />
+
+    <!-- 3. Document Header Text Lines (Soft White / Lilac) -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="3.2"
         android:strokeLineCap="round"
-        android:pathData="M 47,43 L 61,43 M 54,36 L 54,50" />
-
-    <!-- Debit Minus Sign (-): Crisp White -->
+        android:pathData="M 44,41 L 63,41" />
     <path
-        android:strokeColor="#FFFFFF"
+        android:strokeColor="#D8D5F6"
         android:strokeWidth="3.2"
         android:strokeLineCap="round"
-        android:pathData="M 47,65 L 61,65" />
+        android:pathData="M 44,47 L 56,47" />
+
+    <!-- 4. Financial Velocity Bar Chart Columns (Rounded Pillars) -->
+    <path
+        android:strokeColor="#CEE5FF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:pathData="M 45,74 L 45,64" />
+    <path
+        android:strokeColor="#A7CAEF"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:pathData="M 52,74 L 52,58" />
+    <path
+        android:strokeColor="#D8D5F6"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:pathData="M 59,74 L 59,53" />
+
+    <!-- 5. Warm Amber 4-Point Sparkle Star on Card Edge -->
+    <path
+        android:fillColor="#FFB84C"
+        android:pathData="M 77,38 Q 77,46 85,46 Q 77,46 77,54 Q 77,46 69,46 Q 77,46 77,38 Z" />
 </vector>

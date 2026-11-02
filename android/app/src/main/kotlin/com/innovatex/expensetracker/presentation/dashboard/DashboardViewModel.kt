@@ -15,8 +15,16 @@ import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AppSettings
 import com.innovatex.expensetracker.data.local.AiEnginePreference
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
-import com.innovatex.expensetracker.data.local.NetworkCallLogger
 import com.innovatex.expensetracker.data.local.NetworkCallLog
+import com.innovatex.expensetracker.data.local.LocalDataExportService
+import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.domain.model.SourceChannelger
+import com.innovatex.expensetracker.data.local.NetworkCallLog
+import com.innovatex.expensetracker.data.local.LocalDataExportService
+import com.innovatex.expensetracker.domain.model.Transaction
+import com.innovatex.expensetracker.domain.model.TransactionType
+import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
 import com.innovatex.expensetracker.domain.model.Category
@@ -78,7 +86,8 @@ class DashboardViewModel @Inject constructor(
     private val networkCallLogger: NetworkCallLogger,
     private val widgetSyncManager: ExpenseWidgetSyncManager,
     ingestionPipeline: IngestionPipeline,
-    private val aiChatJobStore: AiChatJobStore
+    private val aiChatJobStore: AiChatJobStore,
+    private val localDataExportService: LocalDataExportService
 ) : ViewModel() {
 
     private val _isGenerativeLlmReady = MutableStateFlow(aiModelStore.isGenerativeLlmReady())
@@ -798,6 +807,77 @@ class DashboardViewModel @Inject constructor(
                 }
         }
     }
+    fun addManualExpense(
+        amount: Double,
+        merchant: String,
+        categoryId: String,
+        type: TransactionType = TransactionType.DEBIT,
+        notes: String? = null
+    ) {
+        viewModelScope.launch {
+            val currentSettings = preferencesDataStore.appSettingsFlow.first()
+            val now = System.currentTimeMillis()
+            val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(Date(now))
+            val txn = Transaction(
+                amount = amount,
+                currency = currentSettings.defaultCurrency,
+                type = type,
+                timestamp = now,
+                monthKey = monthKey,
+                merchantRaw = merchant.ifBlank { "Manual Expense" },
+                merchantClean = merchant.ifBlank { "Manual Expense" },
+                categoryId = categoryId.ifBlank { "general" },
+                sources = listOf(SourceChannel.MANUAL),
+                isDeduplicated = false,
+                userOverrideValid = true,
+                notes = notes
+            )
+            transactionRepository.saveTransaction(txn)
+            widgetSyncManager.notifyDataChanged()
+        }
+    }
+
+    fun exportLedgerToCsv(context: Context, transactions: List<Transaction>, fileNamePrefix: String = "SpendWell_Ledger") {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                val exportFile = java.io.File(context.cacheDir, "${fileNamePrefix}_$timeStamp.csv")
+                exportFile.outputStream().use { os ->
+                    localDataExportService.exportTransactionsToCsv(transactions, os)
+                }
+                val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    exportFile
+                )
+                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/comma-separated-values"
+                    putExtra(android.content.Intent.EXTRA_STREAM, fileUri)
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, "SpendWell Ledger Export")
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = android.content.Intent.createChooser(shareIntent, "Export SpendWell Ledger").apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            }.onFailure {
+                runCatching {
+                    val baos = java.io.ByteArrayOutputStream()
+                    localDataExportService.exportTransactionsToCsv(transactions, baos)
+                    val textIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, baos.toString("UTF-8"))
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "SpendWell Ledger Export")
+                    }
+                    val chooser = android.content.Intent.createChooser(textIntent, "Share SpendWell Ledger").apply {
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(chooser)
+                }
+            }
+        }
+    }
+
 }
 
 sealed interface ModelDownloadUiState {
