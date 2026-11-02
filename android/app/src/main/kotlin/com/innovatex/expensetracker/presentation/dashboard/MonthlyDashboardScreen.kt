@@ -204,85 +204,123 @@ fun MonthlyDashboardScreen(
                 )
             }
         ) { innerPadding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                when (selectedMainTab) {
-                    0 -> PastelLedgerView(
-                        totalCredit = uiState.totalCredit,
-                        totalDebit = uiState.totalDebit,
-                        creditCount = uiState.creditTransactionCount,
-                        debitCount = uiState.debitTransactionCount,
-                        transactions = uiState.transactions,
-                        categoryTotals = uiState.categoryTotals,
-                        currencySymbol = "₹",
-                        monthlyBudget = settings.defaultMonthlyBudget,
-                        onTransactionClick = { txn -> selectedTransactionForDetail = txn },
-                        onLogExpenseClick = { showLogExpenseSheet = true }
-                    )
-                    1 -> PastelCalendarMatrixView(
-                        currentMonthMillis = calendarMonthMillis,
-                        allTransactions = uiState.allTransactions,
-                        currencySymbol = "₹",
-                        monthlyBudget = settings.defaultMonthlyBudget,
-                        salaryCreditDay = settings.salaryCreditDay,
-                        onTransactionClick = { txn -> selectedTransactionForDetail = txn },
-                        onLogForDayClick = { showLogExpenseSheet = true },
-                        onExportClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Month_${uiState.monthKey}") },
-                        onPreviousMonth = { viewModel.previousCalendarMonth() },
-                        onNextMonth = { viewModel.nextCalendarMonth() }
-                    )
-                    2 -> PastelAiAssistantView(
-                        aiChatEntries = aiChatEntries,
-                        currencySymbol = "₹",
-                        isAiModelReady = isAiModelReady,
-                        aiModelSizeBytes = aiModelSizeBytes,
-                        topCategoryName = uiState.categoryTotals.firstOrNull()?.category?.name,
-                        topCategorySpent = uiState.categoryTotals.firstOrNull()?.totalSpent ?: 0.0,
-                        monthlyDebit = uiState.totalDebit,
-                        onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
-                        onApplyLedgerAction = { jobId, count -> viewModel.applyAiLedgerAction(jobId, count) },
-                        onScanReceiptClick = { receiptPickerLauncher.launch("image/*") },
-                        onVoiceInputClick = {
-                            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Gemma about your finances...")
-                            }
-                            runCatching { speechRecognizerLauncher.launch(intent) }
+                // GitHub Update Alert Banner (shown when update is available and banner not dismissed)
+                if (updateState is UpdateCheckState.Available && showUpdateBanner) {
+                    UpdateAlertBanner(
+                        updateInfo = (updateState as UpdateCheckState.Available).updateInfo,
+                        onUpdateClick = {
+                            selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
                         },
-                        onExportLedgerClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Ledger") }
+                        onDismissClick = {
+                            viewModel.dismissUpdateBanner()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     )
-                    3 -> PastelEnclaveSettingsView(
-                        settings = settings,
-                        suspectedSpamCount = suspectedSpamItems.size,
-                        blockedSendersCount = spamSenders.size,
-                        trustedSendersCount = trustedSenders.size,
-                        aiModelSizeBytes = aiModelSizeBytes,
-                        isAiModelReady = isAiModelReady,
-                        isGenerativeLlmReady = isGenerativeLlmReady,
-                        downloadState = modelDownloadState,
-                        cleanStatusText = cleanSpamStatus,
-                        onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
-                        onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
-                        onOpenReviewSpam = { showSpamReviewSheet = true },
-                        onOpenManageSenders = { showManageSendersSheet = true },
-                        onToggleSms = { viewModel.toggleSms(it) },
-                        onToggleEmail = { viewModel.toggleEmail(it) },
-                        onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
-                        onToggleAiClassification = { viewModel.toggleAiClassification(it) },
-                        onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
-                        onToggleNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
-                        onDownloadAiModel = { engine -> viewModel.downloadAiModel(context, engine) },
-                        onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
-                        onDeleteAiModel = { viewModel.deleteAiModel() },
-                        onDismissDownloadError = { viewModel.dismissModelDownloadError() },
-                        onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
-                        onSetSalaryCreditDay = { viewModel.setSalaryCreditDay(it) },
-                        onExportVaultClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Vault_Export") },
-                        onPurgeBufferClick = { viewModel.cleanSpamAndRecalculate() }
-                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    when (selectedMainTab) {
+                        0 -> PastelLedgerView(
+                            totalCredit = uiState.totalCredit,
+                            totalDebit = uiState.totalDebit,
+                            creditCount = uiState.creditTransactionCount,
+                            debitCount = uiState.debitTransactionCount,
+                            transactions = uiState.transactions,
+                            categoryTotals = uiState.categoryTotals,
+                            currencySymbol = "₹",
+                            monthlyBudget = settings.defaultMonthlyBudget,
+                            availableMonths = uiState.availableMonths,
+                            selectedMonth = uiState.monthKey,
+                            salaryCreditDay = settings.salaryCreditDay,
+                            onMonthSelected = { viewModel.selectMonth(it) },
+                            onTransactionClick = { txn -> selectedTransactionForDetail = txn },
+                            onLogExpenseClick = { showLogExpenseSheet = true },
+                            onScanSmsClick = { viewModel.triggerHistoricalScan(context) }
+                        )
+                        1 -> PastelCalendarMatrixView(
+                            currentMonthMillis = calendarMonthMillis,
+                            allTransactions = uiState.allTransactions,
+                            currencySymbol = "₹",
+                            monthlyBudget = settings.defaultMonthlyBudget,
+                            salaryCreditDay = settings.salaryCreditDay,
+                            onTransactionClick = { txn -> selectedTransactionForDetail = txn },
+                            onLogForDayClick = { showLogExpenseSheet = true },
+                            onExportClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Month_${uiState.monthKey}") },
+                            onPreviousMonth = { viewModel.previousCalendarMonth() },
+                            onNextMonth = { viewModel.nextCalendarMonth() }
+                        )
+                        2 -> PastelAiAssistantView(
+                            aiChatEntries = aiChatEntries,
+                            currencySymbol = "₹",
+                            isAiModelReady = isAiModelReady,
+                            aiModelSizeBytes = aiModelSizeBytes,
+                            topCategoryName = uiState.categoryTotals.firstOrNull()?.category?.name,
+                            topCategorySpent = uiState.categoryTotals.firstOrNull()?.totalSpent ?: 0.0,
+                            monthlyDebit = uiState.totalDebit,
+                            onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
+                            onApplyLedgerAction = { jobId, count -> viewModel.applyAiLedgerAction(jobId, count) },
+                            onScanReceiptClick = { receiptPickerLauncher.launch("image/*") },
+                            onVoiceInputClick = {
+                                val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Gemma about your finances...")
+                                }
+                                runCatching { speechRecognizerLauncher.launch(intent) }
+                            },
+                            onExportLedgerClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Ledger") }
+                        )
+                        3 -> PastelEnclaveSettingsView(
+                            settings = settings,
+                            suspectedSpamCount = suspectedSpamItems.size,
+                            blockedSendersCount = spamSenders.size,
+                            trustedSendersCount = trustedSenders.size,
+                            aiModelSizeBytes = aiModelSizeBytes,
+                            isAiModelReady = isAiModelReady,
+                            isGenerativeLlmReady = isGenerativeLlmReady,
+                            downloadState = modelDownloadState,
+                            cleanStatusText = cleanSpamStatus,
+                            onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
+                            onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
+                            onOpenReviewSpam = { showSpamReviewSheet = true },
+                            onOpenManageSenders = { showManageSendersSheet = true },
+                            onToggleSms = { viewModel.toggleSms(it) },
+                            onToggleEmail = { viewModel.toggleEmail(it) },
+                            onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
+                            onToggleAiClassification = { viewModel.toggleAiClassification(it) },
+                            onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
+                            onToggleNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
+                            onDownloadAiModel = { engine -> viewModel.downloadAiModel(context, engine) },
+                            onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
+                            onDeleteAiModel = { viewModel.deleteAiModel() },
+                            onDismissDownloadError = { viewModel.dismissModelDownloadError() },
+                            onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
+                            onSetSalaryCreditDay = { viewModel.setSalaryCreditDay(it) },
+                            versionName = com.innovatex.expensetracker.BuildConfig.VERSION_NAME,
+                            updateState = updateState,
+                            onCheckForUpdatesManual = { viewModel.checkForUpdates(manual = true) },
+                            onReviewUpdate = { updateInfo -> selectedUpdateInfoForReview = updateInfo },
+                            onOpenNotificationSettings = onSettingsClick,
+                            onScanSmsClick = { viewModel.triggerHistoricalScan(context) },
+                            aiReclassifyState = aiReclassifyState,
+                            onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions(context) },
+                            onCancelAiReprocessing = { viewModel.cancelLedgerReprocessing(context) },
+                            networkCallLogs = networkCallLogs,
+                            onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() },
+                            onExportVaultClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Vault_Export") },
+                            onPurgeBufferClick = { viewModel.cleanSpamAndRecalculate() }
+                        )
+                    }
                 }
             }
         }

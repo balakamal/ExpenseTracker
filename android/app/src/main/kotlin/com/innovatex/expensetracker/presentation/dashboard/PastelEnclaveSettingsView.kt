@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
@@ -57,8 +58,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import com.innovatex.expensetracker.BuildConfig
 import com.innovatex.expensetracker.data.local.AiEnginePreference
+import com.innovatex.expensetracker.data.local.NetworkCallLog
+import com.innovatex.expensetracker.domain.model.AppUpdateInfo
+import com.innovatex.expensetracker.presentation.dashboard.AiReclassifyState
 import com.innovatex.expensetracker.presentation.dashboard.ModelDownloadUiState
+import com.innovatex.expensetracker.presentation.dashboard.UpdateCheckState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +114,17 @@ fun PastelEnclaveSettingsView(
     onDismissDownloadError: () -> Unit = {},
     onSelectAiEngine: (AiEnginePreference) -> Unit = {},
     onSetSalaryCreditDay: (Int) -> Unit = {},
+    versionName: String = BuildConfig.VERSION_NAME,
+    updateState: UpdateCheckState = UpdateCheckState.Idle,
+    onCheckForUpdatesManual: () -> Unit = {},
+    onReviewUpdate: (AppUpdateInfo) -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
+    onScanSmsClick: () -> Unit = {},
+    aiReclassifyState: AiReclassifyState = AiReclassifyState.Idle,
+    onRerunAiOnExisting: () -> Unit = {},
+    onCancelAiReprocessing: () -> Unit = {},
+    networkCallLogs: List<NetworkCallLog> = emptyList(),
+    onClearNetworkCallLogs: () -> Unit = {},
     onExportVaultClick: () -> Unit = {},
     onPurgeBufferClick: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -970,6 +987,177 @@ fun PastelEnclaveSettingsView(
                             )
                         }
                     }
+
+                    // AI Ledger Reprocessing / Deduplication Action
+                    HorizontalDivider(color = PastelKineticTokens.SurfaceContainer)
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "AI Ledger Verification & Deduplication",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Re-evaluates historical transactions with local ML",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.AutoFixHigh,
+                                contentDescription = "Reprocess",
+                                tint = PastelKineticTokens.AnchorPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        when (aiReclassifyState) {
+                            is AiReclassifyState.Processing -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusSm)
+                                        .background(PastelKineticTokens.SurfaceLow)
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Re-verifying ledger...",
+                                            color = PastelKineticTokens.TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${aiReclassifyState.progressPercent}%",
+                                            color = PastelKineticTokens.AnchorPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                    LinearProgressIndicator(
+                                        progress = { aiReclassifyState.progressPercent / 100f },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(PastelKineticTokens.RadiusFull),
+                                        color = PastelKineticTokens.AnchorPrimary,
+                                        trackColor = PastelKineticTokens.SurfaceContainer
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = aiReclassifyState.currentMerchant.ifBlank { "Evaluating items..." },
+                                            color = PastelKineticTokens.TextSecondary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(PastelKineticTokens.RadiusFull)
+                                                .background(PastelKineticTokens.SurfaceContainer)
+                                                .clickable { onCancelAiReprocessing() }
+                                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Cancel", color = PastelKineticTokens.Error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                            is AiReclassifyState.Completed -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusSm)
+                                        .background(PastelKineticTokens.Success.copy(alpha = 0.12f))
+                                        .padding(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PastelKineticTokens.Success, modifier = Modifier.size(16.dp))
+                                        Text(
+                                            text = "Verified: ${aiReclassifyState.updatedCount} transactions updated",
+                                            color = PastelKineticTokens.Success,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(PastelKineticTokens.SurfaceLow)
+                                        .clickable { onRerunAiOnExisting() }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Run Verification Again", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            is AiReclassifyState.Failed -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusSm)
+                                        .background(PastelKineticTokens.Error.copy(alpha = 0.12f))
+                                        .padding(10.dp)
+                                ) {
+                                    Text(
+                                        text = "Verification error: ${aiReclassifyState.errorReason}",
+                                        color = PastelKineticTokens.Error,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(PastelKineticTokens.SurfaceLow)
+                                        .clickable { onRerunAiOnExisting() }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Retry AI Verification", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            is AiReclassifyState.Idle -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(PastelKineticTokens.SurfaceLow)
+                                        .clickable { onRerunAiOnExisting() }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = PastelKineticTokens.TextPrimary, modifier = Modifier.size(14.dp))
+                                        Text("Re-verify Existing Transactions with AI", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1008,6 +1196,30 @@ fun PastelEnclaveSettingsView(
                         onCheckedChange = onToggleSms
                     )
 
+                    // Historical SMS Scan Action
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 48.dp),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SkyFixed)
+                                .clickable { onScanSmsClick() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = PastelKineticTokens.SkyText, modifier = Modifier.size(13.dp))
+                                Text("Scan Historical SMS Inbox", color = PastelKineticTokens.SkyText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     // Toggle 2: Email Ingestion Engine
                     PermissionToggleRow(
                         icon = Icons.Default.Mail,
@@ -1018,6 +1230,30 @@ fun PastelEnclaveSettingsView(
                         checked = settings.emailTrackingEnabled,
                         onCheckedChange = onToggleEmail
                     )
+
+                    // Notification Access Settings Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 48.dp),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.AmberFixed)
+                                .clickable { onOpenNotificationSettings() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Security, contentDescription = null, tint = PastelKineticTokens.AmberText, modifier = Modifier.size(13.dp))
+                                Text("Configure Notification Access", color = PastelKineticTokens.AmberText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
 
                     // Toggle 3: On-Device AI Classification
                     PermissionToggleRow(
@@ -1065,6 +1301,72 @@ fun PastelEnclaveSettingsView(
 
                     HorizontalDivider(color = PastelKineticTokens.SurfaceContainer)
 
+                    // Clean status notification text
+                    if (!cleanStatusText.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(PastelKineticTokens.RadiusSm)
+                                .background(PastelKineticTokens.Success.copy(alpha = 0.12f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PastelKineticTokens.Success, modifier = Modifier.size(14.dp))
+                                Text(
+                                    text = cleanStatusText,
+                                    color = PastelKineticTokens.Success,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Hygiene Clean Actions: Clean Spam & Delete OTPs
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SurfaceLow)
+                                .clickable { onCleanSpam() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.CleaningServices, contentDescription = null, tint = PastelKineticTokens.TextPrimary, modifier = Modifier.size(14.dp))
+                                Text("Clean Spam", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SurfaceLow)
+                                .clickable { onCleanOtp() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = PastelKineticTokens.Error, modifier = Modifier.size(14.dp))
+                                Text("Delete OTPs", color = PastelKineticTokens.Error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     // Spam Review & Senders Management Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1079,7 +1381,7 @@ fun PastelEnclaveSettingsView(
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Spam Review ($suspectedSpamCount)", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Review Spam ($suspectedSpamCount)", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                         Box(
                             modifier = Modifier
@@ -1123,10 +1425,15 @@ fun PastelEnclaveSettingsView(
                             Box(
                                 modifier = Modifier
                                     .clip(PastelKineticTokens.RadiusFull)
-                                    .background(PastelKineticTokens.SkyFixed)
+                                    .background(if (networkCallLogs.isEmpty()) PastelKineticTokens.SkyFixed else PastelKineticTokens.AmberFixed)
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Text("0 OUTBOUND", color = PastelKineticTokens.SkyText, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = if (networkCallLogs.isEmpty()) "0 OUTBOUND" else "${networkCallLogs.size} LOGGED",
+                                    color = if (networkCallLogs.isEmpty()) PastelKineticTokens.SkyText else PastelKineticTokens.AmberText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
@@ -1146,6 +1453,217 @@ fun PastelEnclaveSettingsView(
                             AuditStreamRow("Zero Network Sockets Opened", "Verified", PastelKineticTokens.AnchorPrimary)
                             AuditStreamRow("Two-Stage Temporal Dedup Guard", "Active", PastelKineticTokens.AmberDeep)
                             AuditStreamRow("GLANCE AppWidget Sync Broadcaster", "0.4ms", PastelKineticTokens.SkyDeep)
+
+                            if (networkCallLogs.isNotEmpty()) {
+                                HorizontalDivider(color = PastelKineticTokens.SurfaceContainer, modifier = Modifier.padding(vertical = 4.dp))
+                                Text("Recent Network Connections", color = PastelKineticTokens.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                networkCallLogs.take(5).forEach { log ->
+                                    AuditStreamRow(
+                                        "${log.method} ${log.url.take(30)}",
+                                        log.statusCode?.toString() ?: (if (log.blocked) "Blocked" else "OK"),
+                                        if (log.blocked) PastelKineticTokens.Error else PastelKineticTokens.SkyAccent
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(PastelKineticTokens.SurfaceLow)
+                                        .clickable { onClearNetworkCallLogs() }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Clear Network Logs", color = PastelKineticTokens.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Software Updates & Releases Card
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x10121316))
+                    .clip(PastelKineticTokens.RadiusCard)
+                    .background(PastelKineticTokens.SurfaceCard)
+                    .padding(18.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PastelKineticTokens.SkyFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "Updates",
+                                    tint = PastelKineticTokens.SkyText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Software Updates",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Version $versionName • GitHub Releases",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SurfaceContainer)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "v$versionName",
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    when (updateState) {
+                        is UpdateCheckState.Checking -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(PastelKineticTokens.RadiusSm)
+                                    .background(PastelKineticTokens.SurfaceLow)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = PastelKineticTokens.AnchorPrimary
+                                )
+                                Text("Checking GitHub releases for updates...", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp)
+                            }
+                        }
+                        is UpdateCheckState.Available -> {
+                            val info = updateState.updateInfo
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(PastelKineticTokens.RadiusSm)
+                                    .background(PastelKineticTokens.AmberFixed)
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Update Available: v${info.latestVersion}",
+                                        color = PastelKineticTokens.AmberText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = info.publishedAt.take(10),
+                                        color = PastelKineticTokens.AmberTextVariant,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                if (info.releaseNotes.isNotBlank()) {
+                                    Text(
+                                        text = info.releaseNotes,
+                                        color = PastelKineticTokens.AmberTextVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(PastelKineticTokens.AnchorPrimary)
+                                        .clickable { onReviewUpdate(info) }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Review & Install v${info.latestVersion}", color = PastelKineticTokens.OnAnchor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        is UpdateCheckState.UpToDate -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(PastelKineticTokens.RadiusSm)
+                                    .background(PastelKineticTokens.Success.copy(alpha = 0.12f))
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PastelKineticTokens.Success, modifier = Modifier.size(16.dp))
+                                Text("App is up to date with latest GitHub release", color = PastelKineticTokens.Success, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        is UpdateCheckState.Error -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(PastelKineticTokens.RadiusSm)
+                                    .background(PastelKineticTokens.Error.copy(alpha = 0.12f))
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = PastelKineticTokens.Error, modifier = Modifier.size(16.dp))
+                                Text("Check failed: ${updateState.message}", color = PastelKineticTokens.Error, fontSize = 11.sp)
+                            }
+                        }
+                        is UpdateCheckState.Idle -> {
+                            // Idle
+                        }
+                    }
+
+                    if (updateState !is UpdateCheckState.Checking) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SurfaceLow)
+                                .clickable { onCheckForUpdatesManual() }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = PastelKineticTokens.TextPrimary, modifier = Modifier.size(14.dp))
+                                Text("Check for Updates Now", color = PastelKineticTokens.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

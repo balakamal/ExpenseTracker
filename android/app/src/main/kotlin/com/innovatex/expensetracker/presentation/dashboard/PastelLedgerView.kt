@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
 import com.innovatex.expensetracker.domain.usecase.CategorySpendItem
@@ -73,8 +76,13 @@ fun PastelLedgerView(
     categoryTotals: List<CategorySpendItem>,
     currencySymbol: String = "₹",
     monthlyBudget: Double = 25000.0,
+    availableMonths: List<String> = emptyList(),
+    selectedMonth: String = "ALL",
+    salaryCreditDay: Int = 1,
+    onMonthSelected: (String) -> Unit = {},
     onTransactionClick: (Transaction) -> Unit = {},
     onLogExpenseClick: () -> Unit = {},
+    onScanSmsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val numberFormat = remember {
@@ -223,6 +231,21 @@ fun PastelLedgerView(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
+                            .background(PastelKineticTokens.SkyFixed)
+                            .clickable { onScanSmsClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Scan SMS",
+                            tint = PastelKineticTokens.SkyText,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
                             .background(if (isSearchActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceContainer)
                             .clickable { isSearchActive = !isSearchActive },
                         contentAlignment = Alignment.Center
@@ -271,6 +294,51 @@ fun PastelLedgerView(
                         unfocusedIndicatorColor = PastelKineticTokens.OutlineVariant
                     )
                 )
+            }
+        }
+
+        // Month Carousel Selector
+        item {
+            val monthList = remember(availableMonths) {
+                val list = mutableListOf("ALL")
+                list.addAll(availableMonths.filter { it != "ALL" })
+                list
+            }
+
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
+            ) {
+                items(monthList) { monthKey ->
+                    val isSelected = monthKey == selectedMonth
+                    val chipBg = if (isSelected) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.SurfaceCard
+                    val chipTextColor = if (isSelected) PastelKineticTokens.OnAnchor else PastelKineticTokens.TextSecondary
+                    val borderModifier = if (isSelected) Modifier else Modifier.border(1.dp, PastelKineticTokens.SurfaceContainer, PastelKineticTokens.RadiusFull)
+
+                    val displayLabel = if (monthKey == "ALL") {
+                        "Overall Ledger"
+                    } else {
+                        SalaryCycleHelper.formatCycleLabel(monthKey, salaryCreditDay)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(chipBg)
+                            .then(borderModifier)
+                            .clickable { onMonthSelected(monthKey) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = displayLabel,
+                            color = chipTextColor,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
 
