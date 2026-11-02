@@ -99,6 +99,12 @@ import com.innovatex.expensetracker.presentation.components.UpdateAlertBanner
 import com.innovatex.expensetracker.presentation.components.UpdateBadgePill
 import com.innovatex.expensetracker.presentation.components.UpdateDetailsBottomSheet
 import com.innovatex.expensetracker.presentation.theme.ApexThemeTokens
+import com.innovatex.expensetracker.presentation.theme.PastelKineticTokens
+import com.innovatex.expensetracker.presentation.components.PastelFloatingNavDock
+import com.innovatex.expensetracker.presentation.dashboard.PastelLedgerView
+import com.innovatex.expensetracker.presentation.dashboard.PastelCalendarMatrixView
+import com.innovatex.expensetracker.presentation.dashboard.PastelAiAssistantView
+import com.innovatex.expensetracker.presentation.dashboard.PastelEnclaveSettingsView
 import com.innovatex.expensetracker.presentation.transaction.CategoryPickerBottomSheet
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -138,23 +144,21 @@ fun MonthlyDashboardScreen(
         viewModel.observeModelDownloadWork(context)
         viewModel.observeLedgerReprocessingWork(context)
     }
-    var showSettingsScreen by rememberSaveable { mutableStateOf(initialSelectedTab == 1) }
-    var showSpamReviewSheet by remember { mutableStateOf(false) }
+        var showSpamReviewSheet by remember { mutableStateOf(false) }
     var showManageSendersSheet by remember { mutableStateOf(false) }
     var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
-    var selectedMainTab by rememberSaveable { mutableIntStateOf(initialSelectedTab.coerceIn(0, 2)) }
+    var selectedMainTab by rememberSaveable { mutableIntStateOf(if (initialSelectedTab == 1) 3 else initialSelectedTab.coerceIn(0, 3)) }
     var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
     var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
-    BackHandler(enabled = showSettingsScreen) { showSettingsScreen = false }
+    BackHandler(enabled = selectedMainTab != 0) { selectedMainTab = 0 }
 
     LaunchedEffect(openAiTabSignal) {
         if (openAiTabSignal > 0) {
-            showSettingsScreen = false
             selectedMainTab = 2
         }
     }
@@ -168,526 +172,64 @@ fun MonthlyDashboardScreen(
         }
     }
 
-    // Ping animation for Corbel's "live now" status indicator (2.2s cubic curve matching Corbel web)
-    val infiniteTransition = rememberInfiniteTransition(label = "livePing")
-    val pingScale by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 2.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = CubicBezierEasing(0.2f, 0.6f, 0.3f, 1.0f)),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pingScale"
-    )
-    val pingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = CubicBezierEasing(0.2f, 0.6f, 0.3f, 1.0f)),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pingAlpha"
-    )
-
-    // Ambient floating mesh animation (Smooth drift matching Corbel .mesh blobs)
-    val meshTransition = rememberInfiniteTransition(label = "meshMotion")
-    val meshDriftA by meshTransition.animateFloat(
-        initialValue = -0.05f,
-        targetValue = 0.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(14000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "meshDriftA"
-    )
-    val meshDriftB by meshTransition.animateFloat(
-        initialValue = 0.04f,
-        targetValue = -0.04f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(18000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "meshDriftB"
-    )
-    val meshPulse by meshTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(9000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "meshPulse"
-    )
-
-    Box(modifier = Modifier.fillMaxSize().background(ApexThemeTokens.BgCanvas)) {
-        // Corbel Ambient Background Mesh (Drifting, pulsing radial glow spots)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val width = size.width
-            val height = size.height
-
-            // Top-left Ocean Glow (Floating Blob A)
-            val centerA = Offset(width * (0.15f + meshDriftA), height * (0.08f + meshDriftB * 0.5f))
-            val radiusA = width * 0.8f * meshPulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(ApexThemeTokens.MeshA, Color.Transparent),
-                    center = centerA,
-                    radius = radiusA
-                ),
-                radius = radiusA,
-                center = centerA
-            )
-
-            // Top-right Coral Glow (Floating Blob C)
-            val centerC = Offset(width * (0.9f - meshDriftA * 0.7f), height * (0.25f + meshDriftB))
-            val radiusC = width * 0.65f * meshPulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(ApexThemeTokens.MeshC, Color.Transparent),
-                    center = centerC,
-                    radius = radiusC
-                ),
-                radius = radiusC,
-                center = centerC
-            )
-
-            // Bottom-right Mint Glow (Floating Blob B)
-            val centerB = Offset(width * (0.8f + meshDriftB), height * (0.85f - meshDriftA * 0.5f))
-            val radiusB = width * 0.75f * meshPulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(ApexThemeTokens.MeshB, Color.Transparent),
-                    center = centerB,
-                    radius = radiusB
-                ),
-                radius = radiusB,
-                center = centerB
-            )
-        }
-
+    Box(modifier = Modifier.fillMaxSize().background(PastelKineticTokens.CanvasBg)) {
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
-                if (!showSettingsScreen) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ApexThemeTokens.RadiusFull,
-                        color = ApexThemeTokens.BgSurface.copy(alpha = 0.94f),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 12.dp,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ApexThemeTokens.StrokeHighlight.copy(alpha = 0.55f))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CorbelNavItem("Ledger", Icons.Default.Home, !showSettingsScreen && selectedMainTab == 0) {
-                                showSettingsScreen = false
-                                selectedMainTab = 0
-                            }
-                            CorbelNavItem("Settings", Icons.Default.Settings, showSettingsScreen) {
-                                showSettingsScreen = true
-                            }
-                            CorbelNavItem("AI Ask", Icons.Default.AutoAwesome, !showSettingsScreen && selectedMainTab == 2) {
-                                showSettingsScreen = false
-                                selectedMainTab = 2
-                            }
-                        }
-                    }
-                }
-                }
-            },
-            floatingActionButton = {
-                if (!showSettingsScreen && selectedMainTab == 0) {
-                    FloatingActionButton(
-                        onClick = { viewModel.triggerHistoricalScan(context) },
-                        containerColor = ApexThemeTokens.AccentPrimary,
-                        contentColor = ApexThemeTokens.TextHighContrast,
-                        shape = CircleShape,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Scan SMS", modifier = Modifier.size(22.dp))
-                    }
-                }
+                PastelFloatingNavDock(
+                    selectedTab = selectedMainTab,
+                    onTabSelected = { selectedMainTab = it },
+                    modifier = Modifier.navigationBarsPadding()
+                )
             }
         ) { innerPadding ->
-            if (showSettingsScreen) {
-                SettingsScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    settings = settings,
-                    updateState = updateState,
-                    cleanSpamStatus = cleanSpamStatus,
-                    suspectedSpamCount = suspectedSpamItems.size,
-                    blockedSendersCount = spamSenders.size,
-                    trustedSendersCount = trustedSenders.size,
-                    isAiModelReady = isAiModelReady,
-                    aiModelSizeBytes = aiModelSizeBytes,
-                    isGenerativeLlmReady = isGenerativeLlmReady,
-                    onSelectAiEngine = { viewModel.setPreferredAiEngine(it) },
-                    onDownloadAiModelWithEngine = { engine -> viewModel.downloadAiModel(context, engine) },
-                    downloadState = modelDownloadState,
-                    onDownloadAiModel = { viewModel.downloadAiModel(context) },
-                    onCancelDownloadAiModel = { viewModel.cancelDownloadAiModel(context) },
-                    onDismissDownloadError = { viewModel.dismissModelDownloadError() },
-                    onDeleteAiModel = { viewModel.deleteAiModel() },
-                    aiReclassifyState = aiReclassifyState,
-                    onRerunAiOnExisting = { viewModel.rerunAiOnExistingTransactions(context) },
-                    onCancelAiReprocessing = { viewModel.cancelLedgerReprocessing(context) },
-                    onToggleAiClassification = { viewModel.toggleAiClassification(it) },
-                    onToggleAiSpamDetection = { viewModel.toggleAiSpamDetection(it) },
-                    onToggleBackgroundAiNotifications = { viewModel.setBackgroundAiNotificationsEnabled(it) },
-                    onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
-                    onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
-                    onOpenReviewSpam = { showSettingsScreen = false; selectedMainTab = 0; showSpamReviewSheet = true },
-                    onOpenManageSenders = { showSettingsScreen = false; selectedMainTab = 0; showManageSendersSheet = true },
-                    onToggleSms = { viewModel.toggleSms(it) },
-                    onToggleEmail = { viewModel.toggleEmail(it) },
-                    onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
-                    onCheckForUpdatesManual = { viewModel.checkForUpdates(manual = true) },
-                    onReviewUpdate = { updateInfo -> showSettingsScreen = false; selectedUpdateInfoForReview = updateInfo },
-                    onOpenNotificationSettings = onSettingsClick,
-                    networkCallLogs = networkCallLogs,
-                    onClearNetworkCallLogs = { viewModel.clearNetworkCallLogs() },
-                    onBack = { showSettingsScreen = false }
-                )
-            } else LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .statusBarsPadding(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (selectedMainTab == 2) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Ask AI", color = ApexThemeTokens.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            Text(
-                                if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) {
-                                    "Ask about your ledger, or request a merchant recategorization. Review and confirm any suggested change before it is applied."
-                                } else "General AI answers questions but cannot change your ledger.",
-                                color = ApexThemeTokens.TextSecondary,
-                                fontSize = 13.sp
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                AiModeTab(AiChatMode.FINANCIAL_LEDGER.title, aiChatMode == AiChatMode.FINANCIAL_LEDGER) { aiChatMode = AiChatMode.FINANCIAL_LEDGER }
-                                AiModeTab(AiChatMode.GENERAL.title, aiChatMode == AiChatMode.GENERAL) { aiChatMode = AiChatMode.GENERAL }
-                            }
-                            Text(
-                                if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) "Ask about spending, income, categories, or your budget." else "Chat about everyday questions. This mode does not use your ledger.",
-                                color = ApexThemeTokens.TextTertiary,
-                                fontSize = 12.sp
-                            )
-                            if (!isGenerativeLlmReady) {
-                                Text("Download the on-device language model in Settings to start either chat.", color = ApexThemeTokens.AccentSecondary, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                    items(aiChatEntries.filter { it.mode == aiChatMode }, key = { it.id }) { entry ->
-                        Column(
-                            modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusMd)
-                                .background(ApexThemeTokens.BgSurfaceElevated)
-                                .border(1.dp, ApexThemeTokens.StrokeSubtle, ApexThemeTokens.RadiusMd).padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("You", color = ApexThemeTokens.AccentCobalt, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text(entry.prompt, color = ApexThemeTokens.TextPrimary, fontSize = 14.sp)
-                            when {
-                                entry.isWorking -> Text("Thinking on-device… You can switch tabs; the task will keep running.", color = ApexThemeTokens.TextTertiary, fontSize = 12.sp)
-                                entry.answer != null -> {
-                                    HorizontalDivider(color = ApexThemeTokens.StrokeSubtle)
-                                    Text("Apex AI", color = ApexThemeTokens.AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text(entry.answer, color = ApexThemeTokens.TextPrimary, fontSize = 14.sp)
-                                }
-                                entry.error != null -> Text(entry.error, color = ApexThemeTokens.AccentDanger, fontSize = 12.sp)
-                            }
-                            entry.ledgerAction?.let { action ->
-                                val targetCategory = availableCategories.firstOrNull { it.id == action.categoryId }
-                                val matchingCount = uiState.allTransactions.count {
-                                    it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId
-                                }
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().clip(ApexThemeTokens.RadiusSm)
-                                        .background(ApexThemeTokens.AccentCobaltTint)
-                                        .border(1.dp, ApexThemeTokens.AccentCobaltBorder, ApexThemeTokens.RadiusSm)
-                                        .padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text("Suggested ledger change", color = ApexThemeTokens.AccentCobalt, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "${action.merchant} → ${targetCategory?.name ?: "Unknown category"} ($matchingCount transaction${if (matchingCount == 1) "" else "s"})",
-                                        color = ApexThemeTokens.TextPrimary,
-                                        fontSize = 13.sp
-                                    )
-                                    if (action.reason.isNotBlank()) {
-                                        Text(action.reason, color = ApexThemeTokens.TextSecondary, fontSize = 12.sp)
-                                    }
-                                    if (entry.actionStatus != null) {
-                                        Text(entry.actionStatus, color = ApexThemeTokens.AccentPrimary, fontSize = 12.sp)
-                                    } else if (targetCategory != null && matchingCount > 0) {
-                                        OutlinedButton(
-                                            onClick = { pendingAiActionId = entry.id },
-                                            shape = ApexThemeTokens.RadiusSm
-                                        ) { Text("Review change", fontSize = 12.sp) }
-                                    } else {
-                                        Text("This proposal no longer matches an available category or transaction.", color = ApexThemeTokens.AccentSecondary, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextField(
-                                value = aiChatDraft,
-                                onValueChange = { aiChatDraft = it },
-                                modifier = Modifier.weight(1f),
-                                placeholder = { Text(if (aiChatMode == AiChatMode.GENERAL) "Ask anything…" else "Ask about your ledger…") },
-                                maxLines = 4,
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = ApexThemeTokens.BgSurfaceElevated,
-                                    unfocusedContainerColor = ApexThemeTokens.BgSurfaceElevated
-                                )
-                            )
-                            Button(
-                                onClick = {
-                                    val question = aiChatDraft.trim()
-                                    if (question.isNotEmpty()) {
-                                        viewModel.askAi(context, question, aiChatMode)
-                                        aiChatDraft = ""
-                                    }
-                                },
-                                enabled = aiChatDraft.isNotBlank() && isGenerativeLlmReady
-                            ) { Text("Send") }
-                        }
-                    }
-                } else {
-                // Corbel App Bar: Brand mark, Title, Live Status Pill & Settings
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Brand Icon Mark (Dual Cash-Flow Arcs with + and -)
-                        ExpenseTrackerLogoMark(modifier = Modifier.size(38.dp))
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Column {
-                            Text(
-                                text = "Expense Tracker",
-                                color = ApexThemeTokens.TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.3).sp
-                            )
-                            Text(
-                                text = "On-device ledger • Live sync",
-                                color = ApexThemeTokens.TextMuted,
-                                fontSize = 11.sp
-                            )
-                            processingMessage?.let { current ->
-                                Text("Processing: $current", color = ApexThemeTokens.AccentCobalt, fontSize = 10.sp, maxLines = 1)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        // Corbel "live now" indicator pill (Signature Corbel solid mint badge with ink text)
-                        Box(
-                            modifier = Modifier
-                                .clip(ApexThemeTokens.RadiusFull)
-                                .background(ApexThemeTokens.BgLive)
-                                .padding(horizontal = 9.dp, vertical = 4.5.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier.size(14.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // Animated ping ring
-                                    Canvas(modifier = Modifier.size(14.dp)) {
-                                        drawCircle(
-                                            color = ApexThemeTokens.TextLive.copy(alpha = pingAlpha * 0.4f),
-                                            radius = (size.minDimension / 2) * pingScale
-                                        )
-                                        drawCircle(
-                                            color = ApexThemeTokens.TextLive,
-                                            radius = 3.dp.toPx()
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "live",
-                                    color = ApexThemeTokens.TextLive,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // GitHub Update Badge Pill (shows when a new version is available)
-                        if (updateState is UpdateCheckState.Available) {
-                            UpdateBadgePill(
-                                latestVersion = (updateState as UpdateCheckState.Available).updateInfo.latestVersion,
-                                onClick = {
-                                    selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-
-                        // Settings Button in glass circle
-                        IconButton(
-                            onClick = { showSettingsScreen = true },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(ApexThemeTokens.BgGlassPill)
-                                .border(1.dp, ApexThemeTokens.StrokeSubtle, CircleShape)
-                        ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = ApexThemeTokens.TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-
-                // GitHub Update Alert Banner
-                if (updateState is UpdateCheckState.Available && showUpdateBanner) {
-                    item {
-                        UpdateAlertBanner(
-                            updateInfo = (updateState as UpdateCheckState.Available).updateInfo,
-                            onUpdateClick = {
-                                selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
-                            },
-                            onDismissClick = {
-                                viewModel.dismissUpdateBanner()
-                            }
-                        )
-                    }
-                }
-
-                // Suspected Spam Suggestion Banner (Dismissible, User-Confirmed)
-                if (suspectedSpamItems.isNotEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(ApexThemeTokens.RadiusMd)
-                                .background(ApexThemeTokens.AccentDangerTint)
-                                .border(1.dp, ApexThemeTokens.AccentDangerBorder, ApexThemeTokens.RadiusMd)
-                                .clickable { showSpamReviewSheet = true }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = null,
-                                    tint = ApexThemeTokens.AccentDanger,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "${suspectedSpamItems.size} Suspected Spam Sender(s)",
-                                        color = ApexThemeTokens.AccentDanger,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Tap to review and confirm blocking or keeping them",
-                                        color = ApexThemeTokens.TextSecondary,
-                                        fontSize = 10.5.sp
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(ApexThemeTokens.RadiusFull)
-                                        .background(ApexThemeTokens.AccentDanger)
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "Review",
-                                        color = Color.Black,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 1. Corbel Interactive Financial Calendar (Range-aware, Overlap-free)
-                item {
-                    val dateRange = remember(uiState.startDateMillis, uiState.endDateMillis) {
-                        if (uiState.startDateMillis != null) {
-                            Pair(uiState.startDateMillis!!, uiState.endDateMillis ?: uiState.startDateMillis!!)
-                        } else null
-                    }
-                    CorbelCalendar(
+                when (selectedMainTab) {
+                    0 -> PastelLedgerView(
+                        totalCredit = uiState.totalCredit,
+                        totalDebit = uiState.totalDebit,
+                        creditCount = uiState.creditTransactionCount,
+                        debitCount = uiState.debitTransactionCount,
+                        transactions = uiState.transactions,
+                        categoryTotals = uiState.categoryTotals,
+                        onTransactionClick = { txn -> selectedTransactionForDetail = txn },
+                        onLogExpenseClick = { viewModel.triggerHistoricalScan(context) }
+                    )
+                    1 -> PastelCalendarMatrixView(
                         currentMonthMillis = calendarMonthMillis,
-                        selectedDateRange = dateRange,
                         allTransactions = uiState.allTransactions,
-                        onDateTapped = { timestamp -> viewModel.onDayTapped(timestamp) },
-                        onPresetSelected = { preset -> viewModel.selectPreset(preset) },
-                        onClearDateSelection = { viewModel.clearDateFilter() },
+                        onTransactionClick = { txn -> selectedTransactionForDetail = txn },
+                        onLogForDayClick = { viewModel.triggerHistoricalScan(context) },
+                        onExportClick = { /* Export */ },
                         onPreviousMonth = { viewModel.previousCalendarMonth() },
                         onNextMonth = { viewModel.nextCalendarMonth() }
                     )
-                }
-
-                // 2. Two Cards: Credited Amount & Debited Amount
-                item {
-                    if (uiState.isLoading) {
-                        ShimmerCardLoader(height = 130)
-                    } else {
-                        CorbelTwoSummaryCards(
-                            totalCredit = uiState.totalCredit,
-                            totalDebit = uiState.totalDebit,
-                            creditCount = uiState.creditTransactionCount,
-                            debitCount = uiState.debitTransactionCount,
-                            selectedDateDisplay = uiState.selectedDateDisplay,
-                            isOverallView = uiState.isOverallView
-                        )
-                    }
-                }
-
-                // 3. Category Breakdown (Horizontal progress cards)
-                item {
-                    CorbelCategoryBreakdown(
-                        categoryTotals = uiState.categoryTotals,
-                        isOverallView = uiState.isOverallView
+                    2 -> PastelAiAssistantView(
+                        isAiModelReady = isAiModelReady,
+                        aiModelSizeBytes = aiModelSizeBytes,
+                        onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
+                        onScanReceiptClick = { /* Scan Receipt */ },
+                        onExportLedgerClick = { /* Export */ }
                     )
-                }
-
-                // 4. Corbel Transaction Table (Detailed ledger)
-                item {
-                    CorbelTransactionTable(
-                        transactions = uiState.transactions,
-                        categoryTotals = uiState.categoryTotals,
-                        onTransactionClick = { txn ->
-                            selectedTransactionForDetail = txn
-                        }
+                    3 -> PastelEnclaveSettingsView(
+                        settings = settings,
+                        suspectedSpamCount = suspectedSpamItems.size,
+                        blockedSendersCount = spamSenders.size,
+                        trustedSendersCount = trustedSenders.size,
+                        onCleanSpam = { viewModel.cleanSpamAndRecalculate() },
+                        onCleanOtp = { viewModel.cleanOtpAndRecalculate() },
+                        onOpenReviewSpam = { showSpamReviewSheet = true },
+                        onOpenManageSenders = { showManageSendersSheet = true },
+                        onToggleSms = { viewModel.toggleSms(it) },
+                        onToggleEmail = { viewModel.toggleEmail(it) },
+                        onToggleAutoCheckUpdates = { viewModel.toggleAutoCheckUpdates(it) },
+                        onExportVaultClick = { /* Export Vault */ },
+                        onPurgeBufferClick = { viewModel.cleanSpamAndRecalculate() }
                     )
-                }
                 }
             }
         }

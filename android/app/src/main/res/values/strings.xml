@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Expense Tracker</string>
-    <string name="notification_listener_service_label">Expense Tracker Alert Listener</string>
+    <string name="app_name">SpendWell</string>
+    <string name="notification_listener_service_label">SpendWell Alert Listener</string>
     <string name="widget_small_label">Quick Balance</string>
     <string name="widget_medium_label">Monthly Velocity</string>
     <string name="widget_large_label">Ledger Summary</string>
