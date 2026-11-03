@@ -395,27 +395,6 @@ fun PastelLedgerView(
                 }
             }
         }
-                            tint = if (isSearchActive) PastelKineticTokens.AmberText else PastelKineticTokens.TextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.AmberFixed),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = PastelKineticTokens.AmberText,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-        }
 
         // Search Bar (Expandable)
         item {
