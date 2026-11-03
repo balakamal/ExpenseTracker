@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -98,6 +101,8 @@ fun PastelLedgerView(
     onTransactionClick: (Transaction) -> Unit = {},
     onLogExpenseClick: () -> Unit = {},
     onScanSmsClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+    onSelectionModeChange: (Boolean) -> Unit = {},
     onMergeAsDuplicate: (primaryId: String, duplicateIds: List<String>) -> Unit = { _, _ -> },
     onBatchMarkAsSpamOrReminder: (ids: List<String>, isReminder: Boolean) -> Unit = { _, _ -> },
     onBatchDeleteTransactions: (ids: List<String>) -> Unit = {},
@@ -135,6 +140,7 @@ fun PastelLedgerView(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    var showCategoryQuota by remember { mutableStateOf(false) }
 
     val daysOfWeek = remember {
         val cal = Calendar.getInstance()
@@ -294,6 +300,7 @@ fun PastelLedgerView(
                                 .clickable {
                                     isSelectionMode = false
                                     selectedTxnIds = emptySet()
+                                    onSelectionModeChange(false)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -355,7 +362,10 @@ fun PastelLedgerView(
                                 .size(40.dp)
                                 .clip(CircleShape)
                                 .background(PastelKineticTokens.SurfaceContainer)
-                                .clickable { isSelectionMode = true },
+                                .clickable {
+                                    isSelectionMode = true
+                                    onSelectionModeChange(true)
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -392,6 +402,21 @@ fun PastelLedgerView(
                                 imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
                                 contentDescription = "Search",
                                 tint = if (isSearchActive) PastelKineticTokens.AmberDeep else PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.AmberFixed)
+                                .clickable { onProfileClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Profile",
+                                tint = PastelKineticTokens.AmberText,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -544,88 +569,155 @@ fun PastelLedgerView(
             }
         }
 
-        // 3. Hero Banner: Net Available Cashflow Card (Lilac)
+        // 3. Unified Cashflow & Balance Bento Card
         item {
+            val budgetCap = if (monthlyBudget > 0) monthlyBudget else 25000.0
+            val allocatedRatio = ((totalDebit / budgetCap) * 100).toInt().coerceIn(0, 100)
+            val progressFraction = (totalDebit / budgetCap).toFloat().coerceIn(0f, 1f)
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(
-                        elevation = 8.dp,
+                        elevation = 6.dp,
                         shape = PastelKineticTokens.RadiusCard,
                         spotColor = Color(0x18121316)
                     )
                     .clip(PastelKineticTokens.RadiusCard)
-                    .background(PastelKineticTokens.LilacHero)
-                    .padding(20.dp)
+                    .background(PastelKineticTokens.SurfaceCard)
+                    .padding(16.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Top row: Net Cashflow on left, Inflow/Outflow interactive chips on right
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.85f))
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "NET CASHFLOW",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(if (velocityPositive) PastelKineticTokens.AmberFixed else PastelKineticTokens.ErrorContainer)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (velocityPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                                            contentDescription = null,
+                                            tint = if (velocityPositive) PastelKineticTokens.AmberDeep else PastelKineticTokens.Error,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Text(
+                                            text = velocityLabel,
+                                            color = if (velocityPositive) PastelKineticTokens.AmberDeep else PastelKineticTokens.Error,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                             Text(
-                                text = "Monthly Balance",
+                                text = formattedNet,
                                 color = PastelKineticTokens.TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp
                             )
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.AnchorPrimary)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        // Compact Inflow & Outflow Pod Filter Pills
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Inflow Chip
+                            val isInflowActive = balancePodFilter == 1
+                            Box(
+                                modifier = Modifier
+                                    .clip(PastelKineticTokens.RadiusMd)
+                                    .background(if (isInflowActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceLow)
+                                    .clickable { balancePodFilter = if (balancePodFilter == 1) 0 else 1 }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (velocityPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
-                                    contentDescription = "Velocity",
-                                    tint = if (velocityPositive) PastelKineticTokens.AmberAccent else PastelKineticTokens.Error,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Text(
-                                    text = velocityLabel,
-                                    color = PastelKineticTokens.OnAnchor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDownward,
+                                            contentDescription = "Inflow",
+                                            tint = PastelKineticTokens.AmberDeep,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = "Inflow",
+                                            color = PastelKineticTokens.AmberText,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = formattedInflow,
+                                        color = PastelKineticTokens.AmberText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                            }
+
+                            // Outflow Chip
+                            val isOutflowActive = balancePodFilter == 2
+                            Box(
+                                modifier = Modifier
+                                    .clip(PastelKineticTokens.RadiusMd)
+                                    .background(if (isOutflowActive) PastelKineticTokens.SkyFixed else PastelKineticTokens.SurfaceLow)
+                                    .clickable { balancePodFilter = if (balancePodFilter == 2) 0 else 2 }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowUpward,
+                                            contentDescription = "Outflow",
+                                            tint = PastelKineticTokens.SkyText,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = "Outflow",
+                                            color = PastelKineticTokens.SkyText,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = formattedOutflow,
+                                        color = PastelKineticTokens.SkyText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Column {
-                        Text(
-                            text = "Net Available Cashflow",
-                            color = PastelKineticTokens.TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = formattedNet,
-                            color = PastelKineticTokens.TextPrimary,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.8).sp
-                        )
-                    }
-
-                    // Safe Pacing Progress Bar
-                    val budgetCap = if (monthlyBudget > 0) monthlyBudget else 25000.0
-                    val allocatedRatio = ((totalDebit / budgetCap) * 100).toInt().coerceIn(0, 100)
-                    val progressFraction = (totalDebit / budgetCap).toFloat().coerceIn(0f, 1f)
-
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Pacing Progress Bar
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -633,13 +725,13 @@ fun PastelLedgerView(
                             Text(
                                 text = "Monthly pacing",
                                 color = PastelKineticTokens.TextPrimary,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "$allocatedRatio% allocated ($currencySymbol${numberFormat.format(totalDebit)} / $currencySymbol${numberFormat.format(budgetCap)})",
+                                text = "$allocatedRatio% ($currencySymbol${numberFormat.format(totalDebit)} / $currencySymbol${numberFormat.format(budgetCap)})",
                                 color = PastelKineticTokens.TextSecondary,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -647,15 +739,15 @@ fun PastelLedgerView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(8.dp)
+                                .height(6.dp)
                                 .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.7f))
-                                .padding(1.dp)
+                                .background(PastelKineticTokens.SurfaceContainer)
+                                .padding(0.5.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(fraction = progressFraction.coerceIn(0.04f, 1f))
-                                    .height(6.dp)
+                                    .height(5.dp)
                                     .clip(PastelKineticTokens.RadiusFull)
                                     .background(PastelKineticTokens.AnchorPrimary)
                             )
@@ -665,372 +757,157 @@ fun PastelLedgerView(
             }
         }
 
-        // 4. Bento Section: "Your Balance Pods" (Inflow & Outflow side-by-side)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+        // Collapsible Budget Goal Tracker Card (Dynamic Top Category)
+        if (showCategoryQuota) {
+            item {
+                val topCategoryItem = categoryTotals.firstOrNull()
+                val topCategoryName = topCategoryItem?.category?.name ?: "General Budget"
+                val topCategorySpent = topCategoryItem?.totalSpent ?: totalDebit
+                val budgetCap = topCategoryItem?.category?.monthlyBudgetLimit
+                    ?: (if (topCategoryItem != null) (topCategoryItem.totalSpent * 1.3).coerceAtLeast(1000.0) else monthlyBudget)
+                val capRatio = if (budgetCap > 0) (topCategorySpent / budgetCap).toFloat().coerceIn(0f, 1f) else 0f
+                val isOverBudget = topCategorySpent > budgetCap
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x10121316))
+                        .clip(PastelKineticTokens.RadiusCard)
+                        .background(PastelKineticTokens.SurfaceCard)
+                        .padding(14.dp)
                 ) {
-                    Text(
-                        text = "Your balance pods",
-                        color = PastelKineticTokens.TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .clip(PastelKineticTokens.RadiusFull)
-                            .background(if (balancePodFilter != 0) PastelKineticTokens.AmberFixed else Color.Transparent)
-                            .clickable {
-                                balancePodFilter = (balancePodFilter + 1) % 3
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = when (balancePodFilter) {
-                                1 -> "Inflow Only"
-                                2 -> "Outflow Only"
-                                else -> "Filter Pods"
-                            },
-                            color = if (balancePodFilter != 0) PastelKineticTokens.AmberText else PastelKineticTokens.TextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Filter",
-                            tint = if (balancePodFilter != 0) PastelKineticTokens.AmberText else PastelKineticTokens.TextSecondary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Left Pod: Honey Peach (Income Inflow)
-                    val isPodActive = balancePodFilter == 0 || balancePodFilter == 1
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x18825500))
-                            .clip(PastelKineticTokens.RadiusCard)
-                            .background(if (isPodActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceLow)
-                            .clickable { balancePodFilter = if (balancePodFilter == 1) 0 else 1 }
-                            .padding(16.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.height(145.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(PastelKineticTokens.RadiusFull)
-                                        .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.85f))
-                                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = "Inflow",
-                                        color = PastelKineticTokens.AmberText,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(PastelKineticTokens.SurfaceCard),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDownward,
-                                        contentDescription = "Inflow",
-                                        tint = PastelKineticTokens.AmberDeep,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Column {
-                                Text(
-                                    text = if (creditCount > 0) "Income & Deposits" else "No deposits yet",
-                                    color = PastelKineticTokens.AmberTextVariant,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = formattedInflow,
-                                    color = PastelKineticTokens.AmberText,
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(PastelKineticTokens.AmberDeep)
-                                    )
-                                    Text(
-                                        text = "$creditCount deposits",
-                                        color = PastelKineticTokens.AmberTextVariant,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Text(
-                                    text = if (totalCredit > 0) "Active" else "Empty",
-                                    color = PastelKineticTokens.AmberText,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    // Right Pod: Soft Sky Glaze (Spent Outflow)
-                    val isOutflowPodActive = balancePodFilter == 0 || balancePodFilter == 2
-                    val budgetCapVal = if (monthlyBudget > 0) monthlyBudget else 25000.0
-                    val outflowLimitPct = ((totalDebit / budgetCapVal) * 100).toInt()
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .shadow(4.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x18001D33))
-                            .clip(PastelKineticTokens.RadiusCard)
-                            .background(if (isOutflowPodActive) PastelKineticTokens.SkyFixed else PastelKineticTokens.SurfaceLow)
-                            .clickable { balancePodFilter = if (balancePodFilter == 2) 0 else 2 }
-                            .padding(16.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.height(145.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(PastelKineticTokens.RadiusFull)
-                                        .background(PastelKineticTokens.SurfaceCard.copy(alpha = 0.85f))
-                                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = "Outflow",
-                                        color = PastelKineticTokens.SkyText,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(PastelKineticTokens.SurfaceCard),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowUpward,
-                                        contentDescription = "Outflow",
-                                        tint = PastelKineticTokens.SkyText,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Column {
-                                Text(
-                                    text = if (debitCount > 0) "Debits & Bills" else "No expenses yet",
-                                    color = PastelKineticTokens.SkyTextVariant,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = formattedOutflow,
-                                    color = PastelKineticTokens.SkyText,
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(PastelKineticTokens.SkyText)
-                                    )
-                                    Text(
-                                        text = "$debitCount cleared",
-                                        color = PastelKineticTokens.SkyTextVariant,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Text(
-                                    text = "$outflowLimitPct% limit",
-                                    color = PastelKineticTokens.SkyText,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 5. Interactive Budget Goal Tracker Card (Dynamic Top Category)
-        item {
-            val topCategoryItem = categoryTotals.firstOrNull()
-            val topCategoryName = topCategoryItem?.category?.name ?: "General Budget"
-            val topCategorySpent = topCategoryItem?.totalSpent ?: totalDebit
-            val budgetCap = topCategoryItem?.category?.monthlyBudgetLimit
-                ?: (if (topCategoryItem != null) (topCategoryItem.totalSpent * 1.3).coerceAtLeast(1000.0) else monthlyBudget)
-            val capRatio = if (budgetCap > 0) (topCategorySpent / budgetCap).toFloat().coerceIn(0f, 1f) else 0f
-            val isOverBudget = topCategorySpent > budgetCap
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(6.dp, PastelKineticTokens.RadiusCard, spotColor = Color(0x10121316))
-                    .clip(PastelKineticTokens.RadiusCard)
-                    .background(PastelKineticTokens.SurfaceCard)
-                    .padding(18.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(PastelKineticTokens.AmberFixed),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = topCategoryItem?.let { getCategoryIconVector(it.category.id) } ?: Icons.Default.LocalCafe,
-                                    contentDescription = topCategoryName,
-                                    tint = PastelKineticTokens.AmberText,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = topCategoryName,
-                                    color = PastelKineticTokens.TextPrimary,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Monthly category quota",
-                                    color = PastelKineticTokens.TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(if (isOverBudget) PastelKineticTokens.ErrorContainer else PastelKineticTokens.SurfaceLow)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (isOverBudget) "Over Quota" else "On Track",
-                                color = if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.TextPrimary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    // Limit Bar & Readout
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "$currencySymbol${numberFormat.format(topCategorySpent)}",
-                                color = PastelKineticTokens.TextPrimary,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                text = "Cap: $currencySymbol${numberFormat.format(budgetCap)}",
-                                color = PastelKineticTokens.TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(PastelKineticTokens.AmberFixed),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = topCategoryItem?.let { getCategoryIconVector(it.category.id) } ?: Icons.Default.LocalCafe,
+                                        contentDescription = topCategoryName,
+                                        tint = PastelKineticTokens.AmberText,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = topCategoryName,
+                                        color = PastelKineticTokens.TextPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Monthly category quota",
+                                        color = PastelKineticTokens.TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(10.dp)
-                                .clip(PastelKineticTokens.RadiusFull)
-                                .background(PastelKineticTokens.SurfaceContainer)
-                                .padding(1.dp)
-                        ) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth(fraction = capRatio.coerceIn(0.02f, 1f))
+                                    .clip(PastelKineticTokens.RadiusFull)
+                                    .background(if (isOverBudget) PastelKineticTokens.ErrorContainer else PastelKineticTokens.SurfaceLow)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = if (isOverBudget) "Over Quota" else "On Track",
+                                    color = if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.TextPrimary,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Limit Bar & Readout
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Text(
+                                    text = "$currencySymbol${numberFormat.format(topCategorySpent)}",
+                                    color = PastelKineticTokens.TextPrimary,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    text = "Cap: $currencySymbol${numberFormat.format(budgetCap)}",
+                                    color = PastelKineticTokens.TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(PastelKineticTokens.RadiusFull)
-                                    .background(if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.AmberAccent)
-                            )
+                                    .background(PastelKineticTokens.SurfaceContainer)
+                                    .padding(0.5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = capRatio.coerceIn(0.02f, 1f))
+                                        .height(7.dp)
+                                        .clip(PastelKineticTokens.RadiusFull)
+                                        .background(if (isOverBudget) PastelKineticTokens.Error else PastelKineticTokens.AmberAccent)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 6. Category Filter Chips (Horizontal Scroll)
+        // 4. Category Filter Chips (Horizontal Scroll)
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Quota breakdown toggle button
+                val topCatItem = categoryTotals.firstOrNull()
+                if (topCatItem != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(if (showCategoryQuota) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceCard)
+                            .border(1.dp, if (showCategoryQuota) PastelKineticTokens.AmberDeep else PastelKineticTokens.SurfaceContainer, PastelKineticTokens.RadiusFull)
+                            .clickable { showCategoryQuota = !showCategoryQuota }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(
+                                imageVector = if (showCategoryQuota) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = "Toggle Quota",
+                                tint = if (showCategoryQuota) PastelKineticTokens.AmberDeep else PastelKineticTokens.TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Quota",
+                                color = if (showCategoryQuota) PastelKineticTokens.AmberDeep else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
                 filterCategories.take(8).forEach { category ->
                     val isSelected = selectedCategoryFilter == category
                     Box(
@@ -1301,6 +1178,7 @@ fun PastelLedgerView(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
                 .shadow(12.dp, PastelKineticTokens.RadiusFull)
                 .clip(PastelKineticTokens.RadiusFull)
@@ -1346,6 +1224,7 @@ fun PastelLedgerView(
                             onBatchMarkAsSpamOrReminder(selectedTxnIds.toList(), false)
                             isSelectionMode = false
                             selectedTxnIds = emptySet()
+                            onSelectionModeChange(false)
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1462,6 +1341,7 @@ fun PastelLedgerView(
                         showMergeDialog = false
                         isSelectionMode = false
                         selectedTxnIds = emptySet()
+                        onSelectionModeChange(false)
                     }
                 ) {
                     Text("Confirm Merge", fontWeight = FontWeight.Bold, color = PastelKineticTokens.AmberDeep)
@@ -1488,6 +1368,7 @@ fun PastelLedgerView(
                         showDeleteConfirmDialog = false
                         isSelectionMode = false
                         selectedTxnIds = emptySet()
+                        onSelectionModeChange(false)
                     }
                 ) {
                     Text("Delete", color = PastelKineticTokens.Error, fontWeight = FontWeight.Bold)

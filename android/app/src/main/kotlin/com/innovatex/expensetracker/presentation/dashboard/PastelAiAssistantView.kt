@@ -17,6 +17,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,12 +26,16 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +70,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -89,6 +95,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PastelAiAssistantView(
     aiChatEntries: List<AiChatEntry> = emptyList(),
@@ -160,15 +167,30 @@ fun PastelAiAssistantView(
         if (aiModelSizeBytes > 0) "${(aiModelSizeBytes / (1024 * 1024))} MB" else "~475 MB"
     }
 
-    val bottomClearance = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + PastelKineticTokens.FloatingDockClearance
+    val listState = rememberLazyListState()
+    val isImeVisible = WindowInsets.isImeVisible
 
-    LazyColumn(
+    // Auto-scroll to latest message when new message arrives
+    LaunchedEffect(aiChatEntries.size) {
+        if (aiChatEntries.isNotEmpty()) {
+            listState.animateScrollToItem(aiChatEntries.size)
+        }
+    }
+
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(PastelKineticTokens.CanvasBg),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = bottomClearance),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .background(PastelKineticTokens.CanvasBg)
+            .imePadding()
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            state = listState,
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // 1. SpendWell AI Header with New Chat & Sessions Actions
         item {
             Row(
@@ -927,83 +949,84 @@ fun PastelAiAssistantView(
                 }
             }
         }
+    }
 
-        // 7. Sticky Modern Chat Input Bar
-        item {
+    // 7. Dedicated Pinned Bottom Chat Input Bar
+    val bottomNavClearance = if (!isImeVisible) PastelKineticTokens.FloatingDockClearance else 0.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = bottomNavClearance)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .shadow(12.dp, PastelKineticTokens.RadiusFull, spotColor = Color(0x18121316))
+            .clip(PastelKineticTokens.RadiusFull)
+            .background(PastelKineticTokens.SurfaceCard)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .shadow(12.dp, PastelKineticTokens.RadiusFull, spotColor = Color(0x18121316))
-                    .clip(PastelKineticTokens.RadiusFull)
-                    .background(PastelKineticTokens.SurfaceCard)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(PastelKineticTokens.SurfaceLow)
+                    .clickable { onScanReceiptClick() },
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.SurfaceLow)
-                            .clickable { onScanReceiptClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Default.DocumentScanner, contentDescription = "Receipt OCR", tint = PastelKineticTokens.TextSecondary, modifier = Modifier.size(18.dp))
-                    }
+                Icon(imageVector = Icons.Default.DocumentScanner, contentDescription = "Receipt OCR", tint = PastelKineticTokens.TextSecondary, modifier = Modifier.size(18.dp))
+            }
 
-                    BasicTextField(
-                        value = chatInputText,
-                        onValueChange = { chatInputText = it },
-                        modifier = Modifier.weight(1f),
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = PastelKineticTokens.TextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        cursorBrush = SolidColor(PastelKineticTokens.AnchorPrimary),
-                        decorationBox = { innerTextField ->
-                            if (chatInputText.isEmpty()) {
-                                Text(
-                                    text = if (currentMode == AiChatMode.FINANCIAL_LEDGER) "Ask AI to analyze or edit your ledger..." else "Ask AI anything...",
-                                    color = PastelKineticTokens.TextOutline,
-                                    fontSize = 13.sp
-                                )
-                            }
-                            innerTextField()
-                        }
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.SurfaceLow)
-                            .clickable { onVoiceInputClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice Input", tint = PastelKineticTokens.TextSecondary, modifier = Modifier.size(18.dp))
+            BasicTextField(
+                value = chatInputText,
+                onValueChange = { chatInputText = it },
+                modifier = Modifier.weight(1f),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = PastelKineticTokens.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                cursorBrush = SolidColor(PastelKineticTokens.AnchorPrimary),
+                decorationBox = { innerTextField ->
+                    if (chatInputText.isEmpty()) {
+                        Text(
+                            text = if (currentMode == AiChatMode.FINANCIAL_LEDGER) "Ask AI to analyze or edit your ledger..." else "Ask AI anything...",
+                            color = PastelKineticTokens.TextOutline,
+                            fontSize = 13.sp
+                        )
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.AnchorPrimary)
-                            .clickable {
-                                if (chatInputText.isNotBlank()) {
-                                    onSendMessage(chatInputText)
-                                    chatInputText = ""
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Default.ArrowUpward, contentDescription = "Send", tint = PastelKineticTokens.OnAnchor, modifier = Modifier.size(18.dp))
-                    }
+                    innerTextField()
                 }
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(PastelKineticTokens.SurfaceLow)
+                    .clickable { onVoiceInputClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.Default.Mic, contentDescription = "Voice Input", tint = PastelKineticTokens.TextSecondary, modifier = Modifier.size(18.dp))
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(PastelKineticTokens.AnchorPrimary)
+                    .clickable {
+                        if (chatInputText.isNotBlank()) {
+                            onSendMessage(chatInputText)
+                            chatInputText = ""
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.Default.ArrowUpward, contentDescription = "Send", tint = PastelKineticTokens.OnAnchor, modifier = Modifier.size(18.dp))
             }
         }
     }

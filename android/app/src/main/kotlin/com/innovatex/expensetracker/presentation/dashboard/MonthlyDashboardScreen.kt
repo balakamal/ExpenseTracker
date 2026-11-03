@@ -3,6 +3,10 @@ package com.innovatex.expensetracker.presentation.dashboard
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -11,8 +15,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,12 +22,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -113,7 +118,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MonthlyDashboardScreen(
     viewModel: DashboardViewModel,
@@ -159,6 +164,8 @@ fun MonthlyDashboardScreen(
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
     var selectedMainTab by rememberSaveable { mutableIntStateOf(if (initialSelectedTab == 1) 3 else initialSelectedTab.coerceIn(0, 3)) }
+    val isImeVisible = WindowInsets.isImeVisible
+    var isLedgerSelectionActive by remember { mutableStateOf(false) }
     var aiChatDraft by remember { mutableStateOf("") }
     var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
@@ -242,6 +249,8 @@ fun MonthlyDashboardScreen(
                             onTransactionClick = { txn -> selectedTransactionForDetail = txn },
                             onLogExpenseClick = { showLogExpenseSheet = true },
                             onScanSmsClick = { viewModel.triggerHistoricalScan(context) },
+                            onProfileClick = { selectedMainTab = 3 },
+                            onSelectionModeChange = { isLedgerSelectionActive = it },
                             onMergeAsDuplicate = { primaryId, duplicateIds ->
                                 viewModel.mergeTransactions(primaryId, duplicateIds)
                             },
@@ -268,6 +277,7 @@ fun MonthlyDashboardScreen(
                             onTransactionClick = { txn -> selectedTransactionForDetail = txn },
                             onLogForDayClick = { showLogExpenseSheet = true },
                             onExportClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Month_${uiState.monthKey}") },
+                            onProfileClick = { selectedMainTab = 3 },
                             onPreviousMonth = { viewModel.previousCalendarMonth() },
                             onNextMonth = { viewModel.nextCalendarMonth() }
                         )
@@ -340,31 +350,41 @@ fun MonthlyDashboardScreen(
                 }
             }
 
-        // Layer 2: Subtle diffusion scrim behind floating dock for seamless text readability
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(130.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            PastelKineticTokens.CanvasBg.copy(alpha = 0.5f),
-                            PastelKineticTokens.CanvasBg.copy(alpha = 0.9f)
+        // Layer 2 & 3: Floating frosted glass navigation dock & subtle diffusion scrim
+        AnimatedVisibility(
+            visible = !isLedgerSelectionActive && !isImeVisible,
+            enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { it },
+            exit = fadeOut(tween(150)) + slideOutVertically(tween(200)) { it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                // Subtle diffusion scrim behind floating dock for seamless text readability
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    PastelKineticTokens.CanvasBg.copy(alpha = 0.5f),
+                                    PastelKineticTokens.CanvasBg.copy(alpha = 0.9f)
+                                )
+                            )
                         )
-                    )
                 )
-        )
 
-        // Layer 3: Floating frosted glass navigation dock
-        PastelFloatingNavDock(
-            selectedTab = selectedMainTab,
-            onTabSelected = { selectedMainTab = it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-        )
+                // Floating frosted glass navigation dock
+                PastelFloatingNavDock(
+                    selectedTab = selectedMainTab,
+                    onTabSelected = { selectedMainTab = it },
+                    modifier = Modifier.navigationBarsPadding()
+                )
+            }
+        }
     }
 
     

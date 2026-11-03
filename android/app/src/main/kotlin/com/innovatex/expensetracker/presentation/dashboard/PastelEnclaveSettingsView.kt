@@ -213,7 +213,7 @@ fun PastelEnclaveSettingsView(
                             letterSpacing = 1.2.sp
                         )
                         Text(
-                            text = "Enclave Settings",
+                            text = "Profile & Settings",
                             color = PastelKineticTokens.TextPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -240,7 +240,8 @@ fun PastelEnclaveSettingsView(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PastelKineticTokens.AmberFixed),
+                            .background(PastelKineticTokens.AmberFixed)
+                            .clickable { /* Active profile tab */ },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

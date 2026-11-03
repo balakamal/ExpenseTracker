@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,7 +50,7 @@ val SpendWellNavItems = listOf(
     PastelNavItemData("Ledger", Icons.Default.AccountBalanceWallet, 0),
     PastelNavItemData("Calendar", Icons.Default.CalendarMonth, 1),
     PastelNavItemData("AI", Icons.Default.AutoAwesome, 2),
-    PastelNavItemData("Enclave", Icons.Default.Tune, 3)
+    PastelNavItemData("Profile", Icons.Default.Person, 3)
 )
 
 /**

@@ -95,6 +95,7 @@ fun PastelCalendarMatrixView(
     onTransactionClick: (Transaction) -> Unit = {},
     onLogForDayClick: () -> Unit = {},
     onExportClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     onPreviousMonth: () -> Unit = {},
     onNextMonth: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -367,7 +368,8 @@ fun PastelCalendarMatrixView(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(PastelKineticTokens.AmberFixed),
+                            .background(PastelKineticTokens.AmberFixed)
+                            .clickable { onProfileClick() },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
