@@ -34,7 +34,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +57,7 @@ import java.util.Locale
 fun AiChatSessionsBottomSheet(
     sessions: List<AiChatSessionRecord>,
     activeSessionId: String,
+    currentMode: String = "all",
     onSelectSession: (String) -> Unit,
     onNewChat: () -> Unit,
     onDeleteSession: (String) -> Unit,
@@ -61,6 +65,12 @@ fun AiChatSessionsBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val timeFormatter = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
+    var selectedFilter by remember(currentMode) { mutableStateOf(currentMode) }
+
+    val filteredSessions = remember(sessions, selectedFilter) {
+        if (selectedFilter == "all") sessions
+        else sessions.filter { it.mode == selectedFilter }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -144,8 +154,51 @@ fun AiChatSessionsBottomSheet(
                 }
             }
 
+            // Mode Segregation Tabs (Filter)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(PastelKineticTokens.RadiusFull)
+                    .background(PastelKineticTokens.SurfaceContainer)
+                    .padding(3.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    val ledgerCount = sessions.count { it.mode == "financial_ledger" }
+                    val generalCount = sessions.count { it.mode == "general" }
+
+                    listOf(
+                        Triple("financial_ledger", "App Ledger ($ledgerCount)", PastelKineticTokens.AmberDeep),
+                        Triple("general", "General AI ($generalCount)", PastelKineticTokens.SkyText),
+                        Triple("all", "All (${sessions.size})", PastelKineticTokens.TextPrimary)
+                    ).forEach { (filterKey, label, accentColor) ->
+                        val isSelected = selectedFilter == filterKey
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(if (isSelected) PastelKineticTokens.SurfaceCard else Color.Transparent)
+                                .clickable { selectedFilter = filterKey }
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) accentColor else PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
             // Session List
-            if (sessions.isEmpty()) {
+            if (filteredSessions.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -153,7 +206,9 @@ fun AiChatSessionsBottomSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No previous sessions found. Start a new conversation!",
+                        text = if (selectedFilter == "financial_ledger") "No App Ledger conversations yet."
+                        else if (selectedFilter == "general") "No General AI conversations yet."
+                        else "No conversations found. Start a new conversation!",
                         color = PastelKineticTokens.TextSecondary,
                         fontSize = 13.sp
                     )
@@ -166,7 +221,7 @@ fun AiChatSessionsBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
-                    items(sessions, key = { it.id }) { session ->
+                    items(filteredSessions, key = { it.id }) { session ->
                         val isActive = session.id == activeSessionId
                         val dateStr = if (session.updatedAt > 0) {
                             timeFormatter.format(Date(session.updatedAt))
@@ -283,4 +338,3 @@ fun AiChatSessionsBottomSheet(
         }
     }
 }
-

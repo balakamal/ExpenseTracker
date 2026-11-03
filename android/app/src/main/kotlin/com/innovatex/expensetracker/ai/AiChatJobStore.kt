@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.innovatex.expensetracker.data.local.dataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
@@ -42,19 +43,22 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
     private val jobsKey = stringPreferencesKey("ai_chat_jobs_v1")
     private val sessionsKey = stringPreferencesKey("ai_chat_sessions_v1")
     private val activeSessionKey = stringPreferencesKey("ai_active_session_v1")
+    private val activeLedgerSessionKey = stringPreferencesKey("ai_active_ledger_session_v1")
+    private val activeGeneralSessionKey = stringPreferencesKey("ai_active_general_session_v1")
 
     val sessions: Flow<List<AiChatSessionRecord>> = store.data.map { preferences ->
         val decoded = decodeSessions(preferences[sessionsKey].orEmpty())
-        if (decoded.isEmpty()) {
-            listOf(defaultSession())
-        } else {
-            decoded.sortedByDescending { it.updatedAt }
-        }
+        val hasLedger = decoded.any { it.mode == AiChatWorker.MODE_LEDGER }
+        val hasGeneral = decoded.any { it.mode == AiChatWorker.MODE_GENERAL }
+        val base = decoded.toMutableList()
+        if (!hasLedger) base.add(defaultSessions()[0])
+        if (!hasGeneral) base.add(defaultSessions()[1])
+        base.sortedByDescending { it.updatedAt }
     }
 
     val activeSessionId: Flow<String> = store.data.map { preferences ->
         val active = preferences[activeSessionKey]
-        if (!active.isNullOrBlank()) active else DEFAULT_SESSION_ID
+        if (!active.isNullOrBlank()) active else DEFAULT_LEDGER_SESSION_ID
     }
 
     val jobs: Flow<List<AiChatJobRecord>> = store.data.map { preferences ->
@@ -77,14 +81,39 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
             val updated = existing + session
             preferences[sessionsKey] = encodeSessions(updated)
             preferences[activeSessionKey] = newId
+            if (mode == AiChatWorker.MODE_GENERAL) {
+                preferences[activeGeneralSessionKey] = newId
+            } else {
+                preferences[activeLedgerSessionKey] = newId
+            }
         }
         return newId
     }
 
-    suspend fun setActiveSession(sessionId: String) {
+    suspend fun setActiveSession(sessionId: String, mode: String? = null) {
         store.edit { preferences ->
             preferences[activeSessionKey] = sessionId
+            if (mode == AiChatWorker.MODE_GENERAL) {
+                preferences[activeGeneralSessionKey] = sessionId
+            } else if (mode == AiChatWorker.MODE_LEDGER) {
+                preferences[activeLedgerSessionKey] = sessionId
+            }
         }
+    }
+
+    suspend fun getActiveSessionForMode(mode: String): String {
+        val prefs = store.data.first()
+        val key = if (mode == AiChatWorker.MODE_GENERAL) activeGeneralSessionKey else activeLedgerSessionKey
+        val saved = prefs[key]
+        if (!saved.isNullOrBlank()) {
+            val sessionsList = decodeSessions(prefs[sessionsKey].orEmpty())
+            if (sessionsList.any { it.id == saved && it.mode == mode } ||
+                (mode == AiChatWorker.MODE_LEDGER && saved == DEFAULT_LEDGER_SESSION_ID) ||
+                (mode == AiChatWorker.MODE_GENERAL && saved == DEFAULT_GENERAL_SESSION_ID)) {
+                return saved
+            }
+        }
+        return if (mode == AiChatWorker.MODE_GENERAL) DEFAULT_GENERAL_SESSION_ID else DEFAULT_LEDGER_SESSION_ID
     }
 
     suspend fun upsert(job: AiChatJobRecord) {
@@ -99,7 +128,7 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
             val now = System.currentTimeMillis()
             if (targetIndex >= 0) {
                 val current = sessionsList[targetIndex]
-                val newTitle = if (current.title == "Default Conversation" || current.title.startsWith("New ") || current.title == "Financial Ledger Chat" || current.title == "General Inquiry") {
+                val newTitle = if (current.title == "Default Conversation" || current.title.startsWith("New ") || current.title == "Financial Ledger Chat" || current.title == "General Inquiry" || current.title == "General Financial Advice") {
                     job.prompt.take(38).trim().ifBlank { current.title }
                 } else current.title
                 sessionsList[targetIndex] = current.copy(
@@ -134,8 +163,16 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
 
             val currentActive = preferences[activeSessionKey]
             if (currentActive == sessionId) {
-                val nextActive = sessionsList.maxByOrNull { it.updatedAt }?.id ?: DEFAULT_SESSION_ID
+                val nextActive = sessionsList.maxByOrNull { it.updatedAt }?.id ?: DEFAULT_LEDGER_SESSION_ID
                 preferences[activeSessionKey] = nextActive
+            }
+            if (preferences[activeLedgerSessionKey] == sessionId) {
+                val nextLedger = sessionsList.filter { it.mode == AiChatWorker.MODE_LEDGER }.maxByOrNull { it.updatedAt }?.id ?: DEFAULT_LEDGER_SESSION_ID
+                preferences[activeLedgerSessionKey] = nextLedger
+            }
+            if (preferences[activeGeneralSessionKey] == sessionId) {
+                val nextGeneral = sessionsList.filter { it.mode == AiChatWorker.MODE_GENERAL }.maxByOrNull { it.updatedAt }?.id ?: DEFAULT_GENERAL_SESSION_ID
+                preferences[activeGeneralSessionKey] = nextGeneral
             }
         }
     }
@@ -148,12 +185,21 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
         }
     }
 
-    private fun defaultSession() = AiChatSessionRecord(
-        id = DEFAULT_SESSION_ID,
-        title = "Default Conversation",
-        mode = AiChatWorker.MODE_LEDGER,
-        createdAt = 0L,
-        updatedAt = 0L
+    private fun defaultSessions() = listOf(
+        AiChatSessionRecord(
+            id = DEFAULT_LEDGER_SESSION_ID,
+            title = "Financial Ledger Chat",
+            mode = AiChatWorker.MODE_LEDGER,
+            createdAt = 0L,
+            updatedAt = 0L
+        ),
+        AiChatSessionRecord(
+            id = DEFAULT_GENERAL_SESSION_ID,
+            title = "General Financial Advice",
+            mode = AiChatWorker.MODE_GENERAL,
+            createdAt = 0L,
+            updatedAt = 0L
+        )
     )
 
     private fun encodeSessions(sessions: List<AiChatSessionRecord>): String = JSONArray().apply {
@@ -208,10 +254,14 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
         val json = JSONArray(raw)
         (0 until json.length()).map { index ->
             val job = json.getJSONObject(index)
+            val mode = job.optString("mode")
+            val defaultFallback = if (mode == AiChatWorker.MODE_GENERAL) DEFAULT_GENERAL_SESSION_ID else DEFAULT_LEDGER_SESSION_ID
+            val rawSession = job.optString("sessionId")
+            val effectiveSession = if (rawSession.isBlank() || rawSession == DEFAULT_SESSION_ID) defaultFallback else rawSession
             AiChatJobRecord(
                 id = job.optString("id"),
-                sessionId = job.optString("sessionId").ifBlank { DEFAULT_SESSION_ID },
-                mode = job.optString("mode"),
+                sessionId = effectiveSession,
+                mode = mode,
                 prompt = job.optString("prompt"),
                 submittedAt = job.optLong("submittedAt"),
                 isWorking = job.optBoolean("isWorking"),
@@ -226,6 +276,8 @@ class AiChatJobStore @Inject constructor(@ApplicationContext context: Context) {
 
     companion object {
         const val DEFAULT_SESSION_ID = "default_session"
+        const val DEFAULT_LEDGER_SESSION_ID = "default_ledger_session"
+        const val DEFAULT_GENERAL_SESSION_ID = "default_general_session"
         private const val MAX_STORED_JOBS = 120
     }
 }

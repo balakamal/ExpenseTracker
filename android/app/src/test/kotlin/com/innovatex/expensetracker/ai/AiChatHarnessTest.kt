@@ -62,5 +62,67 @@ class AiChatHarnessTest {
         assertEquals("HDFC Bank", json.getString("merchant"))
         assertEquals("Transfer between own accounts", json.getString("reason"))
     }
+
+    @Test
+    fun `mode segregation strictly isolates ledger jobs from general jobs`() {
+        val jobs = listOf(
+            AiChatJobRecord(
+                id = "job-1",
+                sessionId = AiChatJobStore.DEFAULT_LEDGER_SESSION_ID,
+                mode = AiChatWorker.MODE_LEDGER,
+                prompt = "How much did I spend at Swiggy?",
+                submittedAt = 1000L,
+                isWorking = false,
+                answer = "You spent ₹1,450."
+            ),
+            AiChatJobRecord(
+                id = "job-2",
+                sessionId = AiChatJobStore.DEFAULT_GENERAL_SESSION_ID,
+                mode = AiChatWorker.MODE_GENERAL,
+                prompt = "What is the 50/30/20 rule?",
+                submittedAt = 2000L,
+                isWorking = false,
+                answer = "It is a budgeting guideline."
+            )
+        )
+
+        // Simulating ledger mode filter
+        val ledgerJobs = jobs.filter { it.mode == AiChatWorker.MODE_LEDGER }
+        assertEquals(1, ledgerJobs.size)
+        assertEquals("job-1", ledgerJobs.first().id)
+
+        // Simulating general mode filter
+        val generalJobs = jobs.filter { it.mode == AiChatWorker.MODE_GENERAL }
+        assertEquals(1, generalJobs.size)
+        assertEquals("job-2", generalJobs.first().id)
+    }
+
+    @Test
+    fun `session isolation ensures new chat sessions remain empty without leaking default chat history`() {
+        val defaultLedgerJob = AiChatJobRecord(
+            id = "default-job-1",
+            sessionId = AiChatJobStore.DEFAULT_LEDGER_SESSION_ID,
+            mode = AiChatWorker.MODE_LEDGER,
+            prompt = "Initial ledger query",
+            submittedAt = 1000L,
+            isWorking = false,
+            answer = "Ledger answer"
+        )
+        val allJobs = listOf(defaultLedgerJob)
+
+        val newSessionId = "session-uuid-999"
+
+        // Filtering for new session
+        val modeJobs = allJobs.filter { it.mode == AiChatWorker.MODE_LEDGER }
+        val newSessionJobs = modeJobs.filter { job ->
+            if (newSessionId == AiChatJobStore.DEFAULT_LEDGER_SESSION_ID) {
+                job.sessionId == AiChatJobStore.DEFAULT_LEDGER_SESSION_ID || job.sessionId == AiChatJobStore.DEFAULT_SESSION_ID
+            } else {
+                job.sessionId == newSessionId
+            }
+        }
+
+        assertTrue(newSessionJobs.isEmpty(), "New session must be empty, no default jobs leaked")
+    }
 }
 

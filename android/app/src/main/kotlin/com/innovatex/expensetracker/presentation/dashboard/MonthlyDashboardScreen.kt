@@ -141,6 +141,7 @@ fun MonthlyDashboardScreen(
     val aiChatEntries by viewModel.aiChatEntries.collectAsState()
     val aiSessions by viewModel.aiSessions.collectAsState()
     val activeSessionId by viewModel.activeSessionId.collectAsState()
+    val currentAiMode by viewModel.currentAiMode.collectAsState()
     val availableCategories by viewModel.availableCategories.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
     val context = LocalContext.current
@@ -158,7 +159,6 @@ fun MonthlyDashboardScreen(
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var transactionForCategoryChange by remember { mutableStateOf<Transaction?>(null) }
     var selectedMainTab by rememberSaveable { mutableIntStateOf(if (initialSelectedTab == 1) 3 else initialSelectedTab.coerceIn(0, 3)) }
-    var aiChatMode by rememberSaveable { mutableStateOf(AiChatMode.FINANCIAL_LEDGER) }
     var aiChatDraft by remember { mutableStateOf("") }
     var pendingAiActionId by remember { mutableStateOf<String?>(null) }
 
@@ -176,7 +176,7 @@ fun MonthlyDashboardScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spoken.isNullOrBlank()) {
-                viewModel.askAi(context, spoken, aiChatMode)
+                viewModel.askAi(context, spoken, currentAiMode)
             }
         }
     }
@@ -273,8 +273,8 @@ fun MonthlyDashboardScreen(
                         )
                         2 -> PastelAiAssistantView(
                             aiChatEntries = aiChatEntries,
-                            currentMode = aiChatMode,
-                            onModeChanged = { aiChatMode = it },
+                            currentMode = currentAiMode,
+                            onModeChanged = { newMode -> viewModel.setAiChatMode(newMode) },
                             currencySymbol = "₹",
                             isAiModelReady = isAiModelReady,
                             aiModelSizeBytes = aiModelSizeBytes,
@@ -283,14 +283,14 @@ fun MonthlyDashboardScreen(
                             monthlyDebit = uiState.totalDebit,
                             sessionCount = aiSessions.size,
                             onOpenSessionsClick = { showAiSessionsSheet = true },
-                            onNewChatClick = { viewModel.startNewChat(aiChatMode) },
-                            onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
+                            onNewChatClick = { viewModel.startNewChat() },
+                            onSendMessage = { q -> viewModel.askAi(context, q, currentAiMode) },
                             onApplyLedgerAction = { jobId, count -> viewModel.applyAiLedgerAction(jobId, count) },
                             onScanReceiptClick = { receiptPickerLauncher.launch("image/*") },
                             onVoiceInputClick = {
                                 val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) "Ask AI to analyze or edit your ledger..." else "Ask AI anything...")
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (currentAiMode == AiChatMode.FINANCIAL_LEDGER) "Ask AI to analyze or edit your ledger..." else "Ask AI anything...")
                                 }
                                 runCatching { speechRecognizerLauncher.launch(intent) }
                             },
@@ -734,8 +734,9 @@ fun MonthlyDashboardScreen(
         AiChatSessionsBottomSheet(
             sessions = aiSessions,
             activeSessionId = activeSessionId,
+            currentMode = currentAiMode.systemMode,
             onSelectSession = { sessionId -> viewModel.switchChatSession(sessionId) },
-            onNewChat = { viewModel.startNewChat(aiChatMode) },
+            onNewChat = { viewModel.startNewChat() },
             onDeleteSession = { sessionId -> viewModel.deleteChatSession(sessionId) },
             onDismissRequest = { showAiSessionsSheet = false }
         )

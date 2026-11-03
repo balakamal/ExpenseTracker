@@ -140,21 +140,34 @@ class DashboardViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val processingMessage: StateFlow<String?> = ingestionPipeline.processingLabel
 
+    private val _currentAiMode = MutableStateFlow(AiChatMode.FINANCIAL_LEDGER)
+    val currentAiMode: StateFlow<AiChatMode> = _currentAiMode.asStateFlow()
+
     val aiSessions: StateFlow<List<com.innovatex.expensetracker.ai.AiChatSessionRecord>> = aiChatJobStore.sessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val activeSessionId: StateFlow<String> = aiChatJobStore.activeSessionId
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiChatJobStore.DEFAULT_SESSION_ID)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiChatJobStore.DEFAULT_LEDGER_SESSION_ID)
 
     val aiChatEntries: StateFlow<List<AiChatEntry>> = kotlinx.coroutines.flow.combine(
         aiChatJobStore.jobs,
-        aiChatJobStore.activeSessionId
-    ) { jobs, activeId ->
-        val matchingJobs = jobs.filter { it.sessionId == activeId }
-        val effectiveJobs = if (matchingJobs.isEmpty() && activeId == AiChatJobStore.DEFAULT_SESSION_ID) {
-            jobs
-        } else {
-            matchingJobs
+        aiChatJobStore.activeSessionId,
+        _currentAiMode
+    ) { jobs, activeId, currentMode ->
+        val modeJobs = jobs.filter { job ->
+            val jobMode = if (job.mode == AiChatWorker.MODE_GENERAL) AiChatMode.GENERAL else AiChatMode.FINANCIAL_LEDGER
+            jobMode == currentMode
+        }
+        val effectiveJobs = modeJobs.filter { job ->
+            if (activeId == AiChatJobStore.DEFAULT_LEDGER_SESSION_ID) {
+                job.sessionId == AiChatJobStore.DEFAULT_LEDGER_SESSION_ID ||
+                    (currentMode == AiChatMode.FINANCIAL_LEDGER && job.sessionId == AiChatJobStore.DEFAULT_SESSION_ID)
+            } else if (activeId == AiChatJobStore.DEFAULT_GENERAL_SESSION_ID) {
+                job.sessionId == AiChatJobStore.DEFAULT_GENERAL_SESSION_ID ||
+                    (currentMode == AiChatMode.GENERAL && job.sessionId == AiChatJobStore.DEFAULT_SESSION_ID)
+            } else {
+                job.sessionId == activeId
+            }
         }
         effectiveJobs.map { job ->
             AiChatEntry(
@@ -193,15 +206,33 @@ class DashboardViewModel @Inject constructor(
         )
     }.getOrNull()
 
-    fun startNewChat(mode: AiChatMode, title: String? = null) {
+    fun setAiChatMode(newMode: AiChatMode) {
+        if (_currentAiMode.value == newMode) return
+        _currentAiMode.value = newMode
         viewModelScope.launch {
-            aiChatJobStore.createSession(mode.systemMode, title)
+            val targetSessionId = aiChatJobStore.getActiveSessionForMode(newMode.systemMode)
+            aiChatJobStore.setActiveSession(targetSessionId, newMode.systemMode)
+        }
+    }
+
+    fun startNewChat(mode: AiChatMode? = null, title: String? = null) {
+        val targetMode = mode ?: _currentAiMode.value
+        viewModelScope.launch {
+            aiChatJobStore.createSession(targetMode.systemMode, title)
         }
     }
 
     fun switchChatSession(sessionId: String) {
         viewModelScope.launch {
-            aiChatJobStore.setActiveSession(sessionId)
+            val sessions = aiChatJobStore.sessions.first()
+            val session = sessions.firstOrNull { it.id == sessionId }
+            if (session != null) {
+                val mode = if (session.mode == AiChatWorker.MODE_GENERAL) AiChatMode.GENERAL else AiChatMode.FINANCIAL_LEDGER
+                _currentAiMode.value = mode
+                aiChatJobStore.setActiveSession(sessionId, session.mode)
+            } else {
+                aiChatJobStore.setActiveSession(sessionId, _currentAiMode.value.systemMode)
+            }
         }
     }
 
@@ -211,7 +242,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun askAi(context: Context, question: String, mode: AiChatMode) {
+    fun askAi(context: Context, question: String, mode: AiChatMode = _currentAiMode.value) {
         if (question.isBlank()) return
         val currentSessionId = activeSessionId.value
         val previous = aiChatEntries.value.takeLast(6)
