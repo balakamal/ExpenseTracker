@@ -330,7 +330,6 @@ fun MonthlyDashboardScreen(
                     }
                 }
             }
-        }
 
         // Layer 2: Subtle diffusion scrim behind floating dock for seamless text readability
         Box(
