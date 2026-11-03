@@ -195,42 +195,32 @@ fun MonthlyDashboardScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(PastelKineticTokens.CanvasBg)) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            bottomBar = {
-                PastelFloatingNavDock(
-                    selectedTab = selectedMainTab,
-                    onTabSelected = { selectedMainTab = it },
-                    modifier = Modifier.navigationBarsPadding()
-                )
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                // GitHub Update Alert Banner (shown when update is available and banner not dismissed)
-                if (updateState is UpdateCheckState.Available && showUpdateBanner) {
-                    UpdateAlertBanner(
-                        updateInfo = (updateState as UpdateCheckState.Available).updateInfo,
-                        onUpdateClick = {
-                            selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
-                        },
-                        onDismissClick = {
-                            viewModel.dismissUpdateBanner()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
-                }
-
-                Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // GitHub Update Alert Banner (shown when update is available and banner not dismissed)
+            if (updateState is UpdateCheckState.Available && showUpdateBanner) {
+                UpdateAlertBanner(
+                    updateInfo = (updateState as UpdateCheckState.Available).updateInfo,
+                    onUpdateClick = {
+                        selectedUpdateInfoForReview = (updateState as UpdateCheckState.Available).updateInfo
+                    },
+                    onDismissClick = {
+                        viewModel.dismissUpdateBanner()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                ) {
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
                     when (selectedMainTab) {
                         0 -> PastelLedgerView(
                             totalCredit = uiState.totalCredit,
@@ -341,6 +331,32 @@ fun MonthlyDashboardScreen(
                 }
             }
         }
+
+        // Layer 2: Subtle diffusion scrim behind floating dock for seamless text readability
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(130.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            PastelKineticTokens.CanvasBg.copy(alpha = 0.5f),
+                            PastelKineticTokens.CanvasBg.copy(alpha = 0.9f)
+                        )
+                    )
+                )
+        )
+
+        // Layer 3: Floating frosted glass navigation dock
+        PastelFloatingNavDock(
+            selectedTab = selectedMainTab,
+            onTabSelected = { selectedMainTab = it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+        )
     }
 
     

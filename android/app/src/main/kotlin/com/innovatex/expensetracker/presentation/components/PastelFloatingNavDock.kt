@@ -3,6 +3,7 @@ package com.innovatex.expensetracker.presentation.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +54,7 @@ val SpendWellNavItems = listOf(
 
 /**
  * Floating island bottom navigation dock inspired by Stitch Pastel Kinetic Neo-Modern.
- * Suspended obsidian capsule with active pure white stadium pill transition.
+ * Suspended frosted obsidian glass capsule with active pure white stadium pill transition.
  */
 @Composable
 fun PastelFloatingNavDock(
@@ -63,7 +65,7 @@ fun PastelFloatingNavDock(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -72,13 +74,30 @@ fun PastelFloatingNavDock(
                 .fillMaxWidth()
                 .height(64.dp)
                 .shadow(
-                    elevation = 16.dp,
+                    elevation = 18.dp,
                     shape = PastelKineticTokens.RadiusFull,
-                    spotColor = Color(0x40121316),
-                    ambientColor = Color(0x20121316)
+                    spotColor = Color(0x55000000),
+                    ambientColor = Color(0x25000000)
                 )
                 .clip(PastelKineticTokens.RadiusFull)
-                .background(PastelKineticTokens.AnchorContainer)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            PastelKineticTokens.GlassDockBgTop,
+                            PastelKineticTokens.GlassDockBgBottom
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            PastelKineticTokens.GlassDockBorderTop,
+                            PastelKineticTokens.GlassDockBorderBottom
+                        )
+                    ),
+                    shape = PastelKineticTokens.RadiusFull
+                )
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -99,7 +118,7 @@ fun PastelFloatingNavDock(
                 )
 
                 val contentColor by animateColorAsState(
-                    targetValue = if (isSelected) PastelKineticTokens.AnchorPrimary else Color(0xFFC7C6CA),
+                    targetValue = if (isSelected) PastelKineticTokens.AnchorPrimary else Color(0xB3FFFFFF),
                     animationSpec = PastelKineticTokens.springSnappy(),
                     label = "dockPillContent"
                 )
@@ -109,6 +128,17 @@ fun PastelFloatingNavDock(
                         .weight(1f)
                         .height(52.dp)
                         .scale(scale)
+                        .then(
+                            if (isSelected) {
+                                Modifier.shadow(
+                                    elevation = 4.dp,
+                                    shape = PastelKineticTokens.RadiusFull,
+                                    spotColor = Color(0x33000000)
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
                         .clip(PastelKineticTokens.RadiusFull)
                         .background(pillBgColor)
                         .clickable(

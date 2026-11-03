@@ -32,6 +32,13 @@ object PastelKineticTokens {
     val OnAnchor = Color(0xFFFFFFFF)          // High contrast white text on dark anchors
     val OnAnchorMuted = Color(0xFF848387)     // Muted text on dark container
 
+    // Frosted Glassmorphism Theme Tokens (Modern Floating Island)
+    val GlassDockBgTop = Color(0xE61E2028)       // 90% opacity deep obsidian glass top
+    val GlassDockBgBottom = Color(0xD9131418)    // 85% opacity dark obsidian glass bottom
+    val GlassDockBorderTop = Color(0x4DFFFFFF)   // 30% white specular top highlight border
+    val GlassDockBorderBottom = Color(0x0DFFFFFF)// Subtle light refraction along bottom
+    val FloatingDockClearance = 96.dp            // Dynamic scroll clearance above navigation bars
+
     // Typography Ink
     val TextPrimary = Color(0xFF1A1B20)       // Deep Obsidian primary ink (on-surface)
     val TextSecondary = Color(0xFF46464B)     // Sub-labels & secondary descriptions

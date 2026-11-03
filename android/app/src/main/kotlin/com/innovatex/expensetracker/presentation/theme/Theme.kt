@@ -48,7 +48,7 @@ fun ApexExpenseTrackerTheme(
             val window = (view.context as? Activity)?.window
             if (window != null) {
                 window.statusBarColor = PastelKineticTokens.CanvasBg.toArgb()
-                window.navigationBarColor = PastelKineticTokens.CanvasBg.toArgb()
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.isAppearanceLightStatusBars = true
                 controller.isAppearanceLightNavigationBars = true
