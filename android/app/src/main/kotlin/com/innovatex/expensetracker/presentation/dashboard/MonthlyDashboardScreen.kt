@@ -826,7 +826,15 @@ fun MonthlyDashboardScreen(
     val pendingAction = pendingActionEntry?.ledgerAction
     val pendingCategory = pendingAction?.let { action -> availableCategories.firstOrNull { it.id == action.categoryId } }
     val pendingMatchCount = pendingAction?.let { action ->
-        uiState.allTransactions.count { it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true) && it.categoryId != action.categoryId }
+        val merchant = action.merchant?.trim().orEmpty()
+        if (merchant.isBlank() || action.categoryId.isNullOrBlank()) 0
+        else {
+            uiState.allTransactions.count {
+                it.isCountableTransaction &&
+                    it.merchantClean.trim().equals(merchant, ignoreCase = true) &&
+                    it.categoryId != action.categoryId
+            }
+        }
     } ?: 0
     if (pendingActionEntry != null && pendingAction != null) {
         AlertDialog(
@@ -836,7 +844,7 @@ fun MonthlyDashboardScreen(
             text = {
                 Text(
                     if (pendingCategory != null) {
-                        "Change the category for $pendingMatchCount transaction${if (pendingMatchCount == 1) "" else "s"} from ${pendingAction.merchant} to ${pendingCategory.name}?"
+                        "Change the category for $pendingMatchCount transaction${if (pendingMatchCount == 1) "" else "s"} from ${pendingAction.merchant ?: "merchant"} to ${pendingCategory.name}?"
                     } else "The target category is unavailable. No transactions will be changed.",
                     color = ApexThemeTokens.TextSecondary
                 )

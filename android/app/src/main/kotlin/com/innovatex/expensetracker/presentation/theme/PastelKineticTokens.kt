@@ -44,6 +44,7 @@ object PastelKineticTokens {
     val TextSecondary = Color(0xFF46464B)     // Sub-labels & secondary descriptions
     val TextOutline = Color(0xFF76777B)       // Muted metadata & placeholders
     val OutlineVariant = Color(0xFFC7C6CB)    // Subtle boundary strokes
+    val OutlineSubtle = OutlineVariant        // Subtle outline alias
 
     // Warm Amber / Honey Peach Pod (Inflow, highlights, progress)
     val AmberFixed = Color(0xFFFFDDB4)        // Honey Peach container background (secondary-fixed)
@@ -66,6 +67,14 @@ object PastelKineticTokens {
     val LilacSurface = Color(0xFFE8E5FA)      // Lilac container
     val BlushLilac = Color(0xFFF2A8E5)        // Milestone accent
 
+    // Soft Mint / Sage Pod (Inflow / new additions)
+    val MintFixed = Color(0xFFCEF5E4)
+    val MintText = Color(0xFF003822)
+
+    // Soft Rose Pod (Spam / deletion / warnings)
+    val RoseFixed = Color(0xFFFFDAD6)
+    val RoseText = Color(0xFF93000A)
+
     // System Semantic States
     val Error = Color(0xFFBA1A1A)             // Error text & alerts
     val ErrorContainer = Color(0xFFFFDAD6)    // Soft error container
@@ -80,6 +89,7 @@ object PastelKineticTokens {
     val RadiusMd = RoundedCornerShape(16.dp)     // Standard inner cards
     val RadiusSm = RoundedCornerShape(12.dp)     // Micro tiles & badges
     val RadiusXs = RoundedCornerShape(8.dp)      // Micro tags
+    val RadiusSheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Bottom sheets
 
     // Physics-Based Spring Animations
     fun <T> springPhysics() = spring<T>(
