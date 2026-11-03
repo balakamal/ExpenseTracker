@@ -62,6 +62,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import com.innovatex.expensetracker.presentation.components.ManageSendersBottomSheet
 import com.innovatex.expensetracker.presentation.components.SpamReviewBottomSheet
+import com.innovatex.expensetracker.presentation.components.AiChatSessionsBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -138,6 +139,8 @@ fun MonthlyDashboardScreen(
     val networkCallLogs by viewModel.networkCallLogs.collectAsState()
     val processingMessage by viewModel.processingMessage.collectAsState()
     val aiChatEntries by viewModel.aiChatEntries.collectAsState()
+    val aiSessions by viewModel.aiSessions.collectAsState()
+    val activeSessionId by viewModel.activeSessionId.collectAsState()
     val availableCategories by viewModel.availableCategories.collectAsState()
     val isGenerativeLlmReady by viewModel.isGenerativeLlmReady.collectAsState()
     val context = LocalContext.current
@@ -149,6 +152,7 @@ fun MonthlyDashboardScreen(
     var showSpamReviewSheet by remember { mutableStateOf(false) }
     var showLogExpenseSheet by remember { mutableStateOf(false) }
     var showManageSendersSheet by remember { mutableStateOf(false) }
+    var showAiSessionsSheet by remember { mutableStateOf(false) }
     var senderToBlockConfirm by remember { mutableStateOf<String?>(null) }
     var selectedUpdateInfoForReview by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
@@ -269,19 +273,24 @@ fun MonthlyDashboardScreen(
                         )
                         2 -> PastelAiAssistantView(
                             aiChatEntries = aiChatEntries,
+                            currentMode = aiChatMode,
+                            onModeChanged = { aiChatMode = it },
                             currencySymbol = "₹",
                             isAiModelReady = isAiModelReady,
                             aiModelSizeBytes = aiModelSizeBytes,
                             topCategoryName = uiState.categoryTotals.firstOrNull()?.category?.name,
                             topCategorySpent = uiState.categoryTotals.firstOrNull()?.totalSpent ?: 0.0,
                             monthlyDebit = uiState.totalDebit,
+                            sessionCount = aiSessions.size,
+                            onOpenSessionsClick = { showAiSessionsSheet = true },
+                            onNewChatClick = { viewModel.startNewChat(aiChatMode) },
                             onSendMessage = { q -> viewModel.askAi(context, q, aiChatMode) },
                             onApplyLedgerAction = { jobId, count -> viewModel.applyAiLedgerAction(jobId, count) },
                             onScanReceiptClick = { receiptPickerLauncher.launch("image/*") },
                             onVoiceInputClick = {
                                 val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Gemma about your finances...")
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (aiChatMode == AiChatMode.FINANCIAL_LEDGER) "Ask AI to analyze or edit your ledger..." else "Ask AI anything...")
                                 }
                                 runCatching { speechRecognizerLauncher.launch(intent) }
                             },
@@ -717,6 +726,18 @@ fun MonthlyDashboardScreen(
             onUntrustSender = { sender -> viewModel.untrustSender(sender) },
             onAddTrustedSender = { sender -> viewModel.markSenderAsTrusted(sender) },
             onDismissRequest = { showManageSendersSheet = false }
+        )
+    }
+
+    // AI Chat Sessions Bottom Sheet
+    if (showAiSessionsSheet) {
+        AiChatSessionsBottomSheet(
+            sessions = aiSessions,
+            activeSessionId = activeSessionId,
+            onSelectSession = { sessionId -> viewModel.switchChatSession(sessionId) },
+            onNewChat = { viewModel.startNewChat(aiChatMode) },
+            onDeleteSession = { sessionId -> viewModel.deleteChatSession(sessionId) },
+            onDismissRequest = { showAiSessionsSheet = false }
         )
     }
 

@@ -38,12 +38,14 @@ class AiChatWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val prompt = inputData.getString(KEY_PROMPT).orEmpty()
         val mode = inputData.getString(KEY_MODE).orEmpty()
+        val sessionId = inputData.getString(KEY_SESSION_ID).orEmpty().ifBlank { AiChatJobStore.DEFAULT_SESSION_ID }
         val submittedAt = inputData.getLong(KEY_SUBMITTED_AT, System.currentTimeMillis())
         val jobId = id.toString()
         if (prompt.isBlank()) return Result.failure(workDataOf(KEY_ERROR to "Enter a question to start."))
 
         val baseJob = AiChatJobRecord(
             id = jobId,
+            sessionId = sessionId,
             mode = mode,
             prompt = inputData.getString(KEY_DISPLAY_PROMPT).orEmpty(),
             submittedAt = submittedAt,
@@ -52,30 +54,45 @@ class AiChatWorker @AssistedInject constructor(
         return try {
             chatJobStore.upsert(baseJob)
             val ledger = inputData.getString(KEY_LEDGER)
-            val ledgerResponse = if (mode == MODE_LEDGER) {
+            val response = if (mode == MODE_LEDGER) {
                 llmEngine.answerLedgerQuestion(prompt, ledger.orEmpty())
-            } else null
-            val answer = if (mode == MODE_LEDGER) ledgerResponse?.answer else llmEngine.answerChat(prompt, ledger, false)
-            if (answer == null) {
+            } else {
+                llmEngine.answerGeneralChat(prompt)
+            }
+            if (response == null || response.answer.isBlank()) {
                 val error = "The on-device AI model is not ready. Download it in Settings and try again."
                 chatJobStore.upsert(baseJob.copy(isWorking = false, error = error))
                 return Result.failure(workDataOf(KEY_ERROR to error))
             }
-            val actionJson = ledgerResponse?.action?.let { action ->
+            val actionJson = response.action?.let { action ->
                 org.json.JSONObject()
                     .put("type", action.type)
-                    .put("merchant", action.merchant)
-                    .put("categoryId", action.categoryId)
-                    .put("reason", action.reason)
+                    .apply {
+                        action.merchant?.let { put("merchant", it) }
+                        action.categoryId?.let { put("categoryId", it) }
+                        action.transactionId?.let { put("transactionId", it) }
+                        action.amount?.let { put("amount", it) }
+                        action.notes?.let { put("notes", it) }
+                        put("reason", action.reason)
+                    }
                     .toString()
             }
-            chatJobStore.upsert(baseJob.copy(isWorking = false, answer = answer, actionProposalJson = actionJson))
+            chatJobStore.upsert(
+                baseJob.copy(
+                    isWorking = false,
+                    answer = response.answer,
+                    thinking = response.thinking,
+                    actionProposalJson = actionJson
+                )
+            )
             val output = workDataOf(
                 KEY_PROMPT to inputData.getString(KEY_DISPLAY_PROMPT).orEmpty(),
                 KEY_MODE to mode,
-                KEY_ANSWER to answer,
+                KEY_SESSION_ID to sessionId,
+                KEY_ANSWER to response.answer,
+                KEY_THINKING to (response.thinking ?: ""),
                 KEY_ACTION_PROPOSAL to (actionJson ?: ""),
-                KEY_SUBMITTED_AT to inputData.getLong(KEY_SUBMITTED_AT, System.currentTimeMillis())
+                KEY_SUBMITTED_AT to submittedAt
             )
             notifyCompletionIfAllowed()
             Result.success(output)
@@ -130,14 +147,16 @@ class AiChatWorker @AssistedInject constructor(
         const val KEY_DISPLAY_PROMPT = "display_prompt"
         const val KEY_LEDGER = "ledger"
         const val KEY_MODE = "mode"
+        const val KEY_SESSION_ID = "session_id"
         const val KEY_ANSWER = "answer"
+        const val KEY_THINKING = "thinking"
         const val KEY_ACTION_PROPOSAL = "action_proposal"
         const val KEY_ERROR = "error"
         const val KEY_SUBMITTED_AT = "submitted_at"
         const val MODE_LEDGER = "financial_ledger"
         const val MODE_GENERAL = "general"
-        const val MAX_PROMPT_CHARS = 900
-        const val MAX_CONTEXT_CHARS = 2000
+        const val MAX_PROMPT_CHARS = 1200
+        const val MAX_CONTEXT_CHARS = 3500
 
         suspend fun enqueue(
             context: Context,
@@ -145,6 +164,7 @@ class AiChatWorker @AssistedInject constructor(
             displayPrompt: String,
             mode: String,
             ledger: String?,
+            sessionId: String = AiChatJobStore.DEFAULT_SESSION_ID,
             chatJobStore: AiChatJobStore
         ) {
             val submittedAt = System.currentTimeMillis()
@@ -152,6 +172,7 @@ class AiChatWorker @AssistedInject constructor(
                 .putString(KEY_PROMPT, prompt.take(MAX_PROMPT_CHARS))
                 .putString(KEY_DISPLAY_PROMPT, displayPrompt.take(500))
                 .putString(KEY_MODE, mode)
+                .putString(KEY_SESSION_ID, sessionId)
                 .putLong(KEY_SUBMITTED_AT, submittedAt)
                 .apply { if (!ledger.isNullOrBlank()) putString(KEY_LEDGER, ledger.take(MAX_CONTEXT_CHARS)) }
                 .build()
@@ -161,6 +182,7 @@ class AiChatWorker @AssistedInject constructor(
                 .build()
             val queuedJob = AiChatJobRecord(
                 id = request.id.toString(),
+                sessionId = sessionId,
                 mode = mode,
                 prompt = displayPrompt.take(500),
                 submittedAt = submittedAt,

@@ -52,23 +52,35 @@ import java.util.Locale
 import javax.inject.Inject
 import org.json.JSONObject
 
-enum class AiChatMode(val title: String) {
-    FINANCIAL_LEDGER("Financial ledger"), GENERAL("General AI")
+enum class AiChatMode(val title: String, val systemMode: String) {
+    FINANCIAL_LEDGER("App Ledger", AiChatWorker.MODE_LEDGER),
+    GENERAL("General AI", AiChatWorker.MODE_GENERAL)
 }
 
 data class AiChatEntry(
     val id: String,
+    val sessionId: String = AiChatJobStore.DEFAULT_SESSION_ID,
     val mode: AiChatMode,
     val prompt: String,
     val submittedAt: Long,
     val answer: String? = null,
+    val thinking: String? = null,
     val error: String? = null,
     val isWorking: Boolean = false,
     val ledgerAction: AiLedgerAction? = null,
     val actionStatus: String? = null
 )
 
-data class AiLedgerAction(val merchant: String, val categoryId: String, val reason: String)
+data class AiLedgerAction(
+    val type: String,
+    val merchant: String? = null,
+    val categoryId: String? = null,
+    val categoryName: String? = null,
+    val transactionId: String? = null,
+    val amount: Double? = null,
+    val notes: String? = null,
+    val reason: String = ""
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -127,36 +139,82 @@ class DashboardViewModel @Inject constructor(
     val networkCallLogs: StateFlow<List<NetworkCallLog>> = networkCallLogger.logs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val processingMessage: StateFlow<String?> = ingestionPipeline.processingLabel
-    val aiChatEntries: StateFlow<List<AiChatEntry>> = aiChatJobStore.jobs
-        .map { jobs ->
-            jobs.map { job ->
-                AiChatEntry(
-                    id = job.id,
-                    mode = if (job.mode == AiChatWorker.MODE_LEDGER) AiChatMode.FINANCIAL_LEDGER else AiChatMode.GENERAL,
-                    prompt = job.prompt,
-                    submittedAt = job.submittedAt,
-                    answer = job.answer,
-                    error = job.error,
-                    isWorking = job.isWorking,
-                    ledgerAction = job.actionProposalJson?.let(::parseLedgerAction),
-                    actionStatus = job.actionStatus
-                )
-            }
-        }
+
+    val aiSessions: StateFlow<List<com.innovatex.expensetracker.ai.AiChatSessionRecord>> = aiChatJobStore.sessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeSessionId: StateFlow<String> = aiChatJobStore.activeSessionId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiChatJobStore.DEFAULT_SESSION_ID)
+
+    val aiChatEntries: StateFlow<List<AiChatEntry>> = kotlinx.coroutines.flow.combine(
+        aiChatJobStore.jobs,
+        aiChatJobStore.activeSessionId
+    ) { jobs, activeId ->
+        val matchingJobs = jobs.filter { it.sessionId == activeId }
+        val effectiveJobs = if (matchingJobs.isEmpty() && activeId == AiChatJobStore.DEFAULT_SESSION_ID) {
+            jobs
+        } else {
+            matchingJobs
+        }
+        effectiveJobs.map { job ->
+            AiChatEntry(
+                id = job.id,
+                sessionId = job.sessionId,
+                mode = if (job.mode == AiChatWorker.MODE_LEDGER) AiChatMode.FINANCIAL_LEDGER else AiChatMode.GENERAL,
+                prompt = job.prompt,
+                submittedAt = job.submittedAt,
+                answer = job.answer,
+                thinking = job.thinking,
+                error = job.error,
+                isWorking = job.isWorking,
+                ledgerAction = job.actionProposalJson?.let(::parseLedgerAction),
+                actionStatus = job.actionStatus
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private fun parseLedgerAction(raw: String): AiLedgerAction? = runCatching {
         val json = JSONObject(raw)
-        if (json.optString("type") != "recategorize_merchant") return null
-        val merchant = json.optString("merchant").trim()
-        val categoryId = json.optString("categoryId").trim()
-        if (merchant.isBlank() || categoryId.isBlank()) return null
-        AiLedgerAction(merchant, categoryId, json.optString("reason"))
+        val type = json.optString("type").trim()
+        if (type.isBlank()) return null
+        val catId = json.optString("categoryId").trim().takeIf { it.isNotBlank() }
+        val catName = catId?.let { id ->
+            availableCategories.value.firstOrNull { it.id == id }?.name
+        }
+        AiLedgerAction(
+            type = type,
+            merchant = json.optString("merchant").trim().takeIf { it.isNotBlank() },
+            categoryId = catId,
+            categoryName = catName,
+            transactionId = json.optString("transactionId").trim().takeIf { it.isNotBlank() },
+            amount = if (json.has("amount")) json.optDouble("amount") else null,
+            notes = json.optString("notes").trim().takeIf { it.isNotBlank() },
+            reason = json.optString("reason", "Requested by user")
+        )
     }.getOrNull()
+
+    fun startNewChat(mode: AiChatMode, title: String? = null) {
+        viewModelScope.launch {
+            aiChatJobStore.createSession(mode.systemMode, title)
+        }
+    }
+
+    fun switchChatSession(sessionId: String) {
+        viewModelScope.launch {
+            aiChatJobStore.setActiveSession(sessionId)
+        }
+    }
+
+    fun deleteChatSession(sessionId: String) {
+        viewModelScope.launch {
+            aiChatJobStore.deleteSession(sessionId)
+        }
+    }
 
     fun askAi(context: Context, question: String, mode: AiChatMode) {
         if (question.isBlank()) return
-        val previous = aiChatEntries.value.filter { it.mode == mode }.takeLast(6)
+        val currentSessionId = activeSessionId.value
+        val previous = aiChatEntries.value.takeLast(6)
         val prompt = buildString {
             previous.forEach { entry ->
                 appendLine("User: ${entry.prompt}")
@@ -173,23 +231,24 @@ class DashboardViewModel @Inject constructor(
                 appendLine("Budget: ${snapshot.budgetLimit}; remaining: ${snapshot.remainingBudget}")
                 appendLine("Categories (use only these exact IDs):")
                 categories.forEach { appendLine("${it.id} = ${it.name}") }
-                appendLine("Transactions (merchantClean must match exactly):")
-                snapshot.allTransactions.filter { it.isCountableTransaction }.take(30).forEach {
-                    appendLine("${it.monthKey} | ${it.type} | ${it.amount} ${it.currency} | merchantClean=${it.merchantClean} | categoryId=${it.categoryId}")
+                appendLine("Transactions (id | type | amount currency | merchantClean | categoryId):")
+                snapshot.allTransactions.filter { it.isCountableTransaction }.take(35).forEach {
+                    appendLine("${it.id} | ${it.type} | ${it.amount} ${it.currency} | merchantClean=${it.merchantClean} | categoryId=${it.categoryId}")
                 }
             } else null
             AiChatWorker.enqueue(
                 context = context,
                 prompt = prompt,
                 displayPrompt = question,
-                mode = if (mode == AiChatMode.FINANCIAL_LEDGER) AiChatWorker.MODE_LEDGER else AiChatWorker.MODE_GENERAL,
+                mode = mode.systemMode,
                 ledger = ledger,
+                sessionId = currentSessionId,
                 chatJobStore = aiChatJobStore
             )
         }
     }
 
-    fun applyAiLedgerAction(jobId: String, expectedCount: Int) {
+    fun applyAiLedgerAction(jobId: String, expectedCount: Int = 0) {
         if (!applyingAiActionIds.add(jobId)) return
         viewModelScope.launch {
             try {
@@ -199,34 +258,125 @@ class DashboardViewModel @Inject constructor(
                     aiChatJobStore.upsert(job.copy(actionStatus = "This suggested change is invalid."))
                     return@launch
                 }
-                val category = categoryRepository.getAllCategories().first().firstOrNull { it.id == action.categoryId } ?: run {
-                    aiChatJobStore.upsert(job.copy(actionStatus = "The suggested category no longer exists. No transactions were changed."))
-                    return@launch
-                }
-                val matchingTransactions = transactionRepository.getAllTransactions().first().filter {
-                    it.isCountableTransaction && it.merchantClean.trim().equals(action.merchant.trim(), ignoreCase = true)
-                }
-                val targets = matchingTransactions.filter { it.categoryId != category.id }
-                if (targets.size != expectedCount) {
-                    aiChatJobStore.upsert(job.copy(actionStatus = "The ledger changed after review. No transactions were changed; ask again to refresh the proposal."))
-                    return@launch
-                }
-                if (targets.isEmpty()) {
-                    val status = if (matchingTransactions.isEmpty()) {
-                        "No exact merchant matches were found. No transactions were changed."
-                    } else {
-                        "Those transactions already use ${category.name}. No changes were needed."
-                    }
-                    aiChatJobStore.upsert(job.copy(actionStatus = status))
-                    return@launch
-                }
 
-                aiChatJobStore.upsert(job.copy(actionStatus = "Applying change…"))
-                targets.forEach { transactionRepository.updateTransaction(it.copy(categoryId = category.id)) }
-                aiChatJobStore.upsert(job.copy(actionStatus = "Updated ${targets.size} transaction${if (targets.size == 1) "" else "s"} to ${category.name}."))
+                when (action.type) {
+                    "recategorize_merchant" -> {
+                        val merchantName = action.merchant?.trim().orEmpty()
+                        val targetCatId = action.categoryId?.trim().orEmpty()
+                        if (merchantName.isBlank() || targetCatId.isBlank()) {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "Missing merchant or target category."))
+                            return@launch
+                        }
+                        val category = categoryRepository.getAllCategories().first().firstOrNull { it.id == targetCatId } ?: run {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "Target category does not exist."))
+                            return@launch
+                        }
+                        val matching = transactionRepository.getAllTransactions().first().filter {
+                            it.isCountableTransaction && it.merchantClean.trim().equals(merchantName, ignoreCase = true)
+                        }
+                        val targets = matching.filter { it.categoryId != category.id }
+                        if (targets.isEmpty()) {
+                            val msg = if (matching.isEmpty()) "No matching merchant records found." else "Already categorized as ${category.name}."
+                            aiChatJobStore.upsert(job.copy(actionStatus = msg))
+                            return@launch
+                        }
+                        aiChatJobStore.upsert(job.copy(actionStatus = "Applying change…"))
+                        targets.forEach { transactionRepository.updateTransaction(it.copy(categoryId = category.id)) }
+                        categoryRepository.saveRule(
+                            MerchantRule(pattern = merchantName, categoryId = category.id, isRegex = false, priority = 100)
+                        )
+                        widgetSyncManager.notifyDataChanged()
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Updated ${targets.size} transaction${if (targets.size == 1) "" else "s"} to ${category.name}."))
+                    }
+
+                    "recategorize_transaction" -> {
+                        val txnId = action.transactionId?.trim().orEmpty()
+                        val targetCatId = action.categoryId?.trim().orEmpty()
+                        val category = categoryRepository.getAllCategories().first().firstOrNull { it.id == targetCatId }
+                        val txn = if (txnId.isNotBlank()) transactionRepository.getTransactionById(txnId)
+                        else transactionRepository.getAllTransactions().first().firstOrNull {
+                            it.isCountableTransaction && action.merchant != null && it.merchantClean.contains(action.merchant, ignoreCase = true)
+                        }
+                        if (txn == null || category == null) {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "Could not identify target transaction or category."))
+                            return@launch
+                        }
+                        transactionRepository.updateTransaction(txn.copy(categoryId = category.id))
+                        widgetSyncManager.notifyDataChanged()
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Assigned '${txn.merchantClean}' to ${category.name}."))
+                    }
+
+                    "add_expense" -> {
+                        val amount = action.amount ?: run {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "Amount is required to log an expense."))
+                            return@launch
+                        }
+                        val merchant = action.merchant?.trim()?.ifBlank { "Expense" } ?: "Expense"
+                        val catId = action.categoryId?.trim()?.ifBlank { "general" } ?: "general"
+                        val category = categoryRepository.getAllCategories().first().firstOrNull { it.id == catId }
+                        addManualExpense(
+                            amount = amount,
+                            merchant = merchant,
+                            categoryId = catId,
+                            type = TransactionType.DEBIT,
+                            notes = action.notes
+                        )
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Logged expense of ₹$amount at $merchant (${category?.name ?: catId})."))
+                    }
+
+                    "mark_self_transfer" -> {
+                        val merchantName = action.merchant?.trim().orEmpty()
+                        val targets = transactionRepository.getAllTransactions().first().filter {
+                            (action.transactionId != null && it.id == action.transactionId) ||
+                                (merchantName.isNotBlank() && it.merchantClean.contains(merchantName, ignoreCase = true))
+                        }
+                        if (targets.isEmpty()) {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "No matching transactions found to mark as self transfer."))
+                            return@launch
+                        }
+                        targets.forEach { txn ->
+                            markTransactionAsSelfTransfer(txn.id, isSelfTransfer = true)
+                        }
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Marked ${targets.size} transaction${if (targets.size == 1) "" else "s"} as Self Transfer."))
+                    }
+
+                    "mark_spam" -> {
+                        val merchantName = action.merchant?.trim().orEmpty()
+                        val targets = transactionRepository.getAllTransactions().first().filter {
+                            merchantName.isNotBlank() && (it.merchantClean.contains(merchantName, ignoreCase = true) || it.sender?.contains(merchantName, ignoreCase = true) == true)
+                        }
+                        if (targets.isEmpty()) {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "No matching transactions found to mark as spam."))
+                            return@launch
+                        }
+                        targets.forEach { markTransactionAsSpam(it.id) }
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Marked ${targets.size} transaction${if (targets.size == 1) "" else "s"} as spam & excluded from totals."))
+                    }
+
+                    "delete_transaction" -> {
+                        val merchantName = action.merchant?.trim().orEmpty()
+                        val target = if (!action.transactionId.isNullOrBlank()) {
+                            transactionRepository.getTransactionById(action.transactionId)
+                        } else {
+                            transactionRepository.getAllTransactions().first().firstOrNull {
+                                merchantName.isNotBlank() && it.merchantClean.contains(merchantName, ignoreCase = true)
+                            }
+                        }
+                        if (target == null) {
+                            aiChatJobStore.upsert(job.copy(actionStatus = "Target transaction not found."))
+                            return@launch
+                        }
+                        deleteTransaction(target.id)
+                        aiChatJobStore.upsert(job.copy(actionStatus = "✓ Deleted transaction of ₹${target.amount} at ${target.merchantClean}."))
+                    }
+
+                    else -> {
+                        aiChatJobStore.upsert(job.copy(actionStatus = "Unsupported action type '${action.type}'."))
+                    }
+                }
             } catch (error: Exception) {
                 aiChatJobStore.jobs.first().firstOrNull { it.id == jobId }?.let { job ->
-                    aiChatJobStore.upsert(job.copy(actionStatus = "Couldn't finish the change: ${error.message ?: "storage error"}."))
+                    aiChatJobStore.upsert(job.copy(actionStatus = "Action failed: ${error.message ?: "storage error"}"))
                 }
             } finally {
                 applyingAiActionIds.remove(jobId)
