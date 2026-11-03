@@ -2,6 +2,8 @@ package com.innovatex.expensetracker.data.repository
 
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
+import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
+import com.innovatex.expensetracker.data.local.dao.DuplicateExemplarDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.domain.model.SourceChannel
 import com.innovatex.expensetracker.domain.model.Transaction
@@ -23,6 +25,8 @@ import org.junit.jupiter.api.Test
 class TransactionRepositoryTest {
 
     private val transactionDao: TransactionDao = mockk(relaxed = true)
+    private val userFeedbackDao: UserFeedbackDao = mockk(relaxed = true)
+    private val duplicateExemplarDao: DuplicateExemplarDao = mockk(relaxed = true)
     private val smsParserEngine = SmsParserEngine()
     private val preferencesDataStore: PreferencesDataStore = mockk(relaxed = true)
     private lateinit var repository: TransactionRepositoryImpl
@@ -31,7 +35,14 @@ class TransactionRepositoryTest {
     fun setup() {
         every { preferencesDataStore.spamSendersFlow } returns flowOf(emptySet())
         every { preferencesDataStore.trustedSendersFlow } returns flowOf(emptySet())
-        repository = TransactionRepositoryImpl(transactionDao, smsParserEngine, preferencesDataStore, Dispatchers.Unconfined)
+        repository = TransactionRepositoryImpl(
+            transactionDao = transactionDao,
+            userFeedbackDao = userFeedbackDao,
+            duplicateExemplarDao = duplicateExemplarDao,
+            smsParserEngine = smsParserEngine,
+            preferencesDataStore = preferencesDataStore,
+            ioDispatcher = Dispatchers.Unconfined
+        )
     }
 
     @Test
@@ -212,5 +223,43 @@ class TransactionRepositoryTest {
         assertEquals(1, mergedCount)
         coVerify(exactly = 1) { transactionDao.deleteTransactionsByIds(listOf("t2")) }
         coVerify(exactly = 1) { transactionDao.updateTransaction(match { it.isDeduplicated && it.sources.size == 2 }) }
+    }
+
+    @Test
+    fun `test mergeTransactionsAsDuplicate marks duplicate invalid and creates exemplar`() = runTest {
+        val t1 = TransactionEntity(
+            id = "t1",
+            amount = 450.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 1729570000000L,
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy Bangalore",
+            merchantClean = "Swiggy",
+            sources = listOf(SourceChannel.SMS)
+        )
+        val t2 = TransactionEntity(
+            id = "t2",
+            amount = 450.0,
+            currency = "INR",
+            type = TransactionType.DEBIT,
+            timestamp = 1729656400000L, // 24 hours later (tomorrow)
+            monthKey = "2026-10",
+            merchantRaw = "Swiggy Order Delivery",
+            merchantClean = "Swiggy",
+            sources = listOf(SourceChannel.SMS)
+        )
+
+        coEvery { transactionDao.getTransactionById("t1") } returns t1
+        coEvery { transactionDao.getTransactionById("t2") } returns t2
+        coEvery { transactionDao.updateTransaction(any()) } returns Unit
+        coEvery { duplicateExemplarDao.insertExemplar(any()) } returns Unit
+
+        val result = repository.mergeTransactionsAsDuplicate("t1", listOf("t2"))
+        assertTrue(result)
+
+        coVerify(exactly = 1) { duplicateExemplarDao.insertExemplar(match { it.primaryId == "t1" && it.duplicateId == "t2" && it.amount == 450.0 }) }
+        coVerify(exactly = 1) { transactionDao.updateTransaction(match { it.id == "t2" && it.userOverrideValid == false }) }
+        coVerify(exactly = 1) { transactionDao.updateTransaction(match { it.id == "t1" && it.isDeduplicated }) }
     }
 }

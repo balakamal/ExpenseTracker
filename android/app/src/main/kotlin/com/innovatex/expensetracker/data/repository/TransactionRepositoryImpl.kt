@@ -3,8 +3,10 @@ package com.innovatex.expensetracker.data.repository
 import com.innovatex.expensetracker.data.local.PreferencesDataStore
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
 import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
+import com.innovatex.expensetracker.data.local.dao.DuplicateExemplarDao
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
+import com.innovatex.expensetracker.data.local.entity.DuplicateExemplarEntity
 import com.innovatex.expensetracker.di.IoDispatcher
 import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.AiClassificationResult
@@ -32,6 +34,7 @@ import javax.inject.Singleton
 class TransactionRepositoryImpl @Inject constructor(
     private val transactionDao: TransactionDao,
     private val userFeedbackDao: UserFeedbackDao,
+    private val duplicateExemplarDao: DuplicateExemplarDao,
     private val smsParserEngine: SmsParserEngine,
     private val preferencesDataStore: PreferencesDataStore,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
@@ -443,6 +446,115 @@ class TransactionRepositoryImpl @Inject constructor(
 
     override suspend fun setTransactionValidity(id: String, isValid: Boolean): Unit = withContext(ioDispatcher) {
         transactionDao.updateTransactionValidity(id, isValid)
+    }
+
+    override suspend fun batchSetTransactionValidity(ids: List<String>, isValid: Boolean, label: AuthenticityLabel?): Unit = withContext(ioDispatcher) {
+        val targetLabel = label ?: if (isValid) AuthenticityLabel.REAL_TRANSACTION else AuthenticityLabel.SPAM_PROMO
+        for (id in ids) {
+            val entity = transactionDao.getTransactionById(id) ?: continue
+            val domain = entity.toDomain()
+            val updatedClassification = domain.aiClassification?.copy(
+                authenticityLabel = targetLabel,
+                authenticityConfidence = 1f,
+                ranByAi = false
+            ) ?: AiClassificationResult(
+                authenticityLabel = targetLabel,
+                authenticityConfidence = 1f,
+                categoryId = domain.categoryId,
+                categoryConfidence = null,
+                impliedTransactionType = domain.type,
+                ranByAi = false
+            )
+            transactionDao.updateTransaction(
+                TransactionEntity.fromDomain(
+                    domain.copy(userOverrideValid = isValid, aiClassification = updatedClassification)
+                )
+            )
+            recordUserFeedback(domain.sender, domain.merchantClean, domain.rawSnippet, targetLabel)
+        }
+    }
+
+    override suspend fun batchDeleteTransactions(ids: List<String>): Unit = withContext(ioDispatcher) {
+        transactionDao.deleteTransactionsByIds(ids)
+    }
+
+    override suspend fun mergeTransactionsAsDuplicate(primaryId: String, duplicateIds: List<String>): Boolean = withContext(ioDispatcher) {
+        val primaryEntity = transactionDao.getTransactionById(primaryId) ?: return@withContext false
+        val primary = primaryEntity.toDomain()
+        val allDuplicates = duplicateIds.filter { it != primaryId }.mapNotNull { transactionDao.getTransactionById(it)?.toDomain() }
+        if (allDuplicates.isEmpty()) return@withContext false
+
+        var updatedPrimary = primary
+        for (dup in allDuplicates) {
+            val combinedSources = (updatedPrimary.sources + dup.sources).distinct()
+            val bestMerchant = if (updatedPrimary.merchantClean.lowercase() in setOf("general purchase", "unknown merchant")) {
+                dup.merchantClean
+            } else {
+                updatedPrimary.merchantClean
+            }
+            val bestCategory = if (updatedPrimary.categoryId != "general") updatedPrimary.categoryId else dup.categoryId
+            val mergedNotes = buildString {
+                if (!updatedPrimary.notes.isNullOrBlank()) append(updatedPrimary.notes)
+                if (!dup.notes.isNullOrBlank()) {
+                    if (isNotEmpty()) append(" | ")
+                    append(dup.notes)
+                }
+            }.ifBlank { null }
+
+            updatedPrimary = updatedPrimary.copy(
+                merchantClean = bestMerchant,
+                categoryId = bestCategory,
+                sources = combinedSources,
+                isDeduplicated = true,
+                referenceId = updatedPrimary.referenceId ?: dup.referenceId,
+                accountLast4 = updatedPrimary.accountLast4 ?: dup.accountLast4,
+                rawSnippet = updatedPrimary.rawSnippet ?: dup.rawSnippet,
+                notes = mergedNotes,
+                userOverrideValid = true
+            )
+
+            val duplicateClassification = dup.aiClassification?.copy(
+                authenticityLabel = AuthenticityLabel.DUPLICATE,
+                authenticityConfidence = 1f,
+                ranByAi = false
+            ) ?: AiClassificationResult(
+                authenticityLabel = AuthenticityLabel.DUPLICATE,
+                authenticityConfidence = 1f,
+                categoryId = dup.categoryId,
+                categoryConfidence = null,
+                impliedTransactionType = dup.type,
+                ranByAi = false
+            )
+            transactionDao.updateTransaction(
+                TransactionEntity.fromDomain(
+                    dup.copy(userOverrideValid = false, aiClassification = duplicateClassification)
+                )
+            )
+
+            // Persist exemplar for local LLM few-shot training & heuristic distillation
+            val exemplar = DuplicateExemplarEntity(
+                primaryId = primary.id,
+                duplicateId = dup.id,
+                senderA = primary.sender,
+                senderB = dup.sender,
+                merchantCleanA = primary.merchantClean,
+                merchantCleanB = dup.merchantClean,
+                rawSnippetA = primary.rawSnippet,
+                rawSnippetB = dup.rawSnippet,
+                amount = primary.amount,
+                currency = primary.currency,
+                timeDeltaMs = kotlin.math.abs(primary.timestamp - dup.timestamp),
+                createdAt = System.currentTimeMillis()
+            )
+            duplicateExemplarDao.insertExemplar(exemplar)
+        }
+
+        transactionDao.updateTransaction(TransactionEntity.fromDomain(updatedPrimary))
+        true
+    }
+
+    override suspend fun getRecentDuplicateExemplars(limit: Int): List<DuplicateExemplarEntity> = withContext(ioDispatcher) {
+        duplicateExemplarDao.getRecentExemplars(limit)
     }
 
     override suspend fun recordUserFeedback(

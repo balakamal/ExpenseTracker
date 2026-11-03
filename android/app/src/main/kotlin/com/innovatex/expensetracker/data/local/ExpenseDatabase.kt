@@ -6,11 +6,13 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.innovatex.expensetracker.data.local.dao.CategoryDao
+import com.innovatex.expensetracker.data.local.dao.DuplicateExemplarDao
 import com.innovatex.expensetracker.data.local.dao.MerchantRuleDao
 import com.innovatex.expensetracker.data.local.dao.TransactionDao
 import com.innovatex.expensetracker.data.local.dao.UserFeedbackDao
 import com.innovatex.expensetracker.data.local.entity.CategoryEntity
 import com.innovatex.expensetracker.data.local.entity.Converters
+import com.innovatex.expensetracker.data.local.entity.DuplicateExemplarEntity
 import com.innovatex.expensetracker.data.local.entity.MerchantRuleEntity
 import com.innovatex.expensetracker.data.local.entity.TransactionEntity
 import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
@@ -20,9 +22,10 @@ import com.innovatex.expensetracker.data.local.entity.UserFeedbackExemplarEntity
         TransactionEntity::class,
         CategoryEntity::class,
         MerchantRuleEntity::class,
-        UserFeedbackExemplarEntity::class
+        UserFeedbackExemplarEntity::class,
+        DuplicateExemplarEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -31,6 +34,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun merchantRuleDao(): MerchantRuleDao
     abstract fun userFeedbackDao(): UserFeedbackDao
+    abstract fun duplicateExemplarDao(): DuplicateExemplarDao
 
     companion object {
         const val DATABASE_NAME = "expense_tracker.db"
@@ -58,6 +62,33 @@ abstract class ExpenseDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_user_feedback_exemplars_sender ON user_feedback_exemplars (sender)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_user_feedback_exemplars_merchant_clean ON user_feedback_exemplars (merchant_clean)")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS duplicate_exemplars (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        primary_id TEXT NOT NULL,
+                        duplicate_id TEXT NOT NULL,
+                        sender_a TEXT,
+                        sender_b TEXT,
+                        merchant_clean_a TEXT NOT NULL,
+                        merchant_clean_b TEXT NOT NULL,
+                        raw_snippet_a TEXT,
+                        raw_snippet_b TEXT,
+                        amount REAL NOT NULL,
+                        currency TEXT NOT NULL,
+                        time_delta_ms INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_duplicate_exemplars_amount ON duplicate_exemplars (amount)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_duplicate_exemplars_merchant_clean_a ON duplicate_exemplars (merchant_clean_a)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_duplicate_exemplars_created_at ON duplicate_exemplars (created_at)")
             }
         }
 

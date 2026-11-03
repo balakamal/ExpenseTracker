@@ -493,6 +493,28 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun mergeTransactions(primaryId: String, duplicateIds: List<String>) {
+        viewModelScope.launch {
+            transactionRepository.mergeTransactionsAsDuplicate(primaryId, duplicateIds)
+            widgetSyncManager.notifyDataChanged()
+        }
+    }
+
+    fun batchMarkAsSpamOrReminder(ids: List<String>, isReminder: Boolean = false) {
+        viewModelScope.launch {
+            val label = if (isReminder) AuthenticityLabel.PAYMENT_REMINDER else AuthenticityLabel.SPAM_PROMO
+            transactionRepository.batchSetTransactionValidity(ids, isValid = false, label = label)
+            widgetSyncManager.notifyDataChanged()
+        }
+    }
+
+    fun batchDeleteTransactions(ids: List<String>) {
+        viewModelScope.launch {
+            transactionRepository.batchDeleteTransactions(ids)
+            widgetSyncManager.notifyDataChanged()
+        }
+    }
+
     fun toggleSms(enabled: Boolean) {
         viewModelScope.launch {
             preferencesDataStore.setSmsTrackingEnabled(enabled)

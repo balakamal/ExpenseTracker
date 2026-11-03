@@ -43,6 +43,10 @@ interface TransactionRepository {
     suspend fun trustSender(sender: String)
     suspend fun deleteTransactionsBySender(sender: String): Int
     suspend fun setTransactionValidity(id: String, isValid: Boolean)
+    suspend fun batchSetTransactionValidity(ids: List<String>, isValid: Boolean, label: AuthenticityLabel? = null)
+    suspend fun batchDeleteTransactions(ids: List<String>)
+    suspend fun mergeTransactionsAsDuplicate(primaryId: String, duplicateIds: List<String>): Boolean
+    suspend fun getRecentDuplicateExemplars(limit: Int = 10): List<com.innovatex.expensetracker.data.local.entity.DuplicateExemplarEntity>
     suspend fun recordUserFeedback(sender: String?, merchantClean: String, rawSnippet: String?, label: AuthenticityLabel)
     suspend fun repartitionTransactionsForSalaryCycle(salaryCreditDay: Int): Int
 }

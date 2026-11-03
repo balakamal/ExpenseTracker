@@ -246,7 +246,16 @@ fun MonthlyDashboardScreen(
                             onMonthSelected = { viewModel.selectMonth(it) },
                             onTransactionClick = { txn -> selectedTransactionForDetail = txn },
                             onLogExpenseClick = { showLogExpenseSheet = true },
-                            onScanSmsClick = { viewModel.triggerHistoricalScan(context) }
+                            onScanSmsClick = { viewModel.triggerHistoricalScan(context) },
+                            onMergeAsDuplicate = { primaryId, duplicateIds ->
+                                viewModel.mergeTransactions(primaryId, duplicateIds)
+                            },
+                            onBatchMarkAsSpamOrReminder = { ids, isReminder ->
+                                viewModel.batchMarkAsSpamOrReminder(ids, isReminder)
+                            },
+                            onBatchDeleteTransactions = { ids ->
+                                viewModel.batchDeleteTransactions(ids)
+                            }
                         )
                         1 -> PastelCalendarMatrixView(
                             currentMonthMillis = calendarMonthMillis,

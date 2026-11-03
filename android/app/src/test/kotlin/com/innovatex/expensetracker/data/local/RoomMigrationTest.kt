@@ -66,4 +66,14 @@ class RoomMigrationTest {
             mockDb.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS user_feedback_exemplars") })
         }
     }
+
+    @Test
+    fun `test migration 3 to 4 creates duplicate_exemplars table and indexes`() {
+        val mockDb = mockk<androidx.sqlite.db.SupportSQLiteDatabase>(relaxed = true)
+        ExpenseDatabase.MIGRATION_3_4.migrate(mockDb)
+        verify {
+            mockDb.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS duplicate_exemplars") })
+            mockDb.execSQL(match { it.contains("index_duplicate_exemplars_amount") })
+        }
+    }
 }

@@ -17,6 +17,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import com.innovatex.expensetracker.data.local.dao.DuplicateExemplarDao
+import com.innovatex.expensetracker.data.local.entity.DuplicateExemplarEntity
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,6 +37,7 @@ data class DuplicateComparison(val isSameTransaction: Boolean, val confidence: F
 class LlmClassifierEngine @Inject constructor(
     @ApplicationContext private val context: Context,
     private val modelStore: AiModelStore,
+    private val duplicateExemplarDao: DuplicateExemplarDao,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val mutex = Mutex()
@@ -100,6 +103,23 @@ class LlmClassifierEngine @Inject constructor(
     fun isGenerativeLlmReady(): Boolean = modelStore.isGenerativeLlmReady()
 
     suspend fun comparePotentialDuplicates(first: Transaction, second: Transaction): DuplicateComparison? = withContext(ioDispatcher) {
+        val exemplars = runCatching {
+            duplicateExemplarDao.findMatchingExemplars(first.amount, first.merchantClean, limit = 3)
+        }.getOrDefault(emptyList()).ifEmpty {
+            runCatching { duplicateExemplarDao.getRecentExemplars(3) }.getOrDefault(emptyList())
+        }
+
+        val exemplarPrompt = if (exemplars.isNotEmpty()) {
+            buildString {
+                appendLine("\nLearned user examples of confirmed duplicate transactions:")
+                for (ex in exemplars) {
+                    val snipA = ex.rawSnippetA?.take(60) ?: ex.merchantCleanA
+                    val snipB = ex.rawSnippetB?.take(60) ?: ex.merchantCleanB
+                    appendLine("- Example: Alert A '$snipA' and Alert B '$snipB' => DUPLICATE")
+                }
+            }
+        } else ""
+
         mutex.withLock {
             val activeEngine = getOrInitializeEngine() ?: return@withLock null
             runCatching {
@@ -107,10 +127,10 @@ class LlmClassifierEngine @Inject constructor(
                     ConversationConfig(
                         systemInstruction = com.google.ai.edge.litertlm.Contents.of(
                             "You compare two local financial alerts to decide whether they describe the exact same completed money movement. " +
-                                "Both already have the same amount, currency, and direction. Do not call them duplicates based only on those facts, close timestamps, or the same merchant. " +
-                                "Require clear corroboration in the text or transaction identifiers; two separate purchases of the same amount must be kept separate. " +
+                                "They may arrive across multiple days (e.g. today vs tomorrow, UPI delivery delay, or credit card settlement confirmation). " +
                                 "Return exactly JSON: {\"sameTransaction\":true|false,\"confidence\":0.0,\"evidence\":\"short observable reason\"}. " +
-                                "Use true only when confidence is at least 0.95 and the evidence supports the same event."
+                                "Use true when confidence is at least 0.85 and the evidence supports describing the same payment event or its confirmation." +
+                                exemplarPrompt
                         ),
                         samplerConfig = SamplerConfig(topK = 1, topP = 1.0, temperature = 0.0)
                     )

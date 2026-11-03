@@ -15,9 +15,9 @@ class DeduplicateTransactionUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         candidate: Transaction,
-        toleranceWindowMs: Long = 15 * 60 * 1000L
+        toleranceWindowMs: Long = 72 * 60 * 60 * 1000L
     ): DeduplicationResult {
-        val searchWindow = maxOf(toleranceWindowMs, 30 * 60 * 1000L)
+        val searchWindow = maxOf(toleranceWindowMs, 5 * 24 * 60 * 60 * 1000L)
         val potentialDuplicates = transactionRepository.findPotentialDuplicates(
             startTime = candidate.timestamp - searchWindow,
             endTime = candidate.timestamp + searchWindow,

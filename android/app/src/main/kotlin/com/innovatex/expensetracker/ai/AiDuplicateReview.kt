@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-/** LLM review for a small, locally prefiltered set of same-amount candidates. */
+/** LLM review for a small, locally prefiltered set of same-amount candidates across multiple days. */
 class AiDuplicateReview @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val llmClassifierEngine: LlmClassifierEngine,
@@ -20,7 +20,7 @@ class AiDuplicateReview @Inject constructor(
         if (!llmClassifierEngine.isGenerativeLlmReady()) return@withContext 0
         val groups = transactionRepository.getAllTransactions().first()
             .filter { it.isCountableTransaction && it.userOverrideValid != true }
-            .groupBy { DuplicateGroupKey(it.amount.toLongCents(), it.currency, it.type.name) }
+            .groupBy { DuplicateGroupKey(it.amount.toLongCents(), it.currency) }
             .values
         var reviews = 0
         var markedDuplicates = 0
@@ -61,8 +61,12 @@ class AiDuplicateReview @Inject constructor(
     }
 
     private fun isPlausiblePair(first: Transaction, second: Transaction): Boolean {
-        if (first.currency != second.currency || first.type != second.type) return false
+        if (first.currency != second.currency) return false
         if (kotlin.math.abs(first.amount - second.amount) >= 0.01) return false
+
+        val isSettlement = TransactionDuplicateMatcher.isCreditCardSettlementPair(first, second)
+        if (!isSettlement && first.type != second.type) return false
+
         if (TransactionDuplicateMatcher.isLikelyDuplicate(first, second, MAX_TIME_GAP_MS)) return false
 
         val sameAccount = !first.accountLast4.isNullOrBlank() && first.accountLast4 == second.accountLast4
@@ -70,7 +74,7 @@ class AiDuplicateReview @Inject constructor(
         val firstTokens = evidenceTokens(first)
         val secondTokens = evidenceTokens(second)
         val sharedTokens = firstTokens.intersect(secondTokens).size
-        return sameAccount || sharedTokens >= 2 || (sourcesDiffer && sharedTokens >= 1)
+        return isSettlement || sameAccount || sharedTokens >= 1 || sourcesDiffer
     }
 
     private fun evidenceTokens(transaction: Transaction): Set<String> =
@@ -101,11 +105,11 @@ class AiDuplicateReview @Inject constructor(
 
     private fun Double.toLongCents(): Long = (this * 100).toLong()
 
-    private data class DuplicateGroupKey(val amountCents: Long, val currency: String, val type: String)
+    private data class DuplicateGroupKey(val amountCents: Long, val currency: String)
 
     private companion object {
         const val MAX_REVIEWS = 32
-        const val MIN_CONFIDENCE = 0.95f
-        const val MAX_TIME_GAP_MS = 6 * 60 * 60 * 1000L
+        const val MIN_CONFIDENCE = 0.85f
+        const val MAX_TIME_GAP_MS = 5 * 24 * 60 * 60 * 1000L // 5 days / 120 hours
     }
 }

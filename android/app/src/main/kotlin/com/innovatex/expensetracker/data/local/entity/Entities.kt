@@ -313,3 +313,53 @@ data class UserFeedbackExemplarEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )
+
+@Entity(
+    tableName = "duplicate_exemplars",
+    indices = [
+        Index(value = ["amount"]),
+        Index(value = ["merchant_clean_a"]),
+        Index(value = ["created_at"])
+    ]
+)
+data class DuplicateExemplarEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "id")
+    val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "primary_id")
+    val primaryId: String,
+
+    @ColumnInfo(name = "duplicate_id")
+    val duplicateId: String,
+
+    @ColumnInfo(name = "sender_a")
+    val senderA: String? = null,
+
+    @ColumnInfo(name = "sender_b")
+    val senderB: String? = null,
+
+    @ColumnInfo(name = "merchant_clean_a")
+    val merchantCleanA: String,
+
+    @ColumnInfo(name = "merchant_clean_b")
+    val merchantCleanB: String,
+
+    @ColumnInfo(name = "raw_snippet_a")
+    val rawSnippetA: String? = null,
+
+    @ColumnInfo(name = "raw_snippet_b")
+    val rawSnippetB: String? = null,
+
+    @ColumnInfo(name = "amount")
+    val amount: Double,
+
+    @ColumnInfo(name = "currency")
+    val currency: String = "INR",
+
+    @ColumnInfo(name = "time_delta_ms")
+    val timeDeltaMs: Long = 0L,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)

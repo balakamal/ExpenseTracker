@@ -1,9 +1,11 @@
 package com.innovatex.expensetracker.presentation.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,17 +28,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -54,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.innovatex.expensetracker.domain.model.AuthenticityLabel
 import com.innovatex.expensetracker.domain.model.SalaryCycleHelper
 import com.innovatex.expensetracker.domain.model.Transaction
 import com.innovatex.expensetracker.domain.model.TransactionType
@@ -83,6 +95,9 @@ fun PastelLedgerView(
     onTransactionClick: (Transaction) -> Unit = {},
     onLogExpenseClick: () -> Unit = {},
     onScanSmsClick: () -> Unit = {},
+    onMergeAsDuplicate: (primaryId: String, duplicateIds: List<String>) -> Unit = { _, _ -> },
+    onBatchMarkAsSpamOrReminder: (ids: List<String>, isReminder: Boolean) -> Unit = { _, _ -> },
+    onBatchDeleteTransactions: (ids: List<String>) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val numberFormat = remember {
@@ -109,6 +124,12 @@ fun PastelLedgerView(
     var selectedDayIndex by remember { mutableStateOf<Int?>(null) } // null = all days
     var selectedCategoryFilter by remember { mutableStateOf("All Items") }
     var balancePodFilter by remember { mutableIntStateOf(0) } // 0 = All, 1 = Inflow Only, 2 = Outflow Only
+    var auditFilter by remember { mutableStateOf("Active") } // "Active", "Spam & Reminders", "Duplicates", "All"
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedTxnIds by remember { mutableStateOf(setOf<String>()) }
+    var showMergeDialog by remember { mutableStateOf(false) }
+    var primaryMergeId by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -141,9 +162,18 @@ fun PastelLedgerView(
         searchQuery,
         categoryMap,
         selectedDayIndex,
-        balancePodFilter
+        balancePodFilter,
+        auditFilter
     ) {
         transactions.filter { tx ->
+            // Audit filter: by default show only valid transactions!
+            val matchesAudit = when (auditFilter) {
+                "Active" -> tx.isValidTransaction
+                "Spam & Reminders" -> !tx.isValidTransaction && tx.aiClassification?.authenticityLabel != AuthenticityLabel.DUPLICATE
+                "Duplicates" -> !tx.isValidTransaction && tx.aiClassification?.authenticityLabel == AuthenticityLabel.DUPLICATE
+                else -> true
+            }
+
             // Category filter
             val catName = categoryMap[tx.categoryId] ?: tx.categoryId
             val matchesCategory = selectedCategoryFilter == "All Items" ||
@@ -171,88 +201,200 @@ fun PastelLedgerView(
                 true
             }
 
-            matchesCategory && matchesSearch && matchesPod && matchesDay
+            matchesAudit && matchesCategory && matchesSearch && matchesPod && matchesDay
         }
     }
 
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(PastelKineticTokens.CanvasBg),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .background(PastelKineticTokens.CanvasBg)
     ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // 1. SpendWell Top App Bar
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            if (isSelectionMode) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.AnchorPrimary),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = "SpendWell",
-                            tint = PastelKineticTokens.AmberAccent,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.AmberFixed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Checklist,
+                                contentDescription = "Selection Mode",
+                                tint = PastelKineticTokens.AmberDeep,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "SELECTING TRANSACTIONS",
+                                color = PastelKineticTokens.AmberDeep,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp
+                            )
+                            Text(
+                                text = "${selectedTxnIds.size} Selected",
+                                color = PastelKineticTokens.TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
-                    Column {
-                        Text(
-                            text = "SPENDWELL",
-                            color = PastelKineticTokens.TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp
-                        )
-                        Text(
-                            text = "Transactions & Summary",
-                            color = PastelKineticTokens.TextPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(PastelKineticTokens.RadiusFull)
+                                .background(PastelKineticTokens.SurfaceContainer)
+                                .clickable {
+                                    selectedTxnIds = if (selectedTxnIds.size == filteredTransactions.size) {
+                                        emptySet()
+                                    } else {
+                                        filteredTransactions.map { it.id }.toSet()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (selectedTxnIds.size == filteredTransactions.size) "Deselect All" else "Select All",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PastelKineticTokens.TextPrimary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.SurfaceContainer)
+                                .clickable {
+                                    isSelectionMode = false
+                                    selectedTxnIds = emptySet()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Exit Selection",
+                                tint = PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(PastelKineticTokens.SkyFixed)
-                            .clickable { onScanSmsClick() },
-                        contentAlignment = Alignment.Center
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Scan SMS",
-                            tint = PastelKineticTokens.SkyText,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.AnchorPrimary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ReceiptLong,
+                                contentDescription = "SpendWell",
+                                tint = PastelKineticTokens.AmberAccent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "SPENDWELL",
+                                color = PastelKineticTokens.TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp
+                            )
+                            Text(
+                                text = "Transactions & Summary",
+                                color = PastelKineticTokens.TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (isSearchActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceContainer)
-                            .clickable { isSearchActive = !isSearchActive },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "Search",
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.SurfaceContainer)
+                                .clickable { isSelectionMode = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Checklist,
+                                contentDescription = "Select Multiple",
+                                tint = PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PastelKineticTokens.SkyFixed)
+                                .clickable { onScanSmsClick() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Scan SMS",
+                                tint = PastelKineticTokens.SkyText,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(if (isSearchActive) PastelKineticTokens.AmberFixed else PastelKineticTokens.SurfaceContainer)
+                                .clickable { isSearchActive = !isSearchActive },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = if (isSearchActive) PastelKineticTokens.AmberDeep else PastelKineticTokens.TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
                             tint = if (isSearchActive) PastelKineticTokens.AmberText else PastelKineticTokens.TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -928,6 +1070,36 @@ fun PastelLedgerView(
             }
         }
 
+        // 6b. Ledger Audit Filter Pills (Active, Spam & Reminders, Duplicates, All)
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Active", "Spam & Reminders", "Duplicates", "All").forEach { filterName ->
+                    val isSelected = auditFilter == filterName
+                    Box(
+                        modifier = Modifier
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .background(
+                                if (isSelected) PastelKineticTokens.AmberAccent else PastelKineticTokens.SurfaceContainer
+                            )
+                            .clickable { auditFilter = filterName }
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = filterName,
+                            color = if (isSelected) PastelKineticTokens.AnchorPrimary else PastelKineticTokens.TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
         // 7. Recent Activity Header
         item {
             Row(
@@ -975,20 +1147,43 @@ fun PastelLedgerView(
                 }
             }
         } else {
-            items(filteredTransactions.take(30), key = { it.id }) { tx ->
+            items(filteredTransactions, key = { it.id }) { tx ->
+                val isSelected = tx.id in selectedTxnIds
                 val isCredit = tx.type == TransactionType.CREDIT
                 val formattedAmt = "${if (isCredit) "+" else "-"}$currencySymbol${numberFormat.format(tx.amount)}"
                 val timeString = remember(tx.timestamp) {
-                    SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(tx.timestamp))
+                    SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.timestamp))
                 }
 
+                @OptIn(ExperimentalFoundationApi::class)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(2.dp, PastelKineticTokens.RadiusMd, spotColor = Color(0x0C121316))
                         .clip(PastelKineticTokens.RadiusMd)
-                        .background(PastelKineticTokens.SurfaceCard)
-                        .clickable { onTransactionClick(tx) }
+                        .background(
+                            if (isSelected) PastelKineticTokens.AmberFixed.copy(alpha = 0.25f)
+                            else PastelKineticTokens.SurfaceCard
+                        )
+                        .combinedClickable(
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedTxnIds = if (isSelected) selectedTxnIds - tx.id else selectedTxnIds + tx.id
+                                    if (selectedTxnIds.isEmpty()) isSelectionMode = false
+                                } else {
+                                    onTransactionClick(tx)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    isSelectionMode = true
+                                    selectedTxnIds = setOf(tx.id)
+                                } else {
+                                    selectedTxnIds = if (isSelected) selectedTxnIds - tx.id else selectedTxnIds + tx.id
+                                    if (selectedTxnIds.isEmpty()) isSelectionMode = false
+                                }
+                            }
+                        )
                         .padding(14.dp)
                 ) {
                     Row(
@@ -996,6 +1191,17 @@ fun PastelLedgerView(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (isSelectionMode) {
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = if (isSelected) "Selected" else "Not selected",
+                                tint = if (isSelected) PastelKineticTokens.AmberAccent else PastelKineticTokens.TextOutline,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(end = 6.dp)
+                            )
+                        }
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1104,5 +1310,211 @@ fun PastelLedgerView(
                 }
             }
         }
+    }
+
+    // Floating Multi-Select Action Capsule
+    if (isSelectionMode && selectedTxnIds.isNotEmpty()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .shadow(12.dp, PastelKineticTokens.RadiusFull)
+                .clip(PastelKineticTokens.RadiusFull)
+                .background(PastelKineticTokens.AnchorPrimary)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (selectedTxnIds.size >= 2) {
+                    Row(
+                        modifier = Modifier
+                            .clip(PastelKineticTokens.RadiusFull)
+                            .clickable {
+                                primaryMergeId = selectedTxnIds.first()
+                                showMergeDialog = true
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallMerge,
+                            contentDescription = "Merge as Duplicate",
+                            tint = PastelKineticTokens.AmberAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Merge (${selectedTxnIds.size})",
+                            color = PastelKineticTokens.OnAnchor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(PastelKineticTokens.RadiusFull)
+                        .clickable {
+                            onBatchMarkAsSpamOrReminder(selectedTxnIds.toList(), false)
+                            isSelectionMode = false
+                            selectedTxnIds = emptySet()
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Block,
+                        contentDescription = "Mark as Spam",
+                        tint = PastelKineticTokens.SkyFixed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Spam",
+                        color = PastelKineticTokens.OnAnchor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(PastelKineticTokens.RadiusFull)
+                        .clickable { showDeleteConfirmDialog = true }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = PastelKineticTokens.Error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Delete",
+                        color = PastelKineticTokens.OnAnchor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+
+    // Merge Confirmation Dialog
+    if (showMergeDialog && selectedTxnIds.size >= 2) {
+        val selectedCandidates = transactions.filter { it.id in selectedTxnIds }
+        AlertDialog(
+            onDismissRequest = { showMergeDialog = false },
+            title = {
+                Text(
+                    text = "Merge ${selectedCandidates.size} Transactions",
+                    fontWeight = FontWeight.Bold,
+                    color = PastelKineticTokens.TextPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Choose which transaction to keep as primary. The others will be marked as duplicate and used to train the local AI:",
+                        fontSize = 12.sp,
+                        color = PastelKineticTokens.TextSecondary
+                    )
+                    selectedCandidates.forEach { candidate ->
+                        val isPrimary = candidate.id == (primaryMergeId ?: selectedCandidates.first().id)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(PastelKineticTokens.RadiusSm)
+                                .background(if (isPrimary) PastelKineticTokens.AmberFixed.copy(alpha = 0.3f) else PastelKineticTokens.SurfaceLow)
+                                .clickable { primaryMergeId = candidate.id }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = candidate.merchantClean.ifBlank { candidate.merchantRaw },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = PastelKineticTokens.TextPrimary
+                                )
+                                Text(
+                                    text = "${candidate.sources.joinToString()} • ${SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(candidate.timestamp))}",
+                                    fontSize = 10.sp,
+                                    color = PastelKineticTokens.TextSecondary
+                                )
+                                if (!candidate.rawSnippet.isNullOrBlank()) {
+                                    Text(
+                                        text = candidate.rawSnippet.take(50) + "...",
+                                        fontSize = 10.sp,
+                                        color = PastelKineticTokens.TextOutline
+                                    )
+                                }
+                            }
+                            if (isPrimary) {
+                                Text(
+                                    text = "PRIMARY",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PastelKineticTokens.AmberDeep
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val primary = primaryMergeId ?: selectedCandidates.first().id
+                        val duplicates = selectedTxnIds.filter { it != primary }
+                        onMergeAsDuplicate(primary, duplicates)
+                        showMergeDialog = false
+                        isSelectionMode = false
+                        selectedTxnIds = emptySet()
+                    }
+                ) {
+                    Text("Confirm Merge", fontWeight = FontWeight.Bold, color = PastelKineticTokens.AmberDeep)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMergeDialog = false }) {
+                    Text("Cancel", color = PastelKineticTokens.TextSecondary)
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteConfirmDialog && selectedTxnIds.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Delete ${selectedTxnIds.size} Transactions?", fontWeight = FontWeight.Bold) },
+            text = { Text("These transactions will be permanently deleted from your local ledger.", fontSize = 13.sp) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onBatchDeleteTransactions(selectedTxnIds.toList())
+                        showDeleteConfirmDialog = false
+                        isSelectionMode = false
+                        selectedTxnIds = emptySet()
+                    }
+                ) {
+                    Text("Delete", color = PastelKineticTokens.Error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancel", color = PastelKineticTokens.TextSecondary)
+                }
+            }
+        )
     }
 }
