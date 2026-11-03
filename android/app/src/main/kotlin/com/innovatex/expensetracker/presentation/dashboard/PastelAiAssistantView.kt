@@ -1031,3 +1031,4 @@ fun PastelAiAssistantView(
         }
     }
 }
+}
