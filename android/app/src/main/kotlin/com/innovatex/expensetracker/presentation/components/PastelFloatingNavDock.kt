@@ -45,7 +45,7 @@ data class PastelNavItemData(
 
 val SpendWellNavItems = listOf(
     PastelNavItemData("Ledger", Icons.Default.AccountBalanceWallet, 0),
-    PastelNavItemData("Matrix", Icons.Default.CalendarMonth, 1),
+    PastelNavItemData("Calendar", Icons.Default.CalendarMonth, 1),
     PastelNavItemData("Gemma", Icons.Default.AutoAwesome, 2),
     PastelNavItemData("Enclave", Icons.Default.Tune, 3)
 )

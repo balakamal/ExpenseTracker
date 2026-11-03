@@ -126,6 +126,7 @@ fun MonthlyDashboardScreen(
     val updateState by viewModel.updateState.collectAsState()
     val showUpdateBanner by viewModel.showUpdateBanner.collectAsState()
     val calendarMonthMillis by viewModel.calendarMonthMillis.collectAsState()
+    val selectedDateRange by viewModel.selectedDateRange.collectAsState()
     val cleanSpamStatus by viewModel.cleanSpamStatus.collectAsState()
     val suspectedSpamItems by viewModel.suspectedSpamItems.collectAsState()
     val spamSenders by viewModel.spamSenders.collectAsState()
@@ -263,6 +264,13 @@ fun MonthlyDashboardScreen(
                             currencySymbol = "₹",
                             monthlyBudget = settings.defaultMonthlyBudget,
                             salaryCreditDay = settings.salaryCreditDay,
+                            selectedDateRange = selectedDateRange,
+                            onDateRangeSelected = { range ->
+                                viewModel.selectDateRange(range.first, range.second)
+                            },
+                            onClearDateSelection = {
+                                viewModel.clearDateFilter()
+                            },
                             onTransactionClick = { txn -> selectedTransactionForDetail = txn },
                             onLogForDayClick = { showLogExpenseSheet = true },
                             onExportClick = { viewModel.exportLedgerToCsv(context, uiState.allTransactions, "SpendWell_Month_${uiState.monthKey}") },
