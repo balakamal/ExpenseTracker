@@ -94,6 +94,11 @@ object DatabaseModule {
         @ApplicationContext context: Context,
         keyStoreManager: KeyStoreManager
     ): SpendwellDatabase {
+        try {
+            System.loadLibrary("sqlcipher")
+        } catch (t: Throwable) {
+            // Handled gracefully in environments where native binaries are loaded differently
+        }
         val passphrase = keyStoreManager.getOrCreateDatabasePassphrase()
         val factory = SupportOpenHelperFactory(passphrase)
 
