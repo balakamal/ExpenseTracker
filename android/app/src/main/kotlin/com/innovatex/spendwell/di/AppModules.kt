@@ -1,6 +1,7 @@
 package com.innovatex.spendwell.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import com.innovatex.spendwell.core.DefaultDispatcherProvider
 import com.innovatex.spendwell.core.DispatcherProvider
@@ -94,22 +95,45 @@ object DatabaseModule {
         @ApplicationContext context: Context,
         keyStoreManager: KeyStoreManager
     ): SpendwellDatabase {
+        var sqlCipherAvailable = true
         try {
             System.loadLibrary("sqlcipher")
         } catch (t: Throwable) {
-            // Handled gracefully in environments where native binaries are loaded differently
+            Log.e("DatabaseModule", "Failed to load sqlcipher native library: ${t.message}")
+            sqlCipherAvailable = false
         }
-        val passphrase = keyStoreManager.getOrCreateDatabasePassphrase()
-        val factory = SupportOpenHelperFactory(passphrase)
 
-        return Room.databaseBuilder(
+        val dbFile = context.getDatabasePath(SpendwellDatabase.DATABASE_NAME)
+        val passphrase = keyStoreManager.getOrCreateDatabasePassphrase()
+
+        if (sqlCipherAvailable && dbFile.exists()) {
+            try {
+                // Verify existing database can be opened with current key
+                val testDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
+                    dbFile.absolutePath,
+                    passphrase,
+                    null,
+                    net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
+                )
+                testDb.rawQuery("SELECT count(*) FROM sqlite_master;", null).use { it.moveToFirst() }
+                testDb.close()
+            } catch (t: Throwable) {
+                Log.w("DatabaseModule", "Existing database cannot be opened with current key (corrupt or stale key). Resetting database to recover: ${t.message}")
+                context.deleteDatabase(SpendwellDatabase.DATABASE_NAME)
+            }
+        }
+
+        val builder = Room.databaseBuilder(
             context,
             SpendwellDatabase::class.java,
             SpendwellDatabase.DATABASE_NAME
-        )
-            .openHelperFactory(factory)
-            .fallbackToDestructiveMigration()
-            .build()
+        ).fallbackToDestructiveMigration()
+
+        if (sqlCipherAvailable) {
+            builder.openHelperFactory(SupportOpenHelperFactory(passphrase))
+        }
+
+        return builder.build()
     }
 
     @Provides

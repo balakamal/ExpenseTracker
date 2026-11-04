@@ -1,9 +1,8 @@
 package com.innovatex.spendwell
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
-import androidx.hilt.work.HiltWorkerFactory
-import androidx.work.Configuration
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -14,10 +13,7 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 @HiltAndroidApp
-class SpendwellApplication : Application(), Configuration.Provider {
-
-    @Inject
-    lateinit var workerFactory: HiltWorkerFactory
+class SpendwellApplication : Application() {
 
     @Inject
     lateinit var categoryRepositoryProvider: Provider<CategoryRepository>
@@ -29,8 +25,19 @@ class SpendwellApplication : Application(), Configuration.Provider {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
+                val stackTrace = Log.getStackTraceString(throwable)
                 val crashFile = File(filesDir, "latest_crash.log")
-                crashFile.writeText("CRASH on thread [${thread.name}]:\n" + Log.getStackTraceString(throwable))
+                crashFile.writeText("CRASH on thread [${thread.name}]:\n$stackTrace")
+                
+                // Also persist in shared preferences for in-app recovery diagnostics
+                val prefs = getSharedPreferences("spendwell_crash_prefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putString("last_crash_thread", thread.name)
+                    .putString("last_crash_message", throwable.message ?: "Unknown error")
+                    .putString("last_crash_stacktrace", stackTrace)
+                    .putLong("last_crash_timestamp", System.currentTimeMillis())
+                    .apply()
+
                 Log.e("SpendwellApp", "FATAL EXCEPTION in thread ${thread.name}", throwable)
             } catch (ignored: Throwable) {}
             defaultHandler?.uncaughtException(thread, throwable)
@@ -52,11 +59,4 @@ class SpendwellApplication : Application(), Configuration.Provider {
             }
         }
     }
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder().apply {
-            if (::workerFactory.isInitialized) {
-                setWorkerFactory(workerFactory)
-            }
-        }.build()
 }
