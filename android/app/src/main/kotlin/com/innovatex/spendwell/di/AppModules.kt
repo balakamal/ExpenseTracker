@@ -109,11 +109,11 @@ object DatabaseModule {
         if (sqlCipherAvailable && dbFile.exists()) {
             try {
                 // Verify existing database can be opened with current key
-                val testDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
-                    dbFile.absolutePath,
+                val testDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openOrCreateDatabase(
+                    dbFile,
                     passphrase,
                     null,
-                    net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE
+                    null
                 )
                 testDb.rawQuery("SELECT count(*) FROM sqlite_master;", null).use { it.moveToFirst() }
                 testDb.close()
