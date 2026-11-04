@@ -94,7 +94,7 @@ fun SpendwellPrimaryButton(
         )
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertizontally,
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             if (leadingIcon != null) {
@@ -131,7 +131,7 @@ fun SpendwellTonalButton(
         )
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertizontally,
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             if (leadingIcon != null) {
@@ -160,7 +160,7 @@ fun SpendwellPillBadge(
             .clip(PillShape)
             .background(backgroundColor)
             .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertizontally
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
             Icon(imageVector = icon, contentDescription = null, tint = textColor, modifier = Modifier.size(14.dp))
@@ -193,7 +193,7 @@ fun SpendwellTransactionRow(
             .clip(MaterialTheme.shapes.medium)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertizontally
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Leading circular category glyph
         Box(

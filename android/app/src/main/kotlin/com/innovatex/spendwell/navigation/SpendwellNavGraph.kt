@@ -229,7 +229,7 @@ private fun SpendwellBottomBar(
                     .fillMaxSize()
                     .padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertizontally
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Screen.bottomNavItems.forEach { screen ->
                     val isSelected = currentRoute == screen.route
