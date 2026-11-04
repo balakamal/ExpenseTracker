@@ -231,7 +231,7 @@ private fun SpendwellBottomBar(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Screen.bottomNavItems.forEach { screen ->
+                Screen.bottomNavItems.filterNotNull().forEach { screen ->
                     val isSelected = currentRoute == screen.route
                     val activeBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                     val iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant

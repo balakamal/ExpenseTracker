@@ -31,12 +31,13 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
     object Settings : Screen("settings", "Settings")
 
     companion object {
-        val bottomNavItems = listOf(
-            Dashboard,
-            Transactions,
-            Analytics,
-            Budgets,
-            Advisor
-        )
+        val bottomNavItems: List<Screen>
+            get() = listOf(
+                Dashboard,
+                Transactions,
+                Analytics,
+                Budgets,
+                Advisor
+            )
     }
 }
