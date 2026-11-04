@@ -1,5 +1,6 @@
 package com.innovatex.spendwell.features.dashboard
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
@@ -13,6 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,29 +41,56 @@ class DashboardViewModel @Inject constructor(
     private val isObfuscated = MutableStateFlow(false)
 
     val uiState: StateFlow<DashboardUiState> = combine(
-        transactionRepository.observeAllTransactions(),
-        accountRepository.observeAccounts(),
-        transactionRepository.observePendingReviewCount(),
+        transactionRepository.observeAllTransactions().catch { e ->
+            Log.e("DashboardViewModel", "Error observing all transactions", e)
+            emit(emptyList())
+        },
+        accountRepository.observeAccounts().catch { e ->
+            Log.e("DashboardViewModel", "Error observing accounts", e)
+            emit(emptyList())
+        },
+        transactionRepository.observePendingReviewCount().catch { e ->
+            Log.e("DashboardViewModel", "Error observing pending review count", e)
+            emit(0)
+        },
         isObfuscated
     ) { transactions, accounts, pendingCount, obfuscated ->
-        var totalBalance = Money.ZERO
-        accounts.forEach { totalBalance += it.currentBalance }
+        try {
+            var totalBalance = Money.ZERO
+            accounts.forEach { totalBalance += it.currentBalance }
 
-        val cal = Calendar.getInstance()
-        val summary = FinancialAnalyticsEngine.analyze(
-            transactions = transactions,
-            year = cal.get(Calendar.YEAR),
-            monthZeroIndexed = cal.get(Calendar.MONTH)
-        )
+            val cal = Calendar.getInstance()
+            val summary = FinancialAnalyticsEngine.analyze(
+                transactions = transactions,
+                year = cal.get(Calendar.YEAR),
+                monthZeroIndexed = cal.get(Calendar.MONTH)
+            )
 
-        DashboardUiState(
-            isLoading = false,
-            netBalance = totalBalance,
-            isBalanceObfuscated = obfuscated,
-            monthlySummary = summary,
-            recentTransactions = transactions.take(5),
-            accounts = accounts,
-            pendingReviewCount = pendingCount
+            DashboardUiState(
+                isLoading = false,
+                netBalance = totalBalance,
+                isBalanceObfuscated = obfuscated,
+                monthlySummary = summary,
+                recentTransactions = transactions.take(5),
+                accounts = accounts,
+                pendingReviewCount = pendingCount
+            )
+        } catch (e: Throwable) {
+            Log.e("DashboardViewModel", "Error processing dashboard calculation", e)
+            DashboardUiState(
+                isLoading = false,
+                netBalance = Money.ZERO,
+                error = e.stackTraceToString()
+            )
+        }
+    }.catch { e ->
+        Log.e("DashboardViewModel", "Fatal error in uiState flow", e)
+        emit(
+            DashboardUiState(
+                isLoading = false,
+                netBalance = Money.ZERO,
+                error = e.stackTraceToString()
+            )
         )
     }.stateIn(
         scope = viewModelScope,

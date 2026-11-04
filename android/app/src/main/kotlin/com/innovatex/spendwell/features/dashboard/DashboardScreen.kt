@@ -75,6 +75,36 @@ fun DashboardScreen(
         return
     }
 
+    if (state.error != null) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            SpendwellCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Column {
+                    Text(
+                        text = "Dashboard Notice",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.error ?: "Unable to load dashboard data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+        return
+    }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(

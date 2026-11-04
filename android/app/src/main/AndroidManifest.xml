@@ -47,6 +47,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Crash Diagnostic Screen -->
+        <activity
+            android:name=".CrashDiagnosticActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@style/Theme.ApexExpenseTracker" />
+
         <!-- Backwards-Compatible Legacy Aliases (Preserves shortcuts created in earlier builds) -->
         <activity-alias
             android:name=".SpendwellLauncher"

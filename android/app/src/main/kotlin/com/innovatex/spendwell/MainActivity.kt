@@ -1,5 +1,7 @@
 package com.innovatex.spendwell
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +31,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // If app crashed recently (within last 15 seconds), open the diagnostic screen instead of looping
+        val crashPrefs = getSharedPreferences("spendwell_crash_prefs", Context.MODE_PRIVATE)
+        val lastCrashTime = crashPrefs.getLong("last_crash_timestamp", 0L)
+        val lastCrashTrace = crashPrefs.getString("last_crash_stacktrace", null)
+
+        if (lastCrashTrace != null && (System.currentTimeMillis() - lastCrashTime < 15_000)) {
+            val intent = Intent(this, CrashDiagnosticActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("EXTRA_STACKTRACE", lastCrashTrace)
+                putExtra("EXTRA_MESSAGE", crashPrefs.getString("last_crash_message", "Recent crash detected"))
+                putExtra("EXTRA_THREAD", crashPrefs.getString("last_crash_thread", "main"))
+            }
+            startActivity(intent)
+            finish()
+            return
+        }
+
         enableEdgeToEdge()
 
         setContent {

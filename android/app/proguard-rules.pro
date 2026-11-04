@@ -4,6 +4,29 @@
 -keepattributes SourceFile,LineNumberTable
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
+# Jetpack Compose & Material Icons Extended
+-keep class androidx.compose.material.icons.** { *; }
+-keepclassmembers class androidx.compose.material.icons.** { *; }
+-dontwarn androidx.compose.material.icons.**
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# App Design System, Components and Theme
+-keep class com.innovatex.spendwell.designsystem.** { *; }
+-keepclassmembers class com.innovatex.spendwell.designsystem.** { *; }
+
+# App Core, Common, and AI Advisor Engine
+-keep class com.innovatex.spendwell.core.** { *; }
+-keepclassmembers class com.innovatex.spendwell.core.** { *; }
+-keep class com.innovatex.spendwell.common.** { *; }
+-keepclassmembers class com.innovatex.spendwell.common.** { *; }
+-keep class com.innovatex.spendwell.ai.** { *; }
+-keepclassmembers class com.innovatex.spendwell.ai.** { *; }
+
+# Diagnostic Crash Activity
+-keep class com.innovatex.spendwell.CrashDiagnosticActivity { *; }
+-keepclassmembers class com.innovatex.spendwell.CrashDiagnosticActivity { *; }
+
 # Room Database Entities, DAOs, Converters, and RoomDatabase Implementations
 -keep class com.innovatex.spendwell.database.entity.** { *; }
 -keepclassmembers class com.innovatex.spendwell.database.entity.** { *; }
