@@ -7,14 +7,14 @@ plugins {
 }
 
 android {
-    namespace = "com.innovatex.expensetracker"
+    namespace = "com.innovatex.spendwell"
     compileSdk = 35
 
     val verCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 1
     val verName = project.findProperty("versionName")?.toString() ?: "1.0.0"
 
     defaultConfig {
-        applicationId = "com.innovatex.expensetracker"
+        applicationId = "com.innovatex.spendwell"
         minSdk = 26
         targetSdk = 35
         versionCode = verCode
@@ -25,7 +25,6 @@ android {
             useSupportLibrary = true
         }
 
-        // Option A: Target physical mobile devices (ARM 64-bit and 32-bit), reducing APK size by ~50%
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -37,6 +36,16 @@ android {
             storePassword = "expensetracker"
             keyAlias = "expensetracker"
             keyPassword = "expensetracker"
+        }
+    }
+
+    flavorDimensions += "mode"
+    productFlavors {
+        create("privateMode") {
+            dimension = "mode"
+        }
+        create("connectedMode") {
+            dimension = "mode"
         }
     }
 
@@ -130,11 +139,14 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Room Database
+    // Room Database + SQLCipher encryption
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.paging)
+    implementation(libs.sqlcipher.android)
+    implementation(libs.androidx.sqlite)
+    implementation(libs.androidx.sqlite.framework)
 
     // Paging
     implementation(libs.androidx.paging.runtime)
@@ -143,7 +155,7 @@ dependencies {
     // DataStore Preferences
     implementation(libs.androidx.datastore.preferences)
 
-    // LiteRT-LM runs the optional small language model entirely on-device.
+    // LiteRT-LM for compatible local LLM inference
     implementation(libs.litertlm.android)
 
     // WorkManager + Hilt Work
