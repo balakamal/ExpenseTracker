@@ -193,3 +193,16 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Convenience task aliases for CI / CLI backwards compatibility with flavored variants
+tasks.register("lintDebug") {
+    group = "verification"
+    description = "Runs Android Lint on debug variants (delegates to lintPrivateModeDebug)."
+    dependsOn("lintPrivateModeDebug")
+}
+
+tasks.register("testDebugUnitTest") {
+    group = "verification"
+    description = "Runs unit tests on debug variants (delegates to testPrivateModeDebugUnitTest)."
+    dependsOn("testPrivateModeDebugUnitTest")
+}
