@@ -74,7 +74,7 @@ abstract class SpendwellDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
 
     companion object {
-        const val DATABASE_NAME = "spendwell_encrypted.db"
+        const val DATABASE_NAME = "spendwell_ledger.db"
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {

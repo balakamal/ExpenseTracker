@@ -43,12 +43,6 @@ class SpendwellApplication : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
-        // Initialize SQLCipher native binaries for encrypted database
-        try {
-            System.loadLibrary("sqlcipher")
-        } catch (t: Throwable) {
-            Log.w("SpendwellApp", "SQLCipher native library load non-fatal warning: ${t.message}")
-        }
 
         // Seed standard default categories asynchronously on first launch without blocking startup
         CoroutineScope(Dispatchers.IO).launch {

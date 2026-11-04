@@ -139,14 +139,11 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Room Database + SQLCipher encryption
+    // Room Database (Local authority with multi-table indexing and Paging 3)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.paging)
-    implementation(libs.sqlcipher.android)
-    implementation(libs.androidx.sqlite)
-    implementation(libs.androidx.sqlite.framework)
 
     // Paging
     implementation(libs.androidx.paging.runtime)

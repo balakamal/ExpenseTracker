@@ -41,7 +41,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import javax.inject.Singleton
 
 @Module
@@ -92,48 +91,23 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideSpendwellDatabase(
-        @ApplicationContext context: Context,
-        keyStoreManager: KeyStoreManager
+        @ApplicationContext context: Context
     ): SpendwellDatabase {
-        var sqlCipherAvailable = true
+        // Clean up legacy incompatible SQLCipher database file if present
         try {
-            System.loadLibrary("sqlcipher")
-        } catch (t: Throwable) {
-            Log.e("DatabaseModule", "Failed to load sqlcipher native library: ${t.message}")
-            sqlCipherAvailable = false
-        }
-
-        val dbFile = context.getDatabasePath(SpendwellDatabase.DATABASE_NAME)
-        val passphrase = keyStoreManager.getOrCreateDatabasePassphrase()
-
-        if (sqlCipherAvailable && dbFile.exists()) {
-            try {
-                // Verify existing database can be opened with current key
-                val testDb = net.zetetic.database.sqlcipher.SQLiteDatabase.openOrCreateDatabase(
-                    dbFile,
-                    passphrase,
-                    null,
-                    null
-                )
-                testDb.rawQuery("SELECT count(*) FROM sqlite_master;", null).use { it.moveToFirst() }
-                testDb.close()
-            } catch (t: Throwable) {
-                Log.w("DatabaseModule", "Existing database cannot be opened with current key (corrupt or stale key). Resetting database to recover: ${t.message}")
-                context.deleteDatabase(SpendwellDatabase.DATABASE_NAME)
+            val legacyEncDb = context.getDatabasePath("spendwell_encrypted.db")
+            if (legacyEncDb.exists()) {
+                context.deleteDatabase("spendwell_encrypted.db")
             }
-        }
+        } catch (ignored: Throwable) {}
 
-        val builder = Room.databaseBuilder(
+        return Room.databaseBuilder(
             context,
             SpendwellDatabase::class.java,
             SpendwellDatabase.DATABASE_NAME
-        ).fallbackToDestructiveMigration()
-
-        if (sqlCipherAvailable) {
-            builder.openHelperFactory(SupportOpenHelperFactory(passphrase))
-        }
-
-        return builder.build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
