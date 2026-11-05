@@ -50,7 +50,7 @@ class SmsHistoryImporter @Inject constructor(
                 projection,
                 null,
                 null,
-                "${Telephony.Sms.DATE} ASC"
+                "${Telephony.Sms.DATE} DESC"
             )?.use { cursor ->
                 val addressIndex = cursor.getColumnIndex(Telephony.Sms.ADDRESS)
                 val bodyIndex = cursor.getColumnIndex(Telephony.Sms.BODY)
@@ -60,19 +60,24 @@ class SmsHistoryImporter @Inject constructor(
                     throw IllegalStateException("The SMS provider returned an unsupported result.")
                 }
 
-                while (cursor.moveToNext() && scanned < maxMessages) {
-                    val sender = cursor.getString(addressIndex).orEmpty()
-                    val body = cursor.getString(bodyIndex).orEmpty()
-                    val timestamp = cursor.getLong(dateIndex)
-                    scanned++
+                val recentMessages = mutableListOf<Triple<String, String, Long>>()
+                while (cursor.moveToNext() && recentMessages.size < maxMessages) {
+                    recentMessages += Triple(
+                        cursor.getString(addressIndex).orEmpty(),
+                        cursor.getString(bodyIndex).orEmpty(),
+                        cursor.getLong(dateIndex)
+                    )
+                }
 
+                // Process oldest-to-newest so refund/reversal linking sees prior transactions.
+                for ((sender, body, timestamp) in recentMessages.asReversed()) {
+                    scanned++
                     if (sender.isBlank() || body.isBlank()) {
                         ignored++
                         continue
                     }
-
                     when (
-                        transactionEngine.processSignal(
+                        val result = transactionEngine.processSignal(
                             RawSignal(
                                 sourceType = SourceType.SMS,
                                 senderAddress = sender,
@@ -81,7 +86,7 @@ class SmsHistoryImporter @Inject constructor(
                             )
                         )
                     ) {
-                        is EngineResult.Success -> imported++
+                        is EngineResult.Success -> if (result.isNewTransaction) imported++ else ignored++
                         is EngineResult.FlaggedForReview -> needsReview++
                         is EngineResult.Dropped -> ignored++
                     }
