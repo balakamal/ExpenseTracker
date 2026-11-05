@@ -1,0 +1,2595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Apex Finance · Dribbble-Crafted Android Home Screen Widgets</title>
+  <style>
+    /* ==========================================================================
+       DESIGN SYSTEM TOKENS & RESET
+       Aesthetic: Dribbble Modern FinTech + Android Material 3 + One UI Density
+       Zero Neon: Organic Forest Emerald, Champagne Gold, Royal Cobalt, Cashmere Slate
+       ========================================================================== */
+    :root {
+      /* Theme 1: Emerald & Champagne Gold (Default Dribbble FinTech) */
+      --bg-canvas: #090b10;
+      --bg-surface: #12151f;
+      --bg-surface-elevated: #181c28;
+      --bg-surface-card: rgba(18, 22, 33, 0.88);
+      --bg-glass-pill: rgba(255, 255, 255, 0.05);
+      --bg-glass-pill-hover: rgba(255, 255, 255, 0.09);
+      
+      --stroke-subtle: rgba(255, 255, 255, 0.07);
+      --stroke-highlight: rgba(255, 255, 255, 0.14);
+      --stroke-active: rgba(255, 255, 255, 0.24);
+      
+      /* Primary Dribbble FinTech Palette (Organic, Trustworthy, Luxurious) */
+      --accent-primary: #10b981;          /* Forest Emerald */
+      --accent-primary-hover: #059669;
+      --accent-primary-tint: rgba(16, 185, 129, 0.12);
+      --accent-primary-border: rgba(16, 185, 129, 0.28);
+      
+      --accent-secondary: #f59e0b;        /* Champagne Gold / Amber */
+      --accent-secondary-tint: rgba(245, 158, 11, 0.12);
+      --accent-secondary-border: rgba(245, 158, 11, 0.28);
+      
+      --accent-cobalt: #3b82f6;           /* Royal Cobalt */
+      --accent-cobalt-hover: #2563eb;
+      --accent-cobalt-tint: rgba(59, 130, 246, 0.12);
+      --accent-cobalt-border: rgba(59, 130, 246, 0.28);
+
+      --accent-danger: #f43f5e;           /* Muted Rosewood */
+      --accent-danger-tint: rgba(244, 63, 94, 0.12);
+      --accent-danger-border: rgba(244, 63, 94, 0.26);
+
+      /* Backward-compatibility token mapping for scripts */
+      --accent-volt: var(--accent-secondary);
+      --accent-cyan: var(--accent-primary);
+      --accent-coral: var(--accent-danger);
+      --accent-amber: #f59e0b;
+
+      /* Neutral Editorial Typography */
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-tertiary: #64748b;
+      --text-muted: #475569;
+      
+      /* Radii Tokens (Material 3 Squircles) */
+      --radius-full: 9999px;
+      --radius-sm: 14px;
+      --radius-md: 20px;
+      --radius-lg: 28px;
+      --radius-xl: 34px;
+
+      /* Physics & Timing */
+      --spring-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --smooth-ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-tap: transform 0.18s var(--spring-ease), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+
+      /* Organic Depth Shadows (No harsh neon glow) */
+      --shadow-widget: 0 1px 1px rgba(255, 255, 255, 0.05) inset, 0 14px 36px -10px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4);
+      --shadow-widget-hover: 0 1px 1px rgba(255, 255, 255, 0.1) inset, 0 22px 48px -12px rgba(0, 0, 0, 0.75);
+      --shadow-pill: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }
+
+    /* Alternate Theme 2: Cobalt & Ice (Dribbble Tech Venture) */
+    body.theme-cobalt {
+      --accent-primary: #3b82f6;
+      --accent-primary-hover: #2563eb;
+      --accent-primary-tint: rgba(59, 130, 246, 0.12);
+      --accent-primary-border: rgba(59, 130, 246, 0.28);
+      --accent-secondary: #10b981;
+      --accent-secondary-tint: rgba(16, 185, 129, 0.12);
+      --accent-secondary-border: rgba(16, 185, 129, 0.28);
+      --accent-cyan: #3b82f6;
+      --accent-volt: #10b981;
+    }
+
+    /* Alternate Theme 3: Warm Cashmere & Sandstone (Luxe Private Bank) */
+    body.theme-cashmere {
+      --accent-primary: #d97706;
+      --accent-primary-hover: #b45309;
+      --accent-primary-tint: rgba(217, 119, 6, 0.12);
+      --accent-primary-border: rgba(217, 119, 6, 0.28);
+      --accent-secondary: #059669;
+      --accent-secondary-tint: rgba(5, 150, 105, 0.12);
+      --accent-secondary-border: rgba(5, 150, 105, 0.28);
+      --accent-cyan: #d97706;
+      --accent-volt: #059669;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      background-image: 
+        radial-gradient(circle at 50% -10%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 90% 40%, rgba(16, 185, 129, 0.04) 0%, transparent 45%),
+        radial-gradient(circle at 10% 80%, rgba(245, 158, 11, 0.03) 0%, transparent 40%);
+      background-attachment: fixed;
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', Roboto, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 48px;
+      overflow-x: hidden;
+    }
+
+    /* Subtle Atmospheric Ambient Lighting (Zero Neon Blur) */
+    .ambient-glow {
+      position: fixed;
+      width: 480px;
+      height: 480px;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(140px);
+      z-index: 0;
+      opacity: 0.18;
+      animation: floatAmbient 22s ease-in-out infinite alternate;
+    }
+    .ambient-glow.one {
+      top: -80px;
+      right: 10%;
+      background: rgba(16, 185, 129, 0.3);
+    }
+    .ambient-glow.two {
+      bottom: 10%;
+      left: 10%;
+      background: rgba(245, 158, 11, 0.2);
+      animation-duration: 26s;
+      animation-direction: alternate-reverse;
+    }
+
+    @keyframes floatAmbient {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-25px, 30px) scale(1.08); }
+      100% { transform: translate(30px, -20px) scale(0.96); }
+    }
+
+    /* ==========================================================================
+       TOP APP CONTROLS / SIMULATION BAR
+       ========================================================================== */
+    .top-controls {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 436px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .brand-pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: var(--accent-primary-tint);
+      border: 1px solid var(--accent-primary-border);
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-primary);
+      letter-spacing: 0.04em;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      box-shadow: 0 0 6px var(--accent-primary);
+      animation: pulseGlow 2.5s infinite ease-in-out;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.8); }
+    }
+
+    .top-action-cluster {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Palette Quick Switcher Chip */
+    .palette-switch-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 5px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: var(--transition-tap);
+      box-shadow: var(--shadow-pill);
+    }
+    .palette-switch-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border-color: var(--stroke-highlight);
+    }
+    .palette-switch-btn:active {
+      transform: scale(0.94);
+    }
+    .palette-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+    }
+
+    .icon-chip-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      color: var(--text-secondary);
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition-tap);
+      box-shadow: var(--shadow-pill);
+    }
+    .icon-chip-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border-color: var(--stroke-highlight);
+    }
+    .icon-chip-btn:active {
+      transform: scale(0.92);
+    }
+    .icon-chip-btn.active {
+      color: var(--accent-primary);
+      border-color: var(--accent-primary-border);
+      background: var(--accent-primary-tint);
+    }
+
+    /* ==========================================================================
+       ANDROID HOME SCREEN MOCK SHELL
+       ========================================================================== */
+    .android-device-frame {
+      position: relative;
+      z-index: 5;
+      width: 100%;
+      max-width: 436px;
+      background: rgba(14, 17, 26, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 44px;
+      padding: 16px 14px 20px;
+      box-shadow: 
+        0 24px 64px -14px rgba(0, 0, 0, 0.75),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Android Status Bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 14px 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: -0.01em;
+    }
+    .camera-punch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #000000;
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.9) inset;
+    }
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-icons svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    /* At-a-Glance Android Micro Header */
+    .at-a-glance-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px 4px;
+    }
+    .glance-date {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .glance-time-day {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .glance-context {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .glance-weather-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* ==========================================================================
+       WIDGET GRID ARCHITECTURE (BENTO-STYLE)
+       ========================================================================== */
+    .widget-ecosystem-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      width: 100%;
+    }
+
+    /* Base Widget Card Style (Material 3 Expressive + Dribbble Ceramic Craft) */
+    .m3-widget {
+      position: relative;
+      background: var(--bg-surface-card);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-xl);
+      padding: 18px;
+      box-shadow: var(--shadow-widget);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: var(--transition-tap);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .m3-widget:hover {
+      border-color: var(--stroke-highlight);
+      box-shadow: var(--shadow-widget-hover);
+      transform: translateY(-2px);
+    }
+    .m3-widget:active {
+      transform: scale(0.985);
+    }
+
+    /* Inner Ceramic Highlight effect */
+    .m3-widget::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+      pointer-events: none;
+      border-top-left-radius: var(--radius-xl);
+      border-top-right-radius: var(--radius-xl);
+    }
+
+    /* Micro Header / Section Labels */
+    .widget-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
+    }
+    .micro-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .micro-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.02em;
+    }
+    .micro-badge.volt, .micro-badge.emerald {
+      background: var(--accent-primary-tint);
+      color: var(--accent-primary);
+      border: 1px solid var(--accent-primary-border);
+    }
+    .micro-badge.cyan, .micro-badge.cobalt {
+      background: var(--accent-cobalt-tint);
+      color: var(--accent-cobalt);
+      border: 1px solid var(--accent-cobalt-border);
+    }
+    .micro-badge.coral, .micro-badge.danger {
+      background: var(--accent-danger-tint);
+      color: var(--accent-danger);
+      border: 1px solid var(--accent-danger-border);
+    }
+    .micro-badge.amber {
+      background: var(--accent-secondary-tint);
+      color: var(--accent-secondary);
+      border: 1px solid var(--accent-secondary-border);
+    }
+
+    /* ==========================================================================
+       WIDGET 5: MODE & SEGMENTED CONTROLLER (2x1 / Full Width)
+       ========================================================================== */
+    .widget-mode-switcher {
+      grid-column: span 2;
+      padding: 10px 12px;
+      border-radius: var(--radius-lg);
+      background: rgba(18, 22, 33, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .segmented-control {
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 3px;
+      flex: 1;
+      height: 38px;
+    }
+    .segmented-glider {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      left: 3px;
+      width: calc(50% - 3px);
+      background: var(--bg-surface-elevated);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-full);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      transition: transform 0.32s var(--spring-ease);
+      pointer-events: none;
+    }
+    .segmented-btn {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: var(--radius-full);
+      transition: color 0.2s ease;
+    }
+    .segmented-btn.active {
+      color: var(--text-primary);
+    }
+    .segmented-btn svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .currency-pill-btn {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 0 12px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition-tap);
+    }
+    .currency-pill-btn:hover {
+      border-color: var(--stroke-highlight);
+      color: var(--text-primary);
+    }
+    .currency-pill-btn:active {
+      transform: scale(0.94);
+    }
+    .currency-tag {
+      color: var(--accent-primary);
+      font-weight: 700;
+    }
+
+    /* ==========================================================================
+       WIDGET 1: PORTFOLIO NET-WORTH HERO (4x2 Scale)
+       ========================================================================== */
+    .widget-hero-portfolio {
+      grid-column: span 2;
+      padding: 22px 20px 18px;
+      min-height: 270px;
+    }
+    .hero-balance-block {
+      position: relative;
+      z-index: 2;
+    }
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .balance-privacy-btn {
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.2s ease;
+    }
+    .balance-privacy-btn:hover {
+      color: var(--text-secondary);
+    }
+
+    .massive-balance {
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text-primary);
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+    }
+    .massive-balance .currency-symbol {
+      font-weight: 600;
+      opacity: 0.8;
+      font-size: 26px;
+      margin-right: 1px;
+    }
+    .massive-balance .cents {
+      font-size: 22px;
+      opacity: 0.55;
+      font-weight: 600;
+    }
+    .hero-submetric {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .delta-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    /* Timeframe Selector Chips */
+    .chart-timeframe-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 3;
+    }
+    .tf-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-full);
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: var(--transition-tap);
+    }
+    .tf-chip:hover {
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .tf-chip.active {
+      background: var(--accent-primary-tint);
+      border-color: var(--accent-primary-border);
+      color: var(--accent-primary);
+    }
+
+    /* Pure Vector Matte Area Chart Container (Zero Neon Filter) */
+    .chart-viewport {
+      position: relative;
+      width: 100%;
+      height: 96px;
+      margin-top: 4px;
+      margin-bottom: 14px;
+      cursor: crosshair;
+    }
+    .chart-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .chart-scrub-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(255, 255, 255, 0.25);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .chart-tooltip-pin {
+      position: absolute;
+      top: -12px;
+      transform: translateX(-50%);
+      background: #1c2233;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    /* Hero Quick Pill Actions (Deposit, Transfer, Analytics) */
+    .hero-actions-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      position: relative;
+      z-index: 2;
+    }
+    .action-pill-btn {
+      background: var(--bg-glass-pill);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: var(--transition-tap);
+      box-shadow: var(--shadow-pill);
+    }
+    .action-pill-btn:hover {
+      background: var(--bg-glass-pill-hover);
+      border-color: var(--stroke-highlight);
+    }
+    .action-pill-btn:active {
+      transform: scale(0.94);
+    }
+    .action-pill-btn.primary {
+      background: var(--accent-cobalt);
+      border-color: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+    }
+    .action-pill-btn.primary:hover {
+      background: var(--accent-cobalt-hover);
+    }
+    .action-pill-btn svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 2.2;
+    }
+
+    /* ==========================================================================
+       WIDGET 2: BURN RATE & DAILY VELOCITY (2x2 Scale)
+       ========================================================================== */
+    .widget-burn-rate {
+      grid-column: span 1;
+      min-height: 215px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .gauge-container {
+      position: relative;
+      width: 118px;
+      height: 118px;
+      margin: 4px auto 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gauge-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+    .gauge-bg-circle {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 8;
+    }
+    .gauge-progress-circle {
+      fill: none;
+      stroke: var(--accent-primary);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 283;
+      stroke-dashoffset: 85; /* ~70% remaining */
+      transition: stroke-dashoffset 0.8s var(--spring-ease), stroke 0.3s ease;
+    }
+    .gauge-inner-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 4px;
+    }
+    .gauge-metric-value {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+    .gauge-metric-sub {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--accent-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 2px;
+    }
+
+    .velocity-footer-pill {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-md);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .safe-spend-headline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .safe-spend-val {
+      color: var(--accent-secondary);
+      font-weight: 800;
+    }
+    .safe-spend-meta {
+      font-size: 9px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ==========================================================================
+       WIDGET 4: SUBSCRIPTION RADAR (2x2 Scale)
+       ========================================================================== */
+    .widget-subscription-radar {
+      grid-column: span 1;
+      min-height: 215px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .radar-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 4px 0 8px;
+    }
+    .radar-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: var(--radius-sm);
+      transition: var(--transition-tap);
+      cursor: pointer;
+    }
+    .radar-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--stroke-highlight);
+      transform: translateX(2px);
+    }
+    .radar-item:active {
+      transform: scale(0.97);
+    }
+    .radar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .radar-icon-wrap {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--stroke-subtle);
+    }
+    .radar-icon-wrap svg {
+      width: 14px;
+      height: 14px;
+    }
+    .radar-title-col {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .radar-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .radar-due {
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+    }
+    .radar-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    .radar-amount {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .radar-status-tag {
+      font-size: 8px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+    .radar-status-tag.auto {
+      color: var(--accent-primary);
+      background: var(--accent-primary-tint);
+    }
+    .radar-status-tag.pending {
+      color: var(--accent-secondary);
+      background: var(--accent-secondary-tint);
+    }
+    .radar-status-tag.review {
+      color: var(--accent-danger);
+      background: var(--accent-danger-tint);
+    }
+
+    .radar-footer-summary {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* ==========================================================================
+       WIDGET 3: VAULT / TARGET STASH (2x1 Scale / Full Width Bento)
+       ========================================================================== */
+    .widget-vault-stash {
+      grid-column: span 2;
+      padding: 18px 20px 16px;
+      border-radius: var(--radius-xl);
+      background: var(--bg-surface-card);
+    }
+    .vault-content-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .vault-meta-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .vault-info-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .vault-icon-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      background: var(--accent-secondary-tint);
+      border: 1px solid var(--accent-secondary-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-secondary);
+      flex-shrink: 0;
+    }
+    .vault-icon-badge svg {
+      width: 18px;
+      height: 18px;
+    }
+    .vault-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .vault-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .vault-timeframe {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .vault-balance-readout {
+      text-align: right;
+    }
+    .vault-current-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .vault-target-val {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+    }
+
+    /* Organic Liquid-Fill Progress Capsule (Warm Emerald to Gold Gradient) */
+    .liquid-progress-track {
+      position: relative;
+      width: 100%;
+      height: 16px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 2px;
+      overflow: hidden;
+    }
+    .liquid-fill-bar {
+      position: relative;
+      height: 100%;
+      width: 73.6%;
+      background: linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+      border-radius: var(--radius-full);
+      transition: width 0.7s var(--spring-ease);
+      overflow: hidden;
+    }
+    /* Animated Liquid Gleam / Wave inside progress */
+    .liquid-fill-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+      animation: liquidShimmer 3s infinite ease-in-out;
+    }
+    @keyframes liquidShimmer {
+      0% { left: -100%; }
+      50%, 100% { left: 100%; }
+    }
+
+    .vault-action-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 2px;
+    }
+    .vault-pacing-tag {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .quick-stash-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 5px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: var(--transition-tap);
+    }
+    .quick-stash-btn:hover {
+      background: var(--accent-secondary-tint);
+      border-color: var(--accent-secondary-border);
+    }
+    .quick-stash-btn:active {
+      transform: scale(0.92);
+    }
+
+    /* ==========================================================================
+       ANDROID SYSTEM SEARCH PILL & GESTURE NAV BAR
+       ========================================================================= */
+    .android-search-pill {
+      margin-top: 4px;
+      background: rgba(18, 22, 33, 0.92);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-full);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-widget);
+      cursor: pointer;
+      transition: var(--transition-tap);
+    }
+    .android-search-pill:hover {
+      border-color: var(--stroke-highlight);
+      background: var(--bg-surface-elevated);
+    }
+    .search-left-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-tertiary);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .search-left-content svg {
+      width: 16px;
+      height: 16px;
+      color: var(--text-secondary);
+    }
+    .search-right-icons {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-secondary);
+    }
+    .search-right-icons svg {
+      width: 16px;
+      height: 16px;
+      transition: color 0.2s ease;
+    }
+    .search-right-icons svg:hover {
+      color: var(--text-primary);
+    }
+
+    .android-gesture-pill-bar {
+      width: 96px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: var(--radius-full);
+      margin: 10px auto 2px;
+      transition: background 0.2s ease;
+    }
+    .android-gesture-pill-bar:hover {
+      background: rgba(255, 255, 255, 0.65);
+    }
+
+    /* ==========================================================================
+       BOTTOM SHEET MODAL (MATERIAL 3 / DRIBBLE SHEET)
+       ========================================================================== */
+    .bottom-sheet-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .bottom-sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .bottom-sheet-card {
+      width: 100%;
+      max-width: 440px;
+      background: #141724;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-top-left-radius: 36px;
+      border-top-right-radius: 36px;
+      padding: 16px 20px 32px;
+      box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.8);
+      transform: translateY(100%);
+      transition: transform 0.35s var(--spring-ease);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .bottom-sheet-backdrop.open .bottom-sheet-card {
+      transform: translateY(0);
+    }
+
+    .sheet-drag-handle {
+      width: 42px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: var(--radius-full);
+      margin: 0 auto 4px;
+    }
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sheet-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .sheet-close-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: var(--transition-tap);
+    }
+    .sheet-close-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .sheet-body-content {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Modal Form Components */
+    .sheet-input-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sheet-input-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+    }
+    .sheet-amount-chips {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .amount-chip-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--stroke-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 0;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition-tap);
+    }
+    .amount-chip-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+    }
+    .amount-chip-btn.active {
+      background: var(--accent-primary-tint);
+      border-color: var(--accent-primary-border);
+      color: var(--accent-primary);
+    }
+
+    .sheet-confirm-btn {
+      background: var(--accent-cobalt);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 14px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+      transition: var(--transition-tap);
+    }
+    .sheet-confirm-btn:hover {
+      background: var(--accent-cobalt-hover);
+      transform: translateY(-1px);
+    }
+    .sheet-confirm-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Analytics Breakdown in Modal */
+    .analytics-cat-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .analytics-label-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .analytics-bar-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .analytics-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.6s var(--spring-ease);
+    }
+
+    /* ==========================================================================
+       HAPTIC TOAST NOTIFICATION PILL
+       ========================================================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #181d2c;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-full);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.32s var(--spring-ease), opacity 0.24s ease;
+    }
+    .toast-container.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .toast-icon {
+      color: var(--accent-primary);
+      display: flex;
+      align-items: center;
+    }
+    .toast-message {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Accessibility focus indicators */
+    button:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Atmospheric Blur Backdrops -->
+  <div class="ambient-glow one" aria-hidden="true"></div>
+  <div class="ambient-glow two" aria-hidden="true"></div>
+
+  <!-- Top Desktop Simulator Header Controls -->
+  <header class="top-controls">
+    <div class="brand-title">
+      <div class="pulse-dot"></div>
+      <span>APEX FINTECH</span>
+      <span class="brand-pill-badge">DRIBBLE ED.</span>
+    </div>
+    <div class="top-action-cluster">
+      <!-- Live Dribbble Palette Switcher -->
+      <button class="palette-switch-btn" id="paletteSwitchBtn" title="Cycle Dribbble Color Scheme" aria-label="Cycle Color Scheme">
+        <span class="palette-dot"></span>
+        <span id="paletteNameLabel">Emerald</span>
+      </button>
+
+      <button class="icon-chip-btn" id="soundToggleBtn" title="Toggle Haptic Audio Feedback" aria-label="Toggle Sound Effects">
+        <svg id="soundIconOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="soundIconOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; display: none;">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+      <button class="icon-chip-btn" id="privacyToggleBtn" title="Toggle Private Balance" aria-label="Toggle Balance Visibility">
+        <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Android Home Screen Mock Frame -->
+  <main class="android-device-frame" role="region" aria-label="Android Home Screen Mockup">
+    
+    <!-- Android Status Bar -->
+    <div class="status-bar">
+      <span id="liveClockDisplay">9:41</span>
+      <div class="camera-punch" aria-hidden="true"></div>
+      <div class="status-icons">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L12 22l7.03-4.39C20.26 16.07 21 14.12 21 12c0-4.97-4.03-9-9-9z" opacity="0.3"/>
+          <path d="M12 6c-3.31 0-6 2.69-6 6 0 1.45.52 2.78 1.38 3.82L12 19l4.62-3.18C17.48 14.78 18 13.45 18 12c0-3.31-2.69-6-6-6z"/>
+        </svg>
+        <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.04em;">5G</span>
+        <svg viewBox="0 0 24 24">
+          <rect x="2" y="7" width="18" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="21" y1="10" x2="21" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <rect x="4" y="9" width="12" height="6" rx="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- At-a-Glance Android Micro Header -->
+    <div class="at-a-glance-bar">
+      <div class="glance-date">
+        <div class="glance-time-day" id="glanceDateText">Wednesday, Oct 22</div>
+        <div class="glance-context">
+          <span>Austin, TX</span>
+          <span style="opacity: 0.3;">•</span>
+          <span style="color: var(--accent-primary);">Nasdaq +1.4%</span>
+        </div>
+      </div>
+      <div class="glance-weather-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 13px; height: 13px; color: var(--accent-secondary);">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <span>74° Sunny</span>
+      </div>
+    </div>
+
+    <!-- MAIN BENTO WIDGET ECOSYSTEM -->
+    <div class="widget-ecosystem-grid">
+
+      <!-- ===================================================================
+           WIDGET 5: INTERACTIVE STASH / MODE SWITCHER (2x1 Scale)
+           =================================================================== -->
+      <section class="widget-mode-switcher" aria-label="Ecosystem Mode Controller">
+        <div class="segmented-control" role="tablist">
+          <div class="segmented-glider" id="modeGlider"></div>
+          <button class="segmented-btn active" id="modePersonalBtn" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>Personal</span>
+          </button>
+          <button class="segmented-btn" id="modeBusinessBtn" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+            <span>Business</span>
+          </button>
+        </div>
+
+        <button class="currency-pill-btn" id="currencyToggleBtn" title="Toggle Currency Format">
+          <span style="opacity: 0.6;">ISO</span>
+          <span class="currency-tag" id="currencyTagLabel">USD $</span>
+        </button>
+      </section>
+
+      <!-- ===================================================================
+           WIDGET 1: PORTFOLIO NET-WORTH HERO (4x2 Scale)
+           =================================================================== -->
+      <section class="m3-widget widget-hero-portfolio" id="heroNetWorthWidget" aria-label="Portfolio Net Worth">
+        <div class="hero-balance-block">
+          <div class="hero-meta-row">
+            <div class="micro-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; color: var(--accent-primary);">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+              <span>Net Portfolio Value</span>
+            </div>
+            <div class="micro-badge emerald" id="heroTrendBadge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 11px; height: 11px;">
+                <line x1="7" y1="17" x2="17" y2="7"></line>
+                <polyline points="7 7 17 7 17 17"></polyline>
+              </svg>
+              <span id="heroTrendText">+12.4% this month</span>
+            </div>
+          </div>
+
+          <!-- Massive tight-tracked balance -->
+          <div class="massive-balance" id="heroBalanceContainer">
+            <span class="currency-symbol" id="heroCurrencySymbol">$</span>
+            <span id="heroBalanceInteger">28,491</span>
+            <span class="cents" id="heroBalanceCents">.80</span>
+          </div>
+
+          <div class="hero-submetric">
+            <span class="delta-indicator" id="heroDeltaIndicator">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px;">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+              </svg>
+              <span id="heroDeltaText">+$3,140.25</span>
+            </span>
+            <span style="opacity: 0.3;">•</span>
+            <span id="heroApyText">APY 4.85% Compound</span>
+          </div>
+        </div>
+
+        <!-- Interactive Timeframe Filter Chips -->
+        <div class="chart-timeframe-row" role="group" aria-label="Chart Timeframe">
+          <button class="tf-chip" data-tf="1W">1W</button>
+          <button class="tf-chip active" data-tf="1M">1M</button>
+          <button class="tf-chip" data-tf="3M">3M</button>
+          <button class="tf-chip" data-tf="1Y">1Y</button>
+          <button class="tf-chip" data-tf="ALL">ALL</button>
+        </div>
+
+        <!-- Pure Inline SVG Smooth Bezier Area Chart with Scrub Indicator (Matte Dribbble Curve) -->
+        <div class="chart-viewport" id="chartViewport">
+          <svg class="chart-svg" viewBox="0 0 360 90" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--accent-primary)" stop-opacity="0.18" />
+                <stop offset="60%" stop-color="var(--accent-primary)" stop-opacity="0.04" />
+                <stop offset="100%" stop-color="var(--accent-primary)" stop-opacity="0.0" />
+              </linearGradient>
+              <filter id="neonGlow">
+                <!-- Fallback clean shadow filter, zero neon blur -->
+                <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="rgba(0,0,0,0.4)" />
+              </filter>
+            </defs>
+
+            <!-- Gradient Area -->
+            <path id="chartAreaPath" d="M 0,72 C 40,65 75,70 115,50 C 160,28 190,56 240,32 C 285,12 325,24 360,8 L 360,90 L 0,90 Z" fill="url(#chartGradient)" />
+
+            <!-- Clean Matte Bezier Stroke Line -->
+            <path id="chartStrokePath" d="M 0,72 C 40,65 75,70 115,50 C 160,28 190,56 240,32 C 285,12 325,24 360,8" fill="none" stroke="var(--accent-primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+
+            <!-- Interactive Cursor Pin Dot -->
+            <circle id="chartScrubDot" cx="360" cy="8" r="4.5" fill="#ffffff" stroke="var(--accent-primary)" stroke-width="2.2" />
+          </svg>
+          <div class="chart-scrub-line" id="chartScrubLine"></div>
+          <div class="chart-tooltip-pin" id="chartTooltipPin">$28,491.80</div>
+        </div>
+
+        <!-- Quick Pill Actions -->
+        <div class="hero-actions-row">
+          <button class="action-pill-btn primary" id="actionDepositBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Deposit</span>
+          </button>
+          <button class="action-pill-btn" id="actionTransferBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="17 1 21 5 17 9"></polyline>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+              <polyline points="7 23 3 19 7 15"></polyline>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+            </svg>
+            <span>Transfer</span>
+          </button>
+          <button class="action-pill-btn" id="actionAnalyticsBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            <span>Analytics</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           WIDGET 2: BURN RATE & DAILY VELOCITY (2x2 Scale)
+           =================================================================== -->
+      <section class="m3-widget widget-burn-rate" id="velocityWidget" aria-label="Burn Rate and Daily Velocity">
+        <div class="widget-header-row">
+          <div class="micro-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; color: var(--accent-primary);">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+            <span>Velocity</span>
+          </div>
+          <button class="micro-badge emerald" id="velocityPeriodBtn" style="cursor: pointer; border: none; outline: none;">
+            <span id="velocityPeriodLabel">Week</span>
+          </button>
+        </div>
+
+        <!-- Circular Progress Ring / Gauge (Matte Clean Dribbble Arc) -->
+        <div class="gauge-container" id="velocityGaugeWrap" title="Click to cycle period">
+          <svg class="gauge-svg" viewBox="0 0 100 100">
+            <circle class="gauge-bg-circle" cx="50" cy="50" r="42" />
+            <circle class="gauge-progress-circle" id="gaugeProgressRing" cx="50" cy="50" r="42" />
+          </svg>
+          <div class="gauge-inner-content">
+            <div class="gauge-metric-value" id="gaugeRemainingVal">$854.00</div>
+            <div class="gauge-metric-sub" id="gaugePercentageLabel">68% Left</div>
+          </div>
+        </div>
+
+        <!-- Micro Text Daily Safe-to-Spend Limit -->
+        <div class="velocity-footer-pill">
+          <div class="safe-spend-headline">
+            <span>Safe Daily:</span>
+            <span class="safe-spend-val" id="safeDailyVal">$142.30</span>
+          </div>
+          <div class="safe-spend-meta" id="velocityPacingMeta">
+            <span>Pacing: Surplus +$180 this cycle</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           WIDGET 4: SUBSCRIPTION RADAR (2x2 Scale)
+           =================================================================== -->
+      <section class="m3-widget widget-subscription-radar" id="subscriptionRadarWidget" aria-label="Subscription Radar">
+        <div class="widget-header-row">
+          <div class="micro-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; color: var(--accent-danger);">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="6" x2="12" y2="12"></line>
+              <line x1="12" y1="12" x2="16" y2="14"></line>
+            </svg>
+            <span>Radar Bills</span>
+          </div>
+          <div class="micro-badge cobalt" id="radarCountBadge">4 Active</div>
+        </div>
+
+        <!-- Believable Vector-Grounded Scheduled Bills -->
+        <div class="radar-list" id="radarItemsList">
+          <!-- Item 1: Netflix -->
+          <div class="radar-item" data-name="Netflix Premium" data-price="22.99" tabindex="0">
+            <div class="radar-left">
+              <div class="radar-icon-wrap" style="color: #f43f5e; background: rgba(244, 63, 94, 0.1);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </div>
+              <div class="radar-title-col">
+                <span class="radar-name">Netflix 4K</span>
+                <span class="radar-due">Tomorrow</span>
+              </div>
+            </div>
+            <div class="radar-right">
+              <span class="radar-amount">$22.99</span>
+              <span class="radar-status-tag auto">Auto</span>
+            </div>
+          </div>
+
+          <!-- Item 2: Figma Pro -->
+          <div class="radar-item" data-name="Figma Organization" data-price="15.00" tabindex="0">
+            <div class="radar-left">
+              <div class="radar-icon-wrap" style="color: #3b82f6; background: rgba(59, 130, 246, 0.1);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path>
+                  <path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path>
+                  <path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"></path>
+                  <path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"></path>
+                  <path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"></path>
+                </svg>
+              </div>
+              <div class="radar-title-col">
+                <span class="radar-name">Figma Pro</span>
+                <span class="radar-due">Oct 25</span>
+              </div>
+            </div>
+            <div class="radar-right">
+              <span class="radar-amount">$15.00</span>
+              <span class="radar-status-tag pending">Review</span>
+            </div>
+          </div>
+
+          <!-- Item 3: Spotify -->
+          <div class="radar-item" data-name="Spotify Duo" data-price="14.99" tabindex="0">
+            <div class="radar-left">
+              <div class="radar-icon-wrap" style="color: #10b981; background: rgba(16, 185, 129, 0.1);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M8 11.5c3.5-1 7.5-.5 10 1"></path>
+                  <path d="M7 14.5c4-1 9-.5 11.5 1.5"></path>
+                  <path d="M9 8.5c3.5-1 6.5-.5 8.5 1"></path>
+                </svg>
+              </div>
+              <div class="radar-title-col">
+                <span class="radar-name">Spotify HiFi</span>
+                <span class="radar-due">Oct 28</span>
+              </div>
+            </div>
+            <div class="radar-right">
+              <span class="radar-amount">$14.99</span>
+              <span class="radar-status-tag auto">Auto</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="radar-footer-summary">
+          <span>Upcoming 7 Days:</span>
+          <span style="color: var(--accent-primary); font-weight: 700;" id="radarWeeklySum">$52.98</span>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           WIDGET 3: VAULT / TARGET STASH (2x1 Scale / Full Width Bento)
+           =================================================================== -->
+      <section class="m3-widget widget-vault-stash" id="vaultStashWidget" aria-label="Vault Target Stash">
+        <div class="vault-content-grid">
+          <div class="vault-meta-header">
+            <div class="vault-info-left">
+              <div class="vault-icon-badge" id="vaultIconWrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+              </div>
+              <div class="vault-title-wrap">
+                <div class="micro-label" style="margin-bottom: 0;">TARGET VAULT</div>
+                <div class="vault-name" id="vaultNameDisplay">Kyoto & Tokyo Trip</div>
+                <div class="vault-timeframe" id="vaultDaysRemainingBadge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 11px; height: 11px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  <span id="vaultDaysLeftText">48 days left</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="vault-balance-readout">
+              <div class="vault-current-val" id="vaultCurrentValDisplay">$18,400.00</div>
+              <div class="vault-target-val" id="vaultTargetValDisplay">Target: $25,000</div>
+            </div>
+          </div>
+
+          <!-- Organic Liquid-Fill Progress Capsule (Warm Sandstone Gold & Emerald) -->
+          <div class="liquid-progress-track" title="Vault progress">
+            <div class="liquid-fill-bar" id="vaultProgressBar" style="width: 73.6%;"></div>
+          </div>
+
+          <!-- Pacing & Micro Quick Action -->
+          <div class="vault-action-footer">
+            <div class="vault-pacing-tag">
+              <span style="color: var(--accent-secondary); font-weight: 700;" id="vaultPercentTag">73.6%</span>
+              <span style="opacity: 0.6;">· +$137/wk required pace</span>
+            </div>
+            <button class="quick-stash-btn" id="vaultQuickStashBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px;">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>+$100 Stash</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Android Bottom Search Pill & Gesture Bar -->
+    <div class="android-search-pill" id="androidSearchPill" role="search" tabindex="0">
+      <div class="search-left-content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Search finances, merchants, stash...</span>
+      </div>
+      <div class="search-right-icons">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+      </div>
+    </div>
+
+    <div class="android-gesture-pill-bar" aria-hidden="true"></div>
+  </main>
+
+  <!-- ==========================================================================
+       MATERIAL 3 BOTTOM SHEET MODAL (TACTILE INTERACTION)
+       ========================================================================== */
+  -->
+  <div class="bottom-sheet-backdrop" id="bottomSheetBackdrop" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="bottom-sheet-card" id="bottomSheetCard">
+      <div class="sheet-drag-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title" id="sheetTitle">Quick Deposit</div>
+        <button class="sheet-close-btn" id="sheetCloseBtn" aria-label="Close Sheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sheet-body-content" id="sheetBodyContent">
+        <!-- Dynamic Content Injected via JS based on Active Sheet -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Micro Haptic Toast Notification Pill -->
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite">
+    <div class="toast-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <div class="toast-message" id="toastMessage">Action completed successfully</div>
+  </div>
+
+  <!-- ==========================================================================
+       LIGHTWEIGHT VANILLA SCRIPT & INTERACTION ARCHITECTURE
+       ========================================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ------------------------------------------------------------------------
+      // State Management
+      // ------------------------------------------------------------------------
+      const state = {
+        mode: 'personal', // 'personal' | 'business'
+        currency: 'USD',  // 'USD' | 'EUR'
+        privacyHidden: false,
+        soundEnabled: true,
+        selectedTimeframe: '1M',
+        burnPeriod: 'Week', // 'Week' | 'Month'
+        themeIndex: 0,
+        themes: [
+          { name: 'Emerald', class: '' },
+          { name: 'Cobalt', class: 'theme-cobalt' },
+          { name: 'Cashmere', class: 'theme-cashmere' }
+        ],
+        
+        // Mode-specific Data Sets
+        datasets: {
+          personal: {
+            balance: 28491.80,
+            trendPercent: '+12.4% this month',
+            trendDelta: '+$3,140.25',
+            apy: 'APY 4.85% Compound',
+            safeDaily: 142.30,
+            remainingBudget: 854.00,
+            remainingPct: 68,
+            burnOffset: 85, // 283 * (1 - 0.68) = ~90
+            surplusText: 'Pacing: Surplus +$180 this cycle',
+            vault: {
+              name: 'Kyoto & Tokyo Trip',
+              current: 18400.00,
+              target: 25000.00,
+              daysLeft: 48,
+              pacingText: '+$137/wk required pace'
+            },
+            subscriptions: [
+              { name: 'Netflix 4K', due: 'Tomorrow', price: 22.99, status: 'auto', statusLabel: 'Auto', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', icon: 'play' },
+              { name: 'Figma Pro', due: 'Oct 25', price: 15.00, status: 'pending', statusLabel: 'Review', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', icon: 'figma' },
+              { name: 'Spotify HiFi', due: 'Oct 28', price: 14.99, status: 'auto', statusLabel: 'Auto', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', icon: 'spotify' },
+              { name: 'iCloud+ 2TB', due: 'Nov 02', price: 9.99, status: 'auto', statusLabel: 'Auto', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', icon: 'cloud' }
+            ],
+            chartCurves: {
+              '1W': { area: 'M 0,60 C 50,55 100,68 180,45 C 240,25 300,35 360,18 L 360,90 L 0,90 Z', stroke: 'M 0,60 C 50,55 100,68 180,45 C 240,25 300,35 360,18', endY: 18 },
+              '1M': { area: 'M 0,72 C 40,65 75,70 115,50 C 160,28 190,56 240,32 C 285,12 325,24 360,8 L 360,90 L 0,90 Z', stroke: 'M 0,72 C 40,65 75,70 115,50 C 160,28 190,56 240,32 C 285,12 325,24 360,8', endY: 8 },
+              '3M': { area: 'M 0,78 C 60,70 120,40 180,50 C 240,60 300,20 360,12 L 360,90 L 0,90 Z', stroke: 'M 0,78 C 60,70 120,40 180,50 C 240,60 300,20 360,12', endY: 12 },
+              '1Y': { area: 'M 0,82 C 70,80 130,55 190,40 C 250,25 310,30 360,6 L 360,90 L 0,90 Z', stroke: 'M 0,82 C 70,80 130,55 190,40 C 250,25 310,30 360,6', endY: 6 },
+              'ALL': { area: 'M 0,85 C 80,75 140,65 200,45 C 260,30 320,15 360,4 L 360,90 L 0,90 Z', stroke: 'M 0,85 C 80,75 140,65 200,45 C 260,30 320,15 360,4', endY: 4 }
+            }
+          },
+          business: {
+            balance: 148920.45,
+            trendPercent: '+24.8% this quarter',
+            trendDelta: '+$29,480.00',
+            apy: 'Treasury Yield 5.25%',
+            safeDaily: 680.00,
+            remainingBudget: 4280.00,
+            remainingPct: 82,
+            burnOffset: 50, // 283 * (1 - 0.82) = ~50
+            surplusText: 'Pacing: Runway 18.4 months',
+            vault: {
+              name: 'Q4 Tax & Ops Reserve',
+              current: 72000.00,
+              target: 80000.00,
+              daysLeft: 70,
+              pacingText: '+$800/wk required pace'
+            },
+            subscriptions: [
+              { name: 'AWS Cloud Infra', due: 'Oct 26', price: 642.50, status: 'auto', statusLabel: 'Auto', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)', icon: 'cloud' },
+              { name: 'GitHub Enterprise', due: 'Oct 30', price: 84.00, status: 'pending', statusLabel: 'Review', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', icon: 'figma' },
+              { name: 'Google Workspace', due: 'Nov 01', price: 120.00, status: 'auto', statusLabel: 'Auto', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', icon: 'spotify' },
+              { name: 'Slack Business+', due: 'Nov 04', price: 150.00, status: 'auto', statusLabel: 'Auto', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', icon: 'play' }
+            ],
+            chartCurves: {
+              '1W': { area: 'M 0,65 C 60,60 120,50 180,35 C 240,25 300,20 360,10 L 360,90 L 0,90 Z', stroke: 'M 0,65 C 60,60 120,50 180,35 C 240,25 300,20 360,10', endY: 10 },
+              '1M': { area: 'M 0,80 C 50,75 100,50 170,42 C 240,32 300,18 360,5 L 360,90 L 0,90 Z', stroke: 'M 0,80 C 50,75 100,50 170,42 C 240,32 300,18 360,5', endY: 5 },
+              '3M': { area: 'M 0,85 C 70,82 140,55 210,38 C 270,22 320,12 360,4 L 360,90 L 0,90 Z', stroke: 'M 0,85 C 70,82 140,55 210,38 C 270,22 320,12 360,4', endY: 4 },
+              '1Y': { area: 'M 0,88 C 80,84 150,60 220,40 C 280,20 330,8 360,2 L 360,90 L 0,90 Z', stroke: 'M 0,88 C 80,84 150,60 220,40 C 280,20 330,8 360,2', endY: 2 },
+              'ALL': { area: 'M 0,88 C 90,82 160,50 230,30 C 290,15 340,5 360,2 L 360,90 L 0,90 Z', stroke: 'M 0,88 C 90,82 160,50 230,30 C 290,15 340,5 360,2', endY: 2 }
+            }
+          }
+        }
+      };
+
+      // ------------------------------------------------------------------------
+      // Synthesized Web Audio Haptic Feedback (Zero External Audio Files)
+      // ------------------------------------------------------------------------
+      let audioCtx = null;
+      function playHapticFeedback(type = 'click') {
+        if (!state.soundEnabled) return;
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!audioCtx && AudioContext) {
+            audioCtx = new AudioContext();
+          }
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          if (!audioCtx) return;
+
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          const now = audioCtx.currentTime;
+          if (type === 'click') {
+            osc.frequency.setValueAtTime(140, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.04);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+            osc.start(now);
+            osc.stop(now + 0.04);
+          } else if (type === 'success') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(780, now + 0.12);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+            osc.start(now);
+            osc.stop(now + 0.14);
+          } else if (type === 'soft') {
+            osc.frequency.setValueAtTime(90, now);
+            gain.gain.setValueAtTime(0.04, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+            osc.start(now);
+            osc.stop(now + 0.03);
+          }
+        } catch (e) {
+          // AudioContext gracefully ignored if blocked
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // DOM Elements Cache
+      // ------------------------------------------------------------------------
+      const elements = {
+        clock: document.getElementById('liveClockDisplay'),
+        glanceDate: document.getElementById('glanceDateText'),
+        modeGlider: document.getElementById('modeGlider'),
+        modePersonalBtn: document.getElementById('modePersonalBtn'),
+        modeBusinessBtn: document.getElementById('modeBusinessBtn'),
+        currencyToggleBtn: document.getElementById('currencyToggleBtn'),
+        currencyTagLabel: document.getElementById('currencyTagLabel'),
+        privacyToggleBtn: document.getElementById('privacyToggleBtn'),
+        soundToggleBtn: document.getElementById('soundToggleBtn'),
+        soundIconOn: document.getElementById('soundIconOn'),
+        soundIconOff: document.getElementById('soundIconOff'),
+        paletteSwitchBtn: document.getElementById('paletteSwitchBtn'),
+        paletteNameLabel: document.getElementById('paletteNameLabel'),
+        
+        // Hero Net Worth
+        heroSymbol: document.getElementById('heroCurrencySymbol'),
+        heroInt: document.getElementById('heroBalanceInteger'),
+        heroCents: document.getElementById('heroBalanceCents'),
+        heroTrendBadge: document.getElementById('heroTrendBadge'),
+        heroTrendText: document.getElementById('heroTrendText'),
+        heroDeltaText: document.getElementById('heroDeltaText'),
+        heroApyText: document.getElementById('heroApyText'),
+        chartViewport: document.getElementById('chartViewport'),
+        chartAreaPath: document.getElementById('chartAreaPath'),
+        chartStrokePath: document.getElementById('chartStrokePath'),
+        chartScrubDot: document.getElementById('chartScrubDot'),
+        chartScrubLine: document.getElementById('chartScrubLine'),
+        chartTooltipPin: document.getElementById('chartTooltipPin'),
+        
+        // Actions
+        actionDepositBtn: document.getElementById('actionDepositBtn'),
+        actionTransferBtn: document.getElementById('actionTransferBtn'),
+        actionAnalyticsBtn: document.getElementById('actionAnalyticsBtn'),
+        
+        // Velocity
+        velocityPeriodBtn: document.getElementById('velocityPeriodBtn'),
+        velocityPeriodLabel: document.getElementById('velocityPeriodLabel'),
+        velocityGaugeWrap: document.getElementById('velocityGaugeWrap'),
+        gaugeProgressRing: document.getElementById('gaugeProgressRing'),
+        gaugeRemainingVal: document.getElementById('gaugeRemainingVal'),
+        gaugePercentageLabel: document.getElementById('gaugePercentageLabel'),
+        safeDailyVal: document.getElementById('safeDailyVal'),
+        velocityPacingMeta: document.getElementById('velocityPacingMeta'),
+
+        // Subscription Radar
+        radarItemsList: document.getElementById('radarItemsList'),
+        radarWeeklySum: document.getElementById('radarWeeklySum'),
+        radarCountBadge: document.getElementById('radarCountBadge'),
+
+        // Vault
+        vaultNameDisplay: document.getElementById('vaultNameDisplay'),
+        vaultDaysLeftText: document.getElementById('vaultDaysLeftText'),
+        vaultCurrentValDisplay: document.getElementById('vaultCurrentValDisplay'),
+        vaultTargetValDisplay: document.getElementById('vaultTargetValDisplay'),
+        vaultProgressBar: document.getElementById('vaultProgressBar'),
+        vaultPercentTag: document.getElementById('vaultPercentTag'),
+        vaultQuickStashBtn: document.getElementById('vaultQuickStashBtn'),
+
+        // Search & Bottom Sheet
+        androidSearchPill: document.getElementById('androidSearchPill'),
+        bottomSheetBackdrop: document.getElementById('bottomSheetBackdrop'),
+        sheetTitle: document.getElementById('sheetTitle'),
+        sheetCloseBtn: document.getElementById('sheetCloseBtn'),
+        sheetBodyContent: document.getElementById('sheetBodyContent'),
+        toastContainer: document.getElementById('toastContainer'),
+        toastMessage: document.getElementById('toastMessage')
+      };
+
+      // ------------------------------------------------------------------------
+      // Formatting Helpers
+      // ------------------------------------------------------------------------
+      function formatCurrency(amount, includeSymbol = true) {
+        const rate = state.currency === 'EUR' ? 0.92 : 1.0;
+        const symbol = state.currency === 'EUR' ? '€' : '$';
+        const converted = amount * rate;
+        const parts = converted.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).split('.');
+        
+        return {
+          symbol: includeSymbol ? symbol : '',
+          integer: parts[0],
+          cents: '.' + parts[1],
+          full: (includeSymbol ? symbol : '') + parts[0] + '.' + parts[1]
+        };
+      }
+
+      function showToast(message) {
+        if (!elements.toastContainer) return;
+        elements.toastMessage.textContent = message;
+        elements.toastContainer.classList.add('show');
+        playHapticFeedback('soft');
+        setTimeout(() => {
+          elements.toastContainer.classList.remove('show');
+        }, 2600);
+      }
+
+      // ------------------------------------------------------------------------
+      // Live Clock Sync
+      // ------------------------------------------------------------------------
+      function updateClock() {
+        const now = new Date();
+        let hours = now.getHours();
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const formatted = `${hours}:${mins}`;
+        if (elements.clock) elements.clock.textContent = formatted;
+
+        const options = { weekday: 'long', month: 'short', day: 'numeric' };
+        if (elements.glanceDate) {
+          elements.glanceDate.textContent = now.toLocaleDateString('en-US', options);
+        }
+      }
+      updateClock();
+      setInterval(updateClock, 30000);
+
+      // ------------------------------------------------------------------------
+      // Dribbble Color Scheme Switcher
+      // ------------------------------------------------------------------------
+      if (elements.paletteSwitchBtn) {
+        elements.paletteSwitchBtn.addEventListener('click', () => {
+          state.themeIndex = (state.themeIndex + 1) % state.themes.length;
+          const currentTheme = state.themes[state.themeIndex];
+          document.body.className = currentTheme.class;
+          elements.paletteNameLabel.textContent = currentTheme.name;
+          playHapticFeedback('click');
+          showToast(`Palette: ${currentTheme.name} FinTech Theme`);
+          renderEcosystem();
+        });
+      }
+
+      // ------------------------------------------------------------------------
+      // Render All Widgets
+      // ------------------------------------------------------------------------
+      function renderEcosystem() {
+        const data = state.datasets[state.mode];
+
+        // 1. Render Segmented Mode Switcher
+        if (state.mode === 'personal') {
+          elements.modeGlider.style.transform = 'translateX(0)';
+          elements.modePersonalBtn.classList.add('active');
+          elements.modePersonalBtn.setAttribute('aria-selected', 'true');
+          elements.modeBusinessBtn.classList.remove('active');
+          elements.modeBusinessBtn.setAttribute('aria-selected', 'false');
+        } else {
+          elements.modeGlider.style.transform = 'translateX(100%)';
+          elements.modeBusinessBtn.classList.add('active');
+          elements.modeBusinessBtn.setAttribute('aria-selected', 'true');
+          elements.modePersonalBtn.classList.remove('active');
+          elements.modePersonalBtn.setAttribute('aria-selected', 'false');
+        }
+
+        // 2. Currency Tag Label
+        elements.currencyTagLabel.textContent = state.currency === 'USD' ? 'USD $' : 'EUR €';
+
+        // 3. Hero Net Worth
+        const balFormatted = formatCurrency(data.balance);
+        if (state.privacyHidden) {
+          elements.heroSymbol.textContent = balFormatted.symbol;
+          elements.heroInt.textContent = '••••••';
+          elements.heroCents.textContent = '';
+        } else {
+          elements.heroSymbol.textContent = balFormatted.symbol;
+          elements.heroInt.textContent = balFormatted.integer;
+          elements.heroCents.textContent = balFormatted.cents;
+        }
+
+        elements.heroTrendText.textContent = data.trendPercent;
+        elements.heroDeltaText.textContent = state.currency === 'EUR' ? '+€2,890.00' : data.trendDelta;
+        elements.heroApyText.textContent = data.apy;
+
+        // Render Hero Chart Curve
+        const currentCurve = data.chartCurves[state.selectedTimeframe] || data.chartCurves['1M'];
+        elements.chartAreaPath.setAttribute('d', currentCurve.area);
+        elements.chartStrokePath.setAttribute('d', currentCurve.stroke);
+        elements.chartScrubDot.setAttribute('cx', '360');
+        elements.chartScrubDot.setAttribute('cy', currentCurve.endY);
+        elements.chartTooltipPin.textContent = balFormatted.full;
+
+        // 4. Burn Rate & Velocity
+        const remFormatted = formatCurrency(data.remainingBudget);
+        elements.gaugeRemainingVal.textContent = state.privacyHidden ? '••••' : remFormatted.full;
+        elements.gaugePercentageLabel.textContent = `${data.remainingPct}% Left`;
+        elements.gaugeProgressRing.style.strokeDashoffset = data.burnOffset;
+        
+        const safeFormatted = formatCurrency(data.safeDaily);
+        elements.safeDailyVal.textContent = state.privacyHidden ? '••••' : safeFormatted.full;
+        elements.velocityPacingMeta.textContent = data.surplusText;
+
+        // 5. Subscription Radar
+        elements.radarCountBadge.textContent = `${data.subscriptions.length} Active`;
+        elements.radarItemsList.innerHTML = '';
+        let totalSubs = 0;
+
+        data.subscriptions.forEach((sub) => {
+          totalSubs += sub.price;
+          const subPriceFormatted = formatCurrency(sub.price);
+          
+          const itemEl = document.createElement('div');
+          itemEl.className = 'radar-item';
+          itemEl.tabIndex = 0;
+          itemEl.setAttribute('role', 'button');
+          itemEl.setAttribute('aria-label', `${sub.name}, due ${sub.due}, ${subPriceFormatted.full}`);
+
+          // Custom vector glyph per service
+          let iconSvg = '';
+          if (sub.icon === 'play') {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+          } else if (sub.icon === 'figma') {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"></path><path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"></path><circle cx="12" cy="12.5" r="3.5"></circle></svg>';
+          } else if (sub.icon === 'spotify') {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 11.5c3.5-1 7.5-.5 10 1"></path><path d="M7 14.5c4-1 9-.5 11.5 1.5"></path></svg>';
+          } else {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>';
+          }
+
+          itemEl.innerHTML = `
+            <div class="radar-left">
+              <div class="radar-icon-wrap" style="color: ${sub.color}; background: ${sub.bg || 'rgba(255,255,255,0.06)'};">
+                ${iconSvg}
+              </div>
+              <div class="radar-title-col">
+                <span class="radar-name">${sub.name}</span>
+                <span class="radar-due">${sub.due}</span>
+              </div>
+            </div>
+            <div class="radar-right">
+              <span class="radar-amount">${subPriceFormatted.full}</span>
+              <span class="radar-status-tag ${sub.status}">${sub.statusLabel}</span>
+            </div>
+          `;
+
+          itemEl.addEventListener('click', () => {
+            playHapticFeedback('click');
+            showToast(`${sub.name}: Scheduled auto-pay verified.`);
+          });
+          itemEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              itemEl.click();
+            }
+          });
+
+          elements.radarItemsList.appendChild(itemEl);
+        });
+
+        const weeklySumFormatted = formatCurrency(totalSubs);
+        elements.radarWeeklySum.textContent = weeklySumFormatted.full;
+
+        // 6. Target Vault / Stash
+        const v = data.vault;
+        elements.vaultNameDisplay.textContent = v.name;
+        elements.vaultDaysLeftText.textContent = `${v.daysLeft} days left`;
+        
+        const vaultCurFormatted = formatCurrency(v.current);
+        const vaultTarFormatted = formatCurrency(v.target);
+        elements.vaultCurrentValDisplay.textContent = state.privacyHidden ? '••••••••' : vaultCurFormatted.full;
+        elements.vaultTargetValDisplay.textContent = `Target: ${vaultTarFormatted.full}`;
+        
+        const vaultPct = Math.min(100, ((v.current / v.target) * 100)).toFixed(1);
+        elements.vaultProgressBar.style.width = `${vaultPct}%`;
+        elements.vaultPercentTag.textContent = `${vaultPct}%`;
+      }
+
+      // ------------------------------------------------------------------------
+      // Interactive Mode & Currency Switchers
+      // ------------------------------------------------------------------------
+      elements.modePersonalBtn.addEventListener('click', () => {
+        if (state.mode === 'personal') return;
+        state.mode = 'personal';
+        playHapticFeedback('click');
+        renderEcosystem();
+        showToast('Switched to Personal Finances');
+      });
+
+      elements.modeBusinessBtn.addEventListener('click', () => {
+        if (state.mode === 'business') return;
+        state.mode = 'business';
+        playHapticFeedback('click');
+        renderEcosystem();
+        showToast('Switched to Business Ops Treasury');
+      });
+
+      elements.currencyToggleBtn.addEventListener('click', () => {
+        state.currency = state.currency === 'USD' ? 'EUR' : 'USD';
+        playHapticFeedback('click');
+        renderEcosystem();
+        showToast(`Currency converted to ${state.currency}`);
+      });
+
+      // Privacy Toggle
+      elements.privacyToggleBtn.addEventListener('click', () => {
+        state.privacyHidden = !state.privacyHidden;
+        playHapticFeedback('click');
+        renderEcosystem();
+        showToast(state.privacyHidden ? 'Balances hidden' : 'Balances visible');
+      });
+
+      // Sound Toggle
+      elements.soundToggleBtn.addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        if (state.soundEnabled) {
+          elements.soundIconOn.style.display = 'block';
+          elements.soundIconOff.style.display = 'none';
+          elements.soundToggleBtn.classList.add('active');
+          playHapticFeedback('success');
+          showToast('Haptic sound enabled');
+        } else {
+          elements.soundIconOn.style.display = 'none';
+          elements.soundIconOff.style.display = 'block';
+          elements.soundToggleBtn.classList.remove('active');
+          showToast('Haptic sound muted');
+        }
+      });
+
+      // ------------------------------------------------------------------------
+      // Chart Timeframe Selector & Interactive Scrubbing
+      // ------------------------------------------------------------------------
+      const tfChips = document.querySelectorAll('.tf-chip');
+      tfChips.forEach((chip) => {
+        chip.addEventListener('click', () => {
+          tfChips.forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          state.selectedTimeframe = chip.getAttribute('data-tf') || '1M';
+          playHapticFeedback('click');
+          renderEcosystem();
+        });
+      });
+
+      // Interactive scrub cursor on SVG area chart
+      function handleChartScrub(e) {
+        const rect = elements.chartViewport.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let x = clientX - rect.left;
+        if (x < 0) x = 0;
+        if (x > rect.width) x = rect.width;
+
+        const pct = x / rect.width;
+        elements.chartScrubLine.style.left = `${x}px`;
+        elements.chartScrubLine.style.opacity = '1';
+        elements.chartTooltipPin.style.left = `${x}px`;
+        elements.chartTooltipPin.style.opacity = '1';
+
+        // Calculate synthetic interpolated balance for scrub point
+        const baseBal = state.datasets[state.mode].balance;
+        const variance = (pct - 0.5) * (baseBal * 0.08);
+        const scrubbedVal = baseBal + variance;
+        const formatted = formatCurrency(scrubbedVal);
+
+        elements.chartTooltipPin.textContent = formatted.full;
+        elements.chartScrubDot.setAttribute('cx', (pct * 360).toFixed(1));
+      }
+
+      function hideChartScrub() {
+        elements.chartScrubLine.style.opacity = '0';
+        elements.chartTooltipPin.style.opacity = '0';
+        const currentCurve = state.datasets[state.mode].chartCurves[state.selectedTimeframe] || state.datasets[state.mode].chartCurves['1M'];
+        elements.chartScrubDot.setAttribute('cx', '360');
+        elements.chartScrubDot.setAttribute('cy', currentCurve.endY);
+      }
+
+      elements.chartViewport.addEventListener('mousemove', handleChartScrub);
+      elements.chartViewport.addEventListener('mouseleave', hideChartScrub);
+      elements.chartViewport.addEventListener('touchmove', handleChartScrub, { passive: true });
+      elements.chartViewport.addEventListener('touchend', hideChartScrub);
+
+      // ------------------------------------------------------------------------
+      // Velocity Period Toggle
+      // ------------------------------------------------------------------------
+      function toggleBurnPeriod() {
+        state.burnPeriod = state.burnPeriod === 'Week' ? 'Month' : 'Week';
+        elements.velocityPeriodLabel.textContent = state.burnPeriod;
+        playHapticFeedback('click');
+        
+        if (state.burnPeriod === 'Month') {
+          elements.gaugePercentageLabel.textContent = '84% Left';
+          elements.gaugeProgressRing.style.strokeDashoffset = '45';
+          elements.gaugeRemainingVal.textContent = formatCurrency(state.mode === 'personal' ? 3420 : 18200).full;
+          elements.safeDailyVal.textContent = formatCurrency(state.mode === 'personal' ? 142.30 : 680).full;
+          showToast('Switched velocity to Monthly view');
+        } else {
+          renderEcosystem();
+          showToast('Switched velocity to Weekly view');
+        }
+      }
+      elements.velocityPeriodBtn.addEventListener('click', toggleBurnPeriod);
+      elements.velocityGaugeWrap.addEventListener('click', toggleBurnPeriod);
+
+      // ------------------------------------------------------------------------
+      // Vault Quick Stash Button
+      // ------------------------------------------------------------------------
+      elements.vaultQuickStashBtn.addEventListener('click', () => {
+        const vault = state.datasets[state.mode].vault;
+        vault.current = Math.min(vault.target, vault.current + 100);
+        playHapticFeedback('success');
+        renderEcosystem();
+        showToast('+$100 stashed to ' + vault.name + ' ✨');
+      });
+
+      // ------------------------------------------------------------------------
+      // Android Material 3 Bottom Sheet Controller
+      // ------------------------------------------------------------------------
+      function openBottomSheet(sheetType) {
+        playHapticFeedback('click');
+        elements.sheetBodyContent.innerHTML = '';
+
+        if (sheetType === 'deposit') {
+          elements.sheetTitle.textContent = 'Instant Deposit to Net Portfolio';
+          elements.sheetBodyContent.innerHTML = `
+            <div class="sheet-input-row">
+              <span class="sheet-input-label">Select Source Account</span>
+              <div style="background: rgba(255,255,255,0.04); border: 1px solid var(--stroke-subtle); border-radius: var(--radius-md); padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent-cobalt); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px;">CH</div>
+                  <div>
+                    <div style="font-size: 12px; font-weight: 700;">Chase High-Yield Checking ••8941</div>
+                    <div style="font-size: 10px; color: var(--text-tertiary);">Available: $42,190.50</div>
+                  </div>
+                </div>
+                <span style="color: var(--accent-primary); font-size: 10px; font-weight: 700;">Connected</span>
+              </div>
+            </div>
+
+            <div class="sheet-input-row">
+              <span class="sheet-input-label">Quick Amount</span>
+              <div class="sheet-amount-chips">
+                <button class="amount-chip-btn active" data-amt="250">+$250</button>
+                <button class="amount-chip-btn" data-amt="500">+$500</button>
+                <button class="amount-chip-btn" data-amt="1000">+$1,000</button>
+                <button class="amount-chip-btn" data-amt="2500">+$2,500</button>
+              </div>
+            </div>
+
+            <button class="sheet-confirm-btn" id="sheetConfirmDepositBtn">
+              <span>Execute Instant Deposit ($250)</span>
+            </button>
+          `;
+
+          let chosenAmt = 250;
+          const chips = elements.sheetBodyContent.querySelectorAll('.amount-chip-btn');
+          const confirmBtn = elements.sheetBodyContent.querySelector('#sheetConfirmDepositBtn');
+
+          chips.forEach(c => {
+            c.addEventListener('click', () => {
+              chips.forEach(x => x.classList.remove('active'));
+              c.classList.add('active');
+              chosenAmt = parseInt(c.getAttribute('data-amt'), 10);
+              confirmBtn.innerHTML = `<span>Execute Instant Deposit ($${chosenAmt.toLocaleString()})</span>`;
+              playHapticFeedback('click');
+            });
+          });
+
+          confirmBtn.addEventListener('click', () => {
+            state.datasets[state.mode].balance += chosenAmt;
+            playHapticFeedback('success');
+            renderEcosystem();
+            closeBottomSheet();
+            showToast(`+$${chosenAmt.toLocaleString()} deposited instantly!`);
+          });
+
+        } else if (sheetType === 'transfer') {
+          elements.sheetTitle.textContent = 'Express Peer & Vault Transfer';
+          elements.sheetBodyContent.innerHTML = `
+            <div class="sheet-input-row">
+              <span class="sheet-input-label">Transfer Recipient</span>
+              <div style="display: flex; gap: 8px;">
+                <div style="flex: 1; background: var(--accent-cobalt-tint); border: 1px solid var(--accent-cobalt-border); border-radius: var(--radius-md); padding: 10px; text-align: center; cursor: pointer;">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--accent-cobalt);">Elena Rostova</div>
+                  <div style="font-size: 9px; color: var(--text-tertiary);">Recent • Free</div>
+                </div>
+                <div style="flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--stroke-subtle); border-radius: var(--radius-md); padding: 10px; text-align: center; cursor: pointer;">
+                  <div style="font-size: 11px; font-weight: 700;">Marcus Vance</div>
+                  <div style="font-size: 9px; color: var(--text-tertiary);">Apex Vault</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sheet-input-row">
+              <span class="sheet-input-label">Transfer Amount</span>
+              <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--stroke-subtle); border-radius: var(--radius-md); padding: 14px; text-align: center;">
+                <div style="font-size: 26px; font-weight: 800; color: var(--text-primary);">$150.00</div>
+                <div style="font-size: 10px; color: var(--accent-primary); font-weight: 600;">Zero Fee Wire · Instant Arrival</div>
+              </div>
+            </div>
+
+            <button class="sheet-confirm-btn" id="sheetConfirmTransferBtn">
+              <span>Send $150.00 to Elena</span>
+            </button>
+          `;
+
+          const transferBtn = elements.sheetBodyContent.querySelector('#sheetConfirmTransferBtn');
+          transferBtn.addEventListener('click', () => {
+            state.datasets[state.mode].balance -= 150.00;
+            playHapticFeedback('success');
+            renderEcosystem();
+            closeBottomSheet();
+            showToast('Sent $150.00 to Elena Rostova');
+          });
+
+        } else if (sheetType === 'analytics') {
+          elements.sheetTitle.textContent = 'Portfolio Asset Allocation';
+          elements.sheetBodyContent.innerHTML = `
+            <div class="analytics-cat-row">
+              <div class="analytics-label-line">
+                <span>US Equities & Index Funds</span>
+                <span style="color: var(--accent-primary); font-weight: 700;">54% · $15,385</span>
+              </div>
+              <div class="analytics-bar-track">
+                <div class="analytics-bar-fill" style="width: 54%; background: var(--accent-primary);"></div>
+              </div>
+            </div>
+
+            <div class="analytics-cat-row">
+              <div class="analytics-label-line">
+                <span>High-Yield Cash & Treasury</span>
+                <span style="color: var(--accent-secondary); font-weight: 700;">28% · $7,977</span>
+              </div>
+              <div class="analytics-bar-track">
+                <div class="analytics-bar-fill" style="width: 28%; background: var(--accent-secondary);"></div>
+              </div>
+            </div>
+
+            <div class="analytics-cat-row">
+              <div class="analytics-label-line">
+                <span>Venture & Digital Assets</span>
+                <span style="color: var(--accent-cobalt); font-weight: 700;">12% · $3,419</span>
+              </div>
+              <div class="analytics-bar-track">
+                <div class="analytics-bar-fill" style="width: 12%; background: var(--accent-cobalt);"></div>
+              </div>
+            </div>
+
+            <div class="analytics-cat-row">
+              <div class="analytics-label-line">
+                <span>Precious Metals & Commodities</span>
+                <span style="color: #d97706; font-weight: 700;">6% · $1,709</span>
+              </div>
+              <div class="analytics-bar-track">
+                <div class="analytics-bar-fill" style="width: 6%; background: #d97706;"></div>
+              </div>
+            </div>
+
+            <button class="sheet-confirm-btn" id="sheetExportReportBtn" style="background: rgba(255,255,255,0.08); color: var(--text-primary); margin-top: 6px;">
+              <span>Download Tax-Lot Export (CSV)</span>
+            </button>
+          `;
+
+          const exportBtn = elements.sheetBodyContent.querySelector('#sheetExportReportBtn');
+          exportBtn.addEventListener('click', () => {
+            playHapticFeedback('click');
+            closeBottomSheet();
+            showToast('Tax-lot statement generated');
+          });
+        }
+
+        elements.bottomSheetBackdrop.classList.add('open');
+      }
+
+      function closeBottomSheet() {
+        elements.bottomSheetBackdrop.classList.remove('open');
+      }
+
+      elements.actionDepositBtn.addEventListener('click', () => openBottomSheet('deposit'));
+      elements.actionTransferBtn.addEventListener('click', () => openBottomSheet('transfer'));
+      elements.actionAnalyticsBtn.addEventListener('click', () => openBottomSheet('analytics'));
+      elements.sheetCloseBtn.addEventListener('click', closeBottomSheet);
+
+      elements.bottomSheetBackdrop.addEventListener('click', (e) => {
+        if (e.target === elements.bottomSheetBackdrop) {
+          closeBottomSheet();
+        }
+      });
+
+      // Android Search Bar Interaction
+      elements.androidSearchPill.addEventListener('click', () => {
+        playHapticFeedback('click');
+        showToast('Google Lens & Search query launched');
+      });
+      elements.androidSearchPill.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          elements.androidSearchPill.click();
+        }
+      });
+
+      // Initial Render on Load
+      renderEcosystem();
+
+    })();
+  </script>
+</body>
+</html>
