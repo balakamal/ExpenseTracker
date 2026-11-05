@@ -1,7 +1,6 @@
 package com.innovatex.spendwell.features.permissions
 
 import android.Manifest
-import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -33,7 +32,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -152,12 +150,16 @@ fun PermissionManagementScreen(
                 else -> "Not granted"
             },
             granted = readSmsGranted && receiveSmsGranted,
-            actionLabel = if (readSmsGranted && receiveSmsGranted) "Import SMS history again" else "Grant SMS access"
+            actionLabel = if (readSmsGranted) "Import SMS history again / enable live alerts" else "Grant SMS access"
         ) {
-            if (readSmsGranted) {
-                viewModel.importHistory()
+            val missingPermissions = buildList {
+                if (!readSmsGranted) add(Manifest.permission.READ_SMS)
+                if (!receiveSmsGranted) add(Manifest.permission.RECEIVE_SMS)
+            }
+            if (missingPermissions.isNotEmpty()) {
+                permissionLauncher.launch(missingPermissions.toTypedArray())
             } else {
-                permissionLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                viewModel.importHistory()
             }
         }
 
