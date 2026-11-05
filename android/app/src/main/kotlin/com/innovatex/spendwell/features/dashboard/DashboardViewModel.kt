@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.analytics.MonthlyFinancialSummary
 import com.innovatex.spendwell.common.Money
+import com.innovatex.spendwell.data.seeder.SampleFinancialDataSeeder
+import com.innovatex.spendwell.database.SpendwellDatabase
 import com.innovatex.spendwell.domain.model.Account
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.repository.AccountRepository
@@ -35,7 +37,8 @@ data class DashboardUiState(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val database: SpendwellDatabase
 ) : ViewModel() {
 
     private val isObfuscated = MutableStateFlow(false)
@@ -105,6 +108,12 @@ class DashboardViewModel @Inject constructor(
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(transaction)
+        }
+    }
+
+    fun seedDemoData() {
+        viewModelScope.launch {
+            SampleFinancialDataSeeder.forceSeedDemoData(database)
         }
     }
 }

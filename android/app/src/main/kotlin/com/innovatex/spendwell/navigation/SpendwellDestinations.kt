@@ -36,8 +36,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
                 Dashboard,
                 Transactions,
                 Analytics,
-                Budgets,
-                Advisor
+                Advisor,
+                Budgets
             )
     }
 }

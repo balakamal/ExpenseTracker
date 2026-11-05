@@ -204,6 +204,17 @@ fun LogExpenseSheet(
                         timestamp = System.currentTimeMillis(),
                         accountId = null,
                         merchantName = merchantText.trim(),
+                        categoryId = when (selectedCategory) {
+                            "Food & Dining" -> "cat_food"
+                            "Groceries" -> "cat_groceries"
+                            "Shopping" -> "cat_shopping"
+                            "Transportation" -> "cat_transport"
+                            "Utilities & Bills" -> "cat_utilities"
+                            "Housing & Rent" -> "cat_housing"
+                            "Entertainment" -> "cat_entertainment"
+                            "Health & Medical" -> "cat_health"
+                            else -> "cat_misc"
+                        },
                         categoryName = selectedCategory,
                         description = merchantText.trim(),
                         isReviewed = true,

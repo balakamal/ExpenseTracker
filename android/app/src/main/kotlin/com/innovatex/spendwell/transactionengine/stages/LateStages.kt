@@ -288,7 +288,7 @@ object Stage12LedgerPersistence {
                 } else {
                     -info.amount.toPaisa()
                 }
-                // Async balance adjustment
+                db.accountDao().adjustBalance(accountId, delta)
             }
         }
 

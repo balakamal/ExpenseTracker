@@ -8,7 +8,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -38,6 +42,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
+import com.innovatex.spendwell.designsystem.theme.ForestEmerald
 import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
@@ -208,51 +213,59 @@ private fun SpendwellBottomBar(
     currentRoute: String?,
     onNavigateToDestination: (Screen) -> Unit
 ) {
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center
+            .navigationBarsPadding(),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        shadowElevation = 10.dp
     ) {
-        Surface(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(PillShape)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, PillShape),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-            shadowElevation = 8.dp
+                .height(68.dp)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Screen.bottomNavItems.filterNotNull().forEach { screen ->
-                    val isSelected = currentRoute == screen.route
-                    val activeBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                    val iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            Screen.bottomNavItems.forEach { screen ->
+                val isSelected = currentRoute == screen.route
+                val activeBg = if (isSelected) ForestEmerald.copy(alpha = 0.15f) else Color.Transparent
+                val activeTint = if (isSelected) ForestEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onNavigateToDestination(screen) }
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Box(
                         modifier = Modifier
                             .clip(PillShape)
                             .background(activeBg)
-                            .clickable { onNavigateToDestination(screen) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 14.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         screen.icon?.let { icon ->
                             Icon(
                                 imageVector = icon,
                                 contentDescription = screen.title,
-                                tint = iconTint,
-                                modifier = Modifier.size(24.dp)
+                                tint = activeTint,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = screen.title,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        fontWeight = fontWeight,
+                        color = activeTint,
+                        maxLines = 1
+                    )
                 }
             }
         }

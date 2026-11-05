@@ -60,8 +60,33 @@ class AnalyticsViewModel @Inject constructor(
 
     val summary: StateFlow<MonthlyFinancialSummary?> = transactionRepository.observeAllTransactions()
         .map { txList ->
-            val cal = Calendar.getInstance()
-            FinancialAnalyticsEngine.analyze(txList, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+            if (txList.isEmpty()) {
+                val cal = Calendar.getInstance()
+                FinancialAnalyticsEngine.analyze(emptyList(), cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+            } else {
+                val cal = Calendar.getInstance()
+                val currentYear = cal.get(Calendar.YEAR)
+                val currentMonth = cal.get(Calendar.MONTH)
+
+                cal.set(currentYear, currentMonth, 1, 0, 0, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val monthStart = cal.timeInMillis
+                val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                cal.set(currentYear, currentMonth, daysInMonth, 23, 59, 59)
+                val monthEnd = cal.timeInMillis
+
+                val hasCurrentMonthTx = txList.any { it.timestamp in monthStart..monthEnd }
+                if (hasCurrentMonthTx) {
+                    FinancialAnalyticsEngine.analyze(txList, currentYear, currentMonth)
+                } else {
+                    val latest = txList.maxByOrNull { it.timestamp }
+                    val targetCal = Calendar.getInstance()
+                    if (latest != null) {
+                        targetCal.timeInMillis = latest.timestamp
+                    }
+                    FinancialAnalyticsEngine.analyze(txList, targetCal.get(Calendar.YEAR), targetCal.get(Calendar.MONTH))
+                }
+            }
         }
         .stateIn(
             scope = viewModelScope,
