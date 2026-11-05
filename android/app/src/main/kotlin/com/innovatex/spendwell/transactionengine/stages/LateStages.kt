@@ -279,17 +279,14 @@ object Stage12LedgerPersistence {
         )
         db.transactionSourceEventDao().insert(sourceEvent)
 
-        // Record classification metadata
-        db.runInTransaction {
-            // Update account balance if known
-            if (accountId != null && info.status == TransactionStatus.SUCCESSFUL) {
-                val delta = if (info.transactionType == TransactionType.CREDIT) {
-                    info.amount.toPaisa()
-                } else {
-                    -info.amount.toPaisa()
-                }
-                db.accountDao().adjustBalance(accountId, delta)
+        // Update account balance if known
+        if (accountId != null && info.status == TransactionStatus.SUCCESSFUL) {
+            val delta = if (info.transactionType == TransactionType.CREDIT) {
+                info.amount.toPaisa()
+            } else {
+                -info.amount.toPaisa()
             }
+            db.accountDao().adjustBalance(accountId, delta)
         }
 
         // If duplicate candidate for review, store candidate record

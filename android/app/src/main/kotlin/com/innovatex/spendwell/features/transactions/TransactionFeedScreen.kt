@@ -122,11 +122,11 @@ fun TransactionFeedScreen(
     var showLogExpenseSheet by remember { mutableStateOf(false) }
 
     // Counts for filter pills
-    val debitsCount = allTransactions.count { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REVERTED_REFUND && it.status != TransactionStatus.FAILED }
+    val debitsCount = allTransactions.count { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
     val creditsCount = allTransactions.count { it.type == TransactionType.CREDIT }
-    val pendingCount = allTransactions.count { it.status == TransactionStatus.NEEDS_REVIEW || it.status == TransactionStatus.FLAGGED_SUSPICIOUS }
-    val refundsCount = allTransactions.count { it.status == TransactionStatus.REVERTED_REFUND || it.categoryName.contains("Refund", ignoreCase = true) }
-    val flaggedCount = allTransactions.count { !it.isReviewed || it.status == TransactionStatus.FLAGGED_SUSPICIOUS }
+    val pendingCount = allTransactions.count { it.status == TransactionStatus.NEEDS_REVIEW || it.status == TransactionStatus.PENDING }
+    val refundsCount = allTransactions.count { it.status == TransactionStatus.REFUNDED || it.status == TransactionStatus.REVERSED || it.categoryName.contains("Refund", ignoreCase = true) }
+    val flaggedCount = allTransactions.count { !it.isReviewed || it.status == TransactionStatus.NEEDS_REVIEW }
 
     // Filtering logic
     val filteredTransactions = allTransactions.filter { tx ->
@@ -139,11 +139,11 @@ fun TransactionFeedScreen(
             tx.amount.formatInr(false).contains(searchQuery)
 
         val matchesFilter = when (selectedFilter) {
-            "DEBITS" -> tx.type == TransactionType.DEBIT && tx.status != TransactionStatus.REVERTED_REFUND && tx.status != TransactionStatus.FAILED
+            "DEBITS" -> tx.type == TransactionType.DEBIT && tx.status != TransactionStatus.REFUNDED && tx.status != TransactionStatus.REVERSED && tx.status != TransactionStatus.FAILED
             "CREDITS" -> tx.type == TransactionType.CREDIT
-            "PENDING" -> tx.status == TransactionStatus.NEEDS_REVIEW || tx.status == TransactionStatus.FLAGGED_SUSPICIOUS
-            "REFUNDS" -> tx.status == TransactionStatus.REVERTED_REFUND || tx.categoryName.contains("Refund", ignoreCase = true)
-            "FLAGGED" -> !tx.isReviewed || tx.status == TransactionStatus.FLAGGED_SUSPICIOUS
+            "PENDING" -> tx.status == TransactionStatus.NEEDS_REVIEW || tx.status == TransactionStatus.PENDING
+            "REFUNDS" -> tx.status == TransactionStatus.REFUNDED || tx.status == TransactionStatus.REVERSED || tx.categoryName.contains("Refund", ignoreCase = true)
+            "FLAGGED" -> !tx.isReviewed || tx.status == TransactionStatus.NEEDS_REVIEW
             else -> true
         }
         matchesQuery && matchesFilter
@@ -151,7 +151,7 @@ fun TransactionFeedScreen(
 
     // Monthly summary calculation
     val outflowTotal = allTransactions
-        .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REVERTED_REFUND && it.status != TransactionStatus.FAILED }
+        .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
         .fold(Money.ZERO) { acc, tx -> acc + tx.amount }
 
     val inflowTotal = allTransactions
@@ -515,12 +515,12 @@ fun TransactionFeedScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
-                                val netSign = if (netTotal.paisa >= 0) "+ " else ""
+                                val netSign = if (!netTotal.isNegative) "+ " else ""
                                 Text(
                                     text = "$netSign${netTotal.formatInr(true)}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (netTotal.paisa >= 0) InflowGreen else OutflowRed
+                                    color = if (!netTotal.isNegative) InflowGreen else OutflowRed
                                 )
                             }
                         }
@@ -550,7 +550,7 @@ fun TransactionFeedScreen(
                 groupedTransactions.forEach { (dateHeader, txsInGroup) ->
                     item(key = "header_$dateHeader") {
                         val groupOutflow = txsInGroup
-                            .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REVERTED_REFUND && it.status != TransactionStatus.FAILED }
+                            .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
                             .fold(Money.ZERO) { acc, tx -> acc + tx.amount }
 
                         Row(

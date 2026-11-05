@@ -159,9 +159,9 @@ fun TransactionDetailScreen(
     }
 
     val isCredit = currentTx.type == TransactionType.CREDIT
-    val isRefund = currentTx.status == TransactionStatus.REVERTED_REFUND || currentTx.categoryName.contains("Refund", ignoreCase = true)
+    val isRefund = currentTx.status == TransactionStatus.REFUNDED || currentTx.status == TransactionStatus.REVERSED || currentTx.categoryName.contains("Refund", ignoreCase = true)
     val isFailed = currentTx.status == TransactionStatus.FAILED
-    val isPending = currentTx.status == TransactionStatus.NEEDS_REVIEW || currentTx.status == TransactionStatus.FLAGGED_SUSPICIOUS
+    val isPending = currentTx.status == TransactionStatus.NEEDS_REVIEW || currentTx.status == TransactionStatus.PENDING
 
     val amountColor = when {
         isRefund -> Color(0xFFD97706)
@@ -426,7 +426,7 @@ fun TransactionDetailScreen(
         ) {
             Button(
                 onClick = {
-                    val halfAmount = currentTx.amount.paisa / 2
+                    val halfAmount = currentTx.amount.toPaisa() / 2
                     val formattedHalf = "₹%,d.%02d".format(halfAmount / 100, halfAmount % 100)
                     Toast.makeText(context, "Split link generated: $formattedHalf each for 2 friends", Toast.LENGTH_SHORT).show()
                 },
@@ -616,7 +616,7 @@ fun TransactionDetailScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = currentTx.counterpartyVpa ?: "rohit@okhdfcbank",
+                            text = currentTx.toAccountId ?: currentTx.referenceId ?: "rohit@okhdfcbank",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1220,7 +1220,7 @@ private fun resolveDetailGlyph(tx: Transaction): DetailGlyph {
             DetailGlyph(Icons.Default.SmartDisplay, Color(0xFFDC2626).copy(alpha = 0.15f), Color(0xFFDC2626))
         name.contains("cult") || name.contains("gym") || name.contains("fitness") ->
             DetailGlyph(Icons.Default.FitnessCenter, Color(0xFF7C3AED).copy(alpha = 0.15f), Color(0xFF7C3AED))
-        name.contains("refund") || tx.status == TransactionStatus.REVERTED_REFUND ->
+        name.contains("refund") || tx.status == TransactionStatus.REFUNDED || tx.status == TransactionStatus.REVERSED ->
             DetailGlyph(Icons.Default.Replay, Color(0xFFD97706).copy(alpha = 0.15f), Color(0xFFD97706))
         else ->
             DetailGlyph(Icons.Default.Receipt, ForestEmerald.copy(alpha = 0.15f), ForestEmerald)

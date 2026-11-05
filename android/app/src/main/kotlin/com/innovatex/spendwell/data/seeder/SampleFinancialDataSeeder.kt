@@ -66,16 +66,16 @@ object SampleFinancialDataSeeder {
 
         // 3. Seed Merchants
         val merchants = listOf(
-            MerchantEntity("merch_swiggy", "Swiggy", "cat_food", 0.99f),
-            MerchantEntity("merch_uber", "Uber Premier", "cat_transport", 0.99f),
-            MerchantEntity("merch_chaipoint", "Chai Point", "cat_food", 0.95f),
-            MerchantEntity("merch_razorpay", "Razorpay Software Ltd", "cat_salary", 0.99f),
-            MerchantEntity("merch_blinkit", "Blinkit", "cat_groceries", 0.98f),
-            MerchantEntity("merch_starbucks", "Starbucks Coffee", "cat_food", 0.98f),
-            MerchantEntity("merch_amazon", "Amazon India", "cat_shopping", 0.99f),
-            MerchantEntity("merch_zomato", "Zomato Ltd", "cat_food", 0.99f),
-            MerchantEntity("merch_netflix", "Netflix Entertainment", "cat_entertainment", 0.99f),
-            MerchantEntity("merch_cultfit", "Cult.fit Healthcare", "cat_health", 0.95f)
+            MerchantEntity("merch_swiggy", "Swiggy", defaultCategoryId = "cat_food", confidenceScore = 0.99f),
+            MerchantEntity("merch_uber", "Uber Premier", defaultCategoryId = "cat_transport", confidenceScore = 0.99f),
+            MerchantEntity("merch_chaipoint", "Chai Point", defaultCategoryId = "cat_food", confidenceScore = 0.95f),
+            MerchantEntity("merch_razorpay", "Razorpay Software Ltd", defaultCategoryId = "cat_salary", confidenceScore = 0.99f),
+            MerchantEntity("merch_blinkit", "Blinkit", defaultCategoryId = "cat_groceries", confidenceScore = 0.98f),
+            MerchantEntity("merch_starbucks", "Starbucks Coffee", defaultCategoryId = "cat_food", confidenceScore = 0.98f),
+            MerchantEntity("merch_amazon", "Amazon India", defaultCategoryId = "cat_shopping", confidenceScore = 0.99f),
+            MerchantEntity("merch_zomato", "Zomato Ltd", defaultCategoryId = "cat_food", confidenceScore = 0.99f),
+            MerchantEntity("merch_netflix", "Netflix Entertainment", defaultCategoryId = "cat_entertainment", confidenceScore = 0.99f),
+            MerchantEntity("merch_cultfit", "Cult.fit Healthcare", defaultCategoryId = "cat_health", confidenceScore = 0.95f)
         )
         for (m in merchants) {
             database.merchantDao().insert(m)
