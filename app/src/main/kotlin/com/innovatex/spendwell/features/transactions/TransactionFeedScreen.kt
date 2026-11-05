@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,10 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.innovatex.spendwell.common.Money
 import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
-import com.innovatex.spendwell.designsystem.components.SpendwellLoadingState
 import com.innovatex.spendwell.designsystem.components.SpendwellTransactionRow
 import com.innovatex.spendwell.designsystem.theme.PillShape
+import com.innovatex.spendwell.domain.model.FinancialNature
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
@@ -49,20 +53,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class TransactionFeedViewModel @Inject constructor(
     transactionRepository: TransactionRepository
 ) : ViewModel() {
-
     val transactions: StateFlow<List<Transaction>> = transactionRepository.observeAllTransactions()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 @Composable
@@ -77,19 +75,27 @@ fun TransactionFeedScreen(
 
     val filteredTransactions = allTransactions.filter { tx ->
         val matchesQuery = searchQuery.isBlank() ||
-                tx.merchantName.contains(searchQuery, ignoreCase = true) ||
-                tx.description.contains(searchQuery, ignoreCase = true) ||
-                (tx.referenceId?.contains(searchQuery, ignoreCase = true) == true) ||
-                (tx.categoryName.contains(searchQuery, ignoreCase = true))
-
+            tx.merchantName.contains(searchQuery, ignoreCase = true) ||
+            tx.description.contains(searchQuery, ignoreCase = true) ||
+            (tx.referenceId?.contains(searchQuery, ignoreCase = true) == true) ||
+            tx.categoryName.contains(searchQuery, ignoreCase = true)
         val matchesFilter = when (selectedFilter) {
             "DEBITS" -> tx.type == TransactionType.DEBIT
             "CREDITS" -> tx.type == TransactionType.CREDIT
             "REVIEW" -> !tx.isReviewed || tx.status == TransactionStatus.NEEDS_REVIEW
             else -> true
         }
-
         matchesQuery && matchesFilter
+    }
+
+    val expenses = allTransactions
+        .filter { it.financialNature == FinancialNature.CONSUMPTION_EXPENSE }
+        .fold(Money.ZERO) { total, tx -> total + tx.amount }
+    val income = allTransactions
+        .filter { it.financialNature == FinancialNature.INCOME }
+        .fold(Money.ZERO) { total, tx -> total + tx.amount }
+    val pendingReview = allTransactions.count {
+        !it.isReviewed || it.status == TransactionStatus.NEEDS_REVIEW
     }
 
     Column(
@@ -98,76 +104,112 @@ fun TransactionFeedScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Your ledger",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    "${allTransactions.size} recorded transactions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (pendingReview > 0) {
+                Text(
+                    "$pendingReview to review",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
 
-        Text(
-            text = "Transaction Feed",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            LedgerSummaryCard(
+                title = "Money in",
+                amount = income.formatInr(true),
+                amountColor = Color(0xFF159B70),
+                modifier = Modifier.weight(1f)
+            )
+            LedgerSummaryCard(
+                title = "Spent",
+                amount = expenses.formatInr(true),
+                amountColor = Color(0xFFE03153),
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Search Bar
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Search merchants, categories, or reference #") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text("Search merchant, category or reference") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search ledger") },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear")
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            shape = PillShape,
+            shape = RoundedCornerShape(18.dp),
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Filter Chips
+        Spacer(Modifier.height(12.dp))
         val filters = listOf(
             "ALL" to "All",
             "DEBITS" to "Expenses",
             "CREDITS" to "Income",
-            "REVIEW" to "Needs Review"
+            "REVIEW" to "Needs review"
         )
-
         LazyRow(modifier = Modifier.fillMaxWidth()) {
             items(filters) { (key, label) ->
-                val isSelected = selectedFilter == key
-                val bg = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-                val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-
+                val selected = selectedFilter == key
                 Box(
                     modifier = Modifier
+                        .padding(end = 8.dp)
                         .clip(PillShape)
-                        .background(bg)
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
                         .clickable { selectedFilter = key }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        text = label,
+                        label,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = textColor
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
+        Spacer(Modifier.height(12.dp))
         if (filteredTransactions.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 SpendwellEmptyState(
-                    title = "No Transactions Found",
-                    description = if (searchQuery.isNotBlank()) "No items match your search '$searchQuery'." else "Your transaction list is currently empty."
+                    title = if (allTransactions.isEmpty()) "Your ledger is ready" else "No matching transactions",
+                    description = when {
+                        allTransactions.isEmpty() -> "Transactions imported from supported sources or added by you will appear here."
+                        searchQuery.isNotBlank() -> "No recorded transactions match “$searchQuery”. Try another search."
+                        selectedFilter == "REVIEW" -> "There are no transactions currently marked for review."
+                        else -> "There are no transactions in this filter."
+                    }
                 )
             }
         } else {
@@ -177,12 +219,37 @@ fun TransactionFeedScreen(
                         transaction = tx,
                         onClick = { onNavigateToDetail(tx.id) }
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(Modifier.height(8.dp))
                 }
-                item {
-                    Spacer(modifier = Modifier.height(40.dp))
-                }
+                item { Spacer(Modifier.height(32.dp)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun LedgerSummaryCard(
+    title: String,
+    amount: String,
+    amountColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                amount,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = amountColor,
+                maxLines = 1
+            )
         }
     }
 }
