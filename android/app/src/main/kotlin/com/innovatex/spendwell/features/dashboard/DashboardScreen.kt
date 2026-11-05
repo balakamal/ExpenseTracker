@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,32 +22,23 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
@@ -74,7 +64,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,17 +73,11 @@ import com.innovatex.spendwell.common.Money
 import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
 import com.innovatex.spendwell.designsystem.components.SpendwellLoadingState
-import com.innovatex.spendwell.designsystem.components.SpendwellPillBadge
-import com.innovatex.spendwell.designsystem.components.SpendwellPrimaryButton
-import com.innovatex.spendwell.designsystem.components.SpendwellTonalButton
 import com.innovatex.spendwell.designsystem.components.SpendwellTransactionRow
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
 import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimaryContainer
 import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
 import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
-import com.innovatex.spendwell.designsystem.theme.EmeraldSecondaryContainer
-import com.innovatex.spendwell.designsystem.theme.OnPrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
@@ -478,8 +461,8 @@ fun DashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
 
-                            val savingsRate = state.monthlySummary?.savingsRatePercent ?: 0.0
-                            val isPositiveSavings = savingsRate >= 0.0
+                            val savingsRate = state.monthlySummary?.savingsRatePercentage ?: 0f
+                            val isPositiveSavings = savingsRate >= 0f
                             val savingsPillBg = if (isPositiveSavings) SecondaryFixed else MaterialTheme.colorScheme.errorContainer
                             val savingsPillText = if (isPositiveSavings) OnSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
 
@@ -641,7 +624,7 @@ fun DashboardScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.Baseline) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = if (state.isBalanceObfuscated) "₹ ••••••" else Money.fromPaisa(dailyAllowance * daysRemaining).formatInr(true),
                                         style = MaterialTheme.typography.headlineLarge,
@@ -921,17 +904,17 @@ fun DashboardScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val topCategory = state.monthlySummary?.expensesByCategory?.maxByOrNull { it.value }
-                    if (topCategory != null && topCategory.value.isPositive) {
+                    val topCategory = state.monthlySummary?.categoryBreakdown?.maxByOrNull { it.amount }
+                    if (topCategory != null && topCategory.amount.isPositive) {
                         Text(
-                            text = "${topCategory.key} is your top expense",
+                            text = "${topCategory.categoryName} is your top expense",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "You spent ${topCategory.value.formatInr(true)} on ${topCategory.key} this month across ${state.recentTransactions.filter { it.categoryName == topCategory.key }.size} transactions.",
+                            text = "You spent ${topCategory.amount.formatInr(true)} on ${topCategory.categoryName} this month across ${topCategory.transactionCount} transactions.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1011,17 +994,16 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        val categoryExpenses = state.monthlySummary?.expensesByCategory.orEmpty()
-                        if (categoryExpenses.isEmpty()) {
+                        val breakdown = state.monthlySummary?.categoryBreakdown.orEmpty()
+                        if (breakdown.isEmpty()) {
                             Text(
                                 text = "No categorized expenses recorded for this month.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            val totalExpPaisa = categoryExpenses.values.fold(0L) { acc, m -> acc + m.toPaisa() }.coerceAtLeast(1L)
-                            categoryExpenses.entries.take(4).forEach { (catName, catAmount) ->
-                                val pct = (catAmount.toPaisa().toDouble() / totalExpPaisa.toDouble()).coerceIn(0.05, 1.0).toFloat()
+                            for (item in breakdown.take(4)) {
+                                val pct = (item.percentageOfTotal / 100f).coerceIn(0.05f, 1f)
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1029,13 +1011,13 @@ fun DashboardScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = catName,
+                                            text = item.categoryName,
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = catAmount.formatInr(true),
+                                            text = item.amount.formatInr(true),
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -1151,7 +1133,7 @@ fun DashboardScreen(
     if (showLogExpenseSheet) {
         LogExpenseSheet(
             onDismiss = { showLogExpenseSheet = false },
-            onSave = { newTx ->
+            onSaveTransaction = { newTx ->
                 viewModel.saveTransaction(newTx)
                 showLogExpenseSheet = false
             }

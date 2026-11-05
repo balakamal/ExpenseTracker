@@ -36,6 +36,12 @@ data class DashboardUiState(
     val error: String? = null
 )
 
+private data class DashboardRepoData(
+    val transactions: List<Transaction>,
+    val accounts: List<Account>,
+    val pendingReviewCount: Int
+)
+
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
@@ -47,7 +53,7 @@ class DashboardViewModel @Inject constructor(
     private val isImportingFlow = MutableStateFlow(false)
     private val importMessageFlow = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<DashboardUiState> = combine(
+    private val repositoryDataFlow = combine(
         transactionRepository.observeAllTransactions().catch { e ->
             Log.e("DashboardViewModel", "Error observing all transactions", e)
             emit(emptyList())
@@ -59,18 +65,24 @@ class DashboardViewModel @Inject constructor(
         transactionRepository.observePendingReviewCount().catch { e ->
             Log.e("DashboardViewModel", "Error observing pending review count", e)
             emit(0)
-        },
+        }
+    ) { transactions, accounts, pendingCount ->
+        DashboardRepoData(transactions, accounts, pendingCount)
+    }
+
+    val uiState: StateFlow<DashboardUiState> = combine(
+        repositoryDataFlow,
         isObfuscated,
         isImportingFlow,
         importMessageFlow
-    ) { transactions, accounts, pendingCount, obfuscated, importing, importMsg ->
+    ) { repoData, obfuscated, importing, importMsg ->
         try {
             var totalBalance = Money.ZERO
-            accounts.forEach { totalBalance += it.currentBalance }
+            repoData.accounts.forEach { totalBalance += it.currentBalance }
 
             val cal = Calendar.getInstance()
             val summary = FinancialAnalyticsEngine.analyze(
-                transactions = transactions,
+                transactions = repoData.transactions,
                 year = cal.get(Calendar.YEAR),
                 monthZeroIndexed = cal.get(Calendar.MONTH)
             )
@@ -80,9 +92,9 @@ class DashboardViewModel @Inject constructor(
                 netBalance = totalBalance,
                 isBalanceObfuscated = obfuscated,
                 monthlySummary = summary,
-                recentTransactions = transactions.take(5),
-                accounts = accounts,
-                pendingReviewCount = pendingCount,
+                recentTransactions = repoData.transactions.take(5),
+                accounts = repoData.accounts,
+                pendingReviewCount = repoData.pendingReviewCount,
                 isImporting = importing,
                 importMessage = importMsg
             )
