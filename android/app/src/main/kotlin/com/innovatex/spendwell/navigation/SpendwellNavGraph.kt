@@ -43,7 +43,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
-import com.innovatex.spendwell.designsystem.theme.ForestEmerald
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
@@ -218,7 +220,7 @@ private fun SpendwellBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        color = CardSurfaceWhite.copy(alpha = 0.95f),
         shadowElevation = 10.dp
     ) {
         Row(
@@ -231,8 +233,8 @@ private fun SpendwellBottomBar(
         ) {
             Screen.bottomNavItems.forEach { screen ->
                 val isSelected = currentRoute == screen.route
-                val activeBg = if (isSelected) ForestEmerald.copy(alpha = 0.15f) else Color.Transparent
-                val activeTint = if (isSelected) ForestEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                val activeBg = if (isSelected) PrimaryFixed else Color.Transparent
+                val activeTint = if (isSelected) CobaltPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
                 Column(

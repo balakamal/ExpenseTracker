@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.innovatex.spendwell.data.seeder.SampleFinancialDataSeeder
 import com.innovatex.spendwell.database.SpendwellDatabase
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import dagger.hilt.android.HiltAndroidApp
@@ -61,13 +60,12 @@ class SpendwellApplication : Application() {
         }
 
 
-        // Seed standard default categories and realistic demo ledger asynchronously on first launch
+        // Seed standard default categories asynchronously on first launch
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 categoryRepositoryProvider.get().initializeDefaultCategories()
-                SampleFinancialDataSeeder.seedIfEmpty(databaseProvider.get())
             } catch (e: Throwable) {
-                Log.w("SpendwellApp", "Ledger initialization non-fatal error: ${e.message}")
+                Log.w("SpendwellApp", "Category taxonomy initialization error: ${e.message}")
             }
         }
     }

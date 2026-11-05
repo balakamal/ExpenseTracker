@@ -2,6 +2,7 @@ package com.innovatex.spendwell.features.dashboard
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -27,25 +28,36 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,24 +73,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.innovatex.spendwell.common.Money
 import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
 import com.innovatex.spendwell.designsystem.components.SpendwellLoadingState
 import com.innovatex.spendwell.designsystem.components.SpendwellPillBadge
+import com.innovatex.spendwell.designsystem.components.SpendwellPrimaryButton
+import com.innovatex.spendwell.designsystem.components.SpendwellTonalButton
 import com.innovatex.spendwell.designsystem.components.SpendwellTransactionRow
-import com.innovatex.spendwell.designsystem.theme.DeepCharcoal
-import com.innovatex.spendwell.designsystem.theme.ForestEmerald
-import com.innovatex.spendwell.designsystem.theme.InflowGreen
-import com.innovatex.spendwell.designsystem.theme.OutflowRed
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimaryContainer
+import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondaryContainer
+import com.innovatex.spendwell.designsystem.theme.OnPrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.VividMint
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
+import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
 import com.innovatex.spendwell.features.transactions.LogExpenseSheet
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -101,6 +123,7 @@ fun DashboardScreen(
     val context = LocalContext.current
     var hasSmsPermission by remember {
         mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
         )
     }
@@ -108,8 +131,40 @@ fun DashboardScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        hasSmsPermission = results[Manifest.permission.RECEIVE_SMS] == true ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val granted = results[Manifest.permission.READ_SMS] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        hasSmsPermission = granted
+        if (granted) {
+            Toast.makeText(context, "SMS permission granted! Starting import...", Toast.LENGTH_SHORT).show()
+            viewModel.importSmsHistory(
+                onComplete = { result ->
+                    Toast.makeText(context, "Import complete! ${result.imported} new transactions added.", Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    fun triggerSmsSync() {
+        if (!hasSmsPermission) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_SMS,
+                    Manifest.permission.RECEIVE_SMS
+                )
+            )
+        } else {
+            viewModel.importSmsHistory(
+                onComplete = { result ->
+                    Toast.makeText(context, "Sync complete! ${result.imported} new transactions added.", Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                }
+            )
+        }
     }
 
     if (state.isLoading) {
@@ -153,7 +208,7 @@ fun DashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showLogExpenseSheet = true },
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = CobaltPrimary,
                 contentColor = Color.White,
                 shape = CircleShape
             ) {
@@ -175,7 +230,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.statusBarsPadding())
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 1. Top App Header (Logo, Brand Title, Privacy Mode Button & Settings)
+                // 1. Top App Header (Matching Stitch Light: Logo badge, Spendwell Home, Private pill, Profile)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -185,14 +240,14 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.primary),
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(PrimaryFixed),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AccountBalance,
+                                imageVector = Icons.Default.AccountBalanceWallet,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = CobaltPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -202,7 +257,7 @@ fun DashboardScreen(
                                 text = "Spendwell",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 letterSpacing = (-0.5).sp
                             )
                             Text(
@@ -220,553 +275,318 @@ fun DashboardScreen(
                                 .clip(PillShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .clickable { viewModel.toggleBalanceObfuscation() }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (state.isBalanceObfuscated) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                imageVector = if (state.isBalanceObfuscated) Icons.Default.VisibilityOff else Icons.Default.Lock,
                                 contentDescription = "Toggle privacy",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (state.isBalanceObfuscated) "Hidden" else "Visible",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (state.isBalanceObfuscated) "Hidden" else "Private",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(CobaltPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Profile & Settings",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 2. Privacy Mode & Live Status Pills
+                // 2. Greeting Header Section with dynamic Month and days left
+                val cal = Calendar.getInstance()
+                val monthName = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH).format(cal.time)
+                val totalDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                val currentDay = cal.get(Calendar.DAY_OF_MONTH)
+                val daysRemaining = (totalDaysInMonth - currentDay).coerceAtLeast(1)
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Private Mode (On-Device)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            text = "Good morning, Rohit",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$monthName • $daysRemaining days left in month",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    if (state.pendingReviewCount > 0) {
                         Box(
                             modifier = Modifier
-                                .size(7.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = "Live Sync",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // 3. Greeting Header & Dynamic Month calculation
-                val cal = Calendar.getInstance()
-                val monthName = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH).format(cal.time)
-                val totalDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-                val currentDay = cal.get(Calendar.DAY_OF_MONTH)
-                val daysRemaining = (totalDaysInMonth - currentDay).coerceAtLeast(0)
-
-                Column {
-                    Text(
-                        text = "Good morning, Rohit",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "$monthName • $daysRemaining days left in month",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 4. Hero Financial Overview Card (Deep Charcoal #101820 with Emerald Glow)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = DeepCharcoal)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(ForestEmerald.copy(alpha = 0.22f), Color.Transparent),
-                                    radius = 700f
-                                )
+                                .background(SurfaceContainerLow)
+                                .clickable { onNavigateToReviewCenter() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Reviews",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
-                            .padding(20.dp)
-                    ) {
-                        Column {
-                            // Top Account Indicator Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { onNavigateToAccounts() }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountBalance,
-                                            contentDescription = null,
-                                            tint = VividMint,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "Verified Bank Accounts",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White.copy(alpha = 0.65f)
-                                        )
-                                        val accountsText = if (state.accounts.isNotEmpty()) {
-                                            state.accounts.joinToString(" • ") { "${it.bankName.take(4)} ••${it.accountNumberLast4}" }
-                                        } else {
-                                            "HDFC ••4821 • ICICI ••9012"
-                                        }
-                                        Text(
-                                            text = accountsText,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                }
-
-                                IconButton(onClick = { viewModel.toggleBalanceObfuscation() }) {
-                                    Icon(
-                                        imageVector = if (state.isBalanceObfuscated) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = "Toggle Balance Privacy",
-                                        tint = VividMint,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            Text(
-                                text = "TOTAL AVAILABLE LIQUIDITY",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 1.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            val balanceDisplay = if (state.isBalanceObfuscated) {
-                                "₹ ••••••"
-                            } else {
-                                if (state.netBalance.isPositive) state.netBalance.formatInr(true) else "₹ 1,42,850.00"
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    text = balanceDisplay,
-                                    style = MaterialTheme.typography.displayLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .clip(PillShape)
-                                        .background(VividMint.copy(alpha = 0.2f))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.TrendingUp,
-                                        contentDescription = null,
-                                        tint = VividMint,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "+4.2%",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = VividMint,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Dual-Entry Ledger Reconciliation Footnote
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Bank-Reported Balance:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White.copy(alpha = 0.65f)
-                                    )
-                                    Text(
-                                        text = "₹1,43,339.00",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "Calculated Ledger Balance:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White.copy(alpha = 0.65f)
-                                    )
-                                    Text(
-                                        text = "₹1,42,850.00 (-₹489 Swiggy uncleared)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = VividMint,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // 3-Column Shelf: Inflow, Outflow, Net
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Monthly Inflow",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White.copy(alpha = 0.6f)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    val inflowText = state.monthlySummary?.totalIncome?.let {
-                                        if (it.isPositive) it.formatInr(true) else "+ ₹1,15,000.00"
-                                    } ?: "+ ₹1,15,000.00"
-                                    Text(
-                                        text = inflowText,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = VividMint
-                                    )
-                                }
-
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "Monthly Outflow",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White.copy(alpha = 0.6f)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    val outflowText = state.monthlySummary?.totalExpenses?.let {
-                                        if (it.isPositive) it.formatInr(true) else "- ₹48,320.00"
-                                    } ?: "- ₹48,320.00"
-                                    Text(
-                                        text = outflowText,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = OutflowRed
-                                    )
-                                }
-
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = "Net Saved",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White.copy(alpha = 0.6f)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "+ ₹66.6k",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = InflowGreen
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 5. Quick Actions Pill Scroll
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // + Add Manual Cash
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable { showLogExpenseSheet = true }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Add Manual Cash",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-
-                    // Scan Receipt
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { /* Receipt Scan action */ }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Scan Receipt",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Export Report
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { onNavigateToReconciliation() }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.IosShare,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Export Report",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Seed Sample Ledger action (Quick Demo helper)
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { viewModel.seedDemoData() }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = VividMint,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Seed Demo Data",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 6. Proactive AI Insights Banner (Emerald Tinted M3 Surface)
-                SpendwellCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = MaterialTheme.colorScheme.surface
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.Top) {
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 8.dp, end = 8.dp)
+                                    .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.secondaryContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "AI SPENDING ALERT • On-Device SLM (Gemma 2B)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Just now",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "Food delivery is 22% higher",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "You spent ₹6,450 across Swiggy and Zomato in the last 10 days, trending above your 3-month rolling average.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                                    .background(CrimsonTertiary)
+                            )
                         }
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
+                // 3. Primary Bank Accounts & Reconciled Balance Card (Stitch White Card)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SquircleCardShape,
+                    colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                shape = SquircleCardShape
+                            )
+                            .padding(18.dp)
+                    ) {
+                        // Account verification tag & toggle
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "⚡ Computed on-device via NNAPI",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            val accountsLabel = if (state.accounts.isNotEmpty()) {
+                                state.accounts.take(2).joinToString(" • ") { "${it.bankName.take(6)} ••${it.accountNumberLast4}" }
+                            } else {
+                                "No Connected Accounts"
                             }
 
                             Row(
                                 modifier = Modifier
                                     .clip(PillShape)
-                                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                                    .clickable { onNavigateToTransactions() }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    .background(SurfaceContainerLow)
+                                    .clickable { onNavigateToAccounts() }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(
+                                    imageVector = if (state.accounts.isNotEmpty()) Icons.Default.VerifiedUser else Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (state.accounts.isNotEmpty()) EmeraldSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "See breakdown",
+                                    text = accountsLabel,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { viewModel.toggleBalanceObfuscation() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (state.isBalanceObfuscated) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Toggle Balance Privacy",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Main Balance Display
+                        Text(
+                            text = "TOTAL LIQUIDITY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        val balanceDisplay = if (state.isBalanceObfuscated) {
+                            "₹ ••••••"
+                        } else {
+                            state.netBalance.formatInr(true)
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = balanceDisplay,
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            val savingsRate = state.monthlySummary?.savingsRatePercent ?: 0.0
+                            val isPositiveSavings = savingsRate >= 0.0
+                            val savingsPillBg = if (isPositiveSavings) SecondaryFixed else MaterialTheme.colorScheme.errorContainer
+                            val savingsPillText = if (isPositiveSavings) OnSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
+
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(savingsPillBg)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isPositiveSavings) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                                    contentDescription = null,
+                                    tint = savingsPillText,
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(14.dp)
+                                Text(
+                                    text = "${if (isPositiveSavings) "+" else ""}${savingsRate.toInt()}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = savingsPillText,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Dual Balance Comparison Grid (Stitch 2-Column SurfaceContainerLow)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Column 1: Bank-Reported
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceContainerLow)
+                                    .padding(12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalance,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Bank-Reported",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                val bankTotal = state.accounts.fold(Money.ZERO) { acc, a -> acc + a.currentBalance }
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ ••••••" else bankTotal.formatInr(true),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (state.accounts.isNotEmpty()) "${state.accounts.size} active accounts" else "Sync SMS to detect",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Column 2: Ledger Balance
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceContainerLow)
+                                    .padding(12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = CobaltPrimary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Ledger Balance",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CobaltPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ ••••••" else state.netBalance.formatInr(true),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (state.pendingReviewCount > 0) "${state.pendingReviewCount} pending review" else "Double-entry reconciled",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (state.pendingReviewCount > 0) CrimsonTertiary else EmeraldSecondary
                                 )
                             }
                         }
@@ -775,101 +595,111 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 7. Safe-to-Spend Runway & Category Breakdown Widget
-                SpendwellCard(
+                // 4. Safe-to-Spend Balance Card (Stitch White Card)
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = MaterialTheme.colorScheme.surface
+                    shape = SquircleCardShape,
+                    colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                shape = SquircleCardShape
+                            )
+                            .padding(18.dp)
+                    ) {
+                        val totalInflow = state.monthlySummary?.totalIncome ?: Money.ZERO
+                        val totalOutflow = state.monthlySummary?.totalExpenses ?: Money.ZERO
+                        val spendablePool = if (state.netBalance.isPositive) state.netBalance else totalInflow
+                        val dailyAllowance = if (daysRemaining > 0 && spendablePool.isPositive) {
+                            spendablePool.toPaisa() / daysRemaining
+                        } else 0L
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
                             Column {
-                                Text(
-                                    text = "Safe-to-Spend Balance",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Limit reset in $daysRemaining days",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Safe-to-Spend Runway",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.Baseline) {
+                                    Text(
+                                        text = if (state.isBalanceObfuscated) "₹ ••••••" else Money.fromPaisa(dailyAllowance * daysRemaining).formatInr(true),
+                                        style = MaterialTheme.typography.headlineLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "/ ${spendablePool.formatInr(false)} Total Pool",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "₹26,680",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(SecondaryFixed)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = EmeraldSecondary,
+                                    modifier = Modifier.size(13.dp)
                                 )
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "of ₹75,000 pool",
+                                    text = "On Pace",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontWeight = FontWeight.Bold,
+                                    color = OnSecondaryContainer
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Segmented Runway Progress Bar
-                        Row(
+                        // Progress Meter
+                        val spendPercent = if (spendablePool.isPositive && totalOutflow.isPositive) {
+                            ((totalOutflow.toPaisa().toDouble() / spendablePool.toPaisa().toDouble()) * 100).coerceIn(0.0, 100.0)
+                        } else 0.0
+
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(12.dp)
+                                .height(8.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .background(SurfaceContainerLow)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .weight(0.35f)
-                                    .fillMaxSize()
-                                    .background(ForestEmerald)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(0.25f)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF36C99A))
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(0.22f)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF8B5CF6))
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(0.18f)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF3B82F6))
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Category Legend Grid (2x2)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CategoryLegendItem(
-                                title = "Food & Dining",
-                                amount = "₹14,200",
-                                icon = Icons.Default.Restaurant,
-                                iconBg = Color(0xFFFC8019),
-                                modifier = Modifier.weight(1f)
-                            )
-                            CategoryLegendItem(
-                                title = "Housing & Utils",
-                                amount = "₹12,000",
-                                icon = Icons.Default.Home,
-                                iconBg = ForestEmerald,
-                                modifier = Modifier.weight(1f)
+                                    .fillMaxWidth((spendPercent / 100.0).toFloat().coerceIn(0.02f, 1f))
+                                    .height(8.dp)
+                                    .clip(CircleShape)
+                                    .background(CobaltPrimary)
                             )
                         }
 
@@ -877,105 +707,366 @@ fun DashboardScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CategoryLegendItem(
-                                title = "Shopping & Life",
-                                amount = "₹11,450",
-                                icon = Icons.Default.ShoppingBag,
-                                iconBg = Color(0xFF8B5CF6),
-                                modifier = Modifier.weight(1f)
+                            Text(
+                                text = "Daily allowance: ₹%,d/day".format(dailyAllowance / 100),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            CategoryLegendItem(
-                                title = "Transport & Uber",
-                                amount = "₹4,870",
-                                icon = Icons.Default.DirectionsCar,
-                                iconBg = Color(0xFF3B82F6),
-                                modifier = Modifier.weight(1f)
+                            Text(
+                                text = "${spendPercent.toInt()}% spent",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 5. Quick Action Buttons Row (Manual Cash, Sync SMS, Export Ledger)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Action 1: Manual Cash
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { showLogExpenseSheet = true },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = CobaltPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Manual Cash",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Action 2: Sync Bank SMS
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { triggerSmsSync() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(SecondaryFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (state.isImporting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = EmeraldSecondary
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = null,
+                                        tint = EmeraldSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (state.isImporting) "Syncing..." else "Sync SMS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Action 3: Export Ledger
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToReconciliation() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceContainerLow),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Export Ledger",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 6. AI Velocity Insight Card (Matching Stitch Light: Bolt in Crimson, SurfaceContainerLow)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(SquircleCardShape)
+                        .background(SurfaceContainerLow)
+                        .padding(18.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = CrimsonTertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "AI VELOCITY INSIGHT",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = CrimsonTertiary,
+                                letterSpacing = 1.sp
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(PillShape)
+                                .background(CardSurfaceWhite)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "Just now",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val topCategory = state.monthlySummary?.expensesByCategory?.maxByOrNull { it.value }
+                    if (topCategory != null && topCategory.value.isPositive) {
                         Text(
-                            text = "Budget calculation accounts for upcoming recurring commitments.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            text = "${topCategory.key} is your top expense",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "You spent ${topCategory.value.formatInr(true)} on ${topCategory.key} this month across ${state.recentTransactions.filter { it.categoryName == topCategory.key }.size} transactions.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "Ledger ready for insights",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Sync your local SMS or log an expense to get real-time on-device spending analytics.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.clickable { onNavigateToTransactions() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "See breakdown",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = CobaltPrimary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = CobaltPrimary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 8. SMS Ingestion Permission Card (if permission not yet granted)
-                if (!hasSmsPermission) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f))
+                // 7. Category Distribution Section (Pure White Card)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SquircleCardShape,
+                    colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                shape = SquircleCardShape
+                            )
+                            .padding(18.dp)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Security,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Enable Live SMS Parsing",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Grant SMS read access to automatically track banking alerts with 100% on-device privacy.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier
-                                        .clip(PillShape)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .clickable {
-                                            permissionLauncher.launch(
-                                                arrayOf(
-                                                    Manifest.permission.RECEIVE_SMS,
-                                                    Manifest.permission.READ_SMS
-                                                )
-                                            )
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 7.dp)
-                                ) {
-                                    Text(
-                                        text = "Grant SMS Access",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                            Text(
+                                text = "Category Distribution",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "This Month",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        val categoryExpenses = state.monthlySummary?.expensesByCategory.orEmpty()
+                        if (categoryExpenses.isEmpty()) {
+                            Text(
+                                text = "No categorized expenses recorded for this month.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            val totalExpPaisa = categoryExpenses.values.fold(0L) { acc, m -> acc + m.toPaisa() }.coerceAtLeast(1L)
+                            categoryExpenses.entries.take(4).forEach { (catName, catAmount) ->
+                                val pct = (catAmount.toPaisa().toDouble() / totalExpPaisa.toDouble()).coerceIn(0.05, 1.0).toFloat()
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = catName,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = catAmount.formatInr(true),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(CircleShape)
+                                            .background(SurfaceContainerLow)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(pct)
+                                                .height(6.dp)
+                                                .clip(CircleShape)
+                                                .background(CobaltPrimary)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
                                 }
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 9. Recent Transactions Section Header
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 8. Recent Transactions Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -986,14 +1077,24 @@ fun DashboardScreen(
                             text = "Recent Transactions",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        SpendwellPillBadge(
-                            text = "${state.recentTransactions.size} New",
-                            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                            textColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (state.recentTransactions.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(PrimaryFixed)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${state.recentTransactions.size} Recent",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CobaltPrimary
+                                )
+                            }
+                        }
                     }
 
                     Row(
@@ -1004,12 +1105,12 @@ fun DashboardScreen(
                             text = "View All",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = CobaltPrimary
                         )
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = CobaltPrimary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1018,15 +1119,16 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 10. Transaction Stream List
+            // 9. Transaction Feed or Empty State
             if (state.recentTransactions.isEmpty()) {
                 item {
                     SpendwellCard(modifier = Modifier.fillMaxWidth()) {
                         SpendwellEmptyState(
-                            title = "No Transactions Recorded",
-                            description = "Incoming bank SMS and payment alerts will automatically populate your ledger, or tap below to seed sample data.",
-                            actionText = "Seed Sample Ledger",
-                            onActionClick = { viewModel.seedDemoData() }
+                            title = "No Transactions Found",
+                            description = "Spendwell parses bank alerts directly on your device with 100% offline privacy. Sync your SMS history or log a cash expense to begin.",
+                            actionText = "Sync Bank SMS",
+                            onActionClick = { triggerSmsSync() },
+                            icon = Icons.Default.Security
                         )
                     }
                 }
@@ -1036,48 +1138,12 @@ fun DashboardScreen(
                         transaction = tx,
                         onClick = { onNavigateToTransactionDetail(tx.id) }
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
-            // 11. End of Feed Micro-delight
             item {
-                Spacer(modifier = Modifier.height(24.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DoneAll,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "All accounts balanced & verified",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Deterministic double-entry ledger • Local AES-256 SQLite database",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(modifier = Modifier.height(88.dp))
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -1085,54 +1151,10 @@ fun DashboardScreen(
     if (showLogExpenseSheet) {
         LogExpenseSheet(
             onDismiss = { showLogExpenseSheet = false },
-            onSaveTransaction = { tx -> viewModel.saveTransaction(tx) }
+            onSave = { newTx ->
+                viewModel.saveTransaction(newTx)
+                showLogExpenseSheet = false
+            }
         )
-    }
-}
-
-@Composable
-private fun CategoryLegendItem(
-    title: String,
-    amount: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconBg: Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(iconBg.copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconBg,
-                modifier = Modifier.size(15.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-            Text(
-                text = amount,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
     }
 }

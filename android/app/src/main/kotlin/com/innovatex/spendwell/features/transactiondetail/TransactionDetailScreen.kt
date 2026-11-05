@@ -561,19 +561,13 @@ fun TransactionDetailScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (currentTx.accountId?.contains("hdfc", ignoreCase = true) == true) {
-                                "HDFC Bank Instant Savings"
-                            } else if (currentTx.accountId?.contains("icici", ignoreCase = true) == true) {
-                                "ICICI Bank Salary Account"
-                            } else {
-                                "Primary Bank Account"
-                            },
+                            text = currentTx.accountId?.let { "Bank Account ($it)" } ?: "Cash / Direct Ledger",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Account ending in ••4821",
+                            text = if (currentTx.referenceId != null) "Ref: ${currentTx.referenceId}" else "Offline Record",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -616,7 +610,7 @@ fun TransactionDetailScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = currentTx.toAccountId ?: currentTx.referenceId ?: "rohit@okhdfcbank",
+                            text = currentTx.toAccountId ?: currentTx.referenceId ?: "Direct Payment",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -626,7 +620,7 @@ fun TransactionDetailScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // UPI Ref / UTR Number with 1-tap Copy
-                val utrValue = currentTx.utrNumber ?: currentTx.referenceId ?: "426819284019"
+                val utrValue = currentTx.utrNumber ?: currentTx.referenceId ?: "N/A"
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -888,7 +882,7 @@ fun TransactionDetailScreen(
                     Column(modifier = Modifier.padding(top = 14.dp)) {
                         // Raw SMS Snippet Preview
                         val rawSnippet = currentTx.rawMessageSnippet.takeIf { !it.isNullOrBlank() }
-                            ?: "Sent Rs.${currentTx.amount.formatInr(false)} from HDFC Bank A/C **4821 to ${currentTx.merchantName.uppercase()} UPI ref ${currentTx.referenceId ?: "426819284019"} on 24-09-24. Bal Rs.1,42,850.00"
+                            ?: "Offline entry recorded directly on device. No external SMS payload attached."
 
                         Box(
                             modifier = Modifier

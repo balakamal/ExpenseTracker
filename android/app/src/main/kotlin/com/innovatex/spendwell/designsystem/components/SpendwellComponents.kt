@@ -45,9 +45,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.ForestEmerald
 import com.innovatex.spendwell.designsystem.theme.InflowGreen
 import com.innovatex.spendwell.designsystem.theme.PillShape
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
@@ -59,7 +62,7 @@ import java.util.Locale
 @Composable
 fun SpendwellCard(
     modifier: Modifier = Modifier,
-    backgroundColor: Color = MaterialTheme.colorScheme.surface,
+    backgroundColor: Color = CardSurfaceWhite,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
@@ -74,14 +77,15 @@ fun SpendwellCard(
     Surface(
         modifier = clickableModifier.border(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             shape = SquircleCardShape
         ),
         shape = SquircleCardShape,
         color = backgroundColor,
-        tonalElevation = 1.dp
+        tonalElevation = 0.dp,
+        shadowElevation = 1.dp
     ) {
-        Box(modifier = Modifier.padding(20.dp)) {
+        Box(modifier = Modifier.padding(16.dp)) {
             content()
         }
     }
@@ -200,17 +204,22 @@ fun SpendwellFilterPill(
         modifier = modifier
             .clip(CircleShape)
             .background(
-                if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant
+                if (isSelected) PrimaryFixed
+                else CardSurfaceWhite
+            )
+            .border(
+                width = 1.dp,
+                color = if (isSelected) CobaltPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                shape = CircleShape
             )
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp, vertical = 7.dp)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) CobaltPrimary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -259,7 +268,8 @@ fun SpendwellTransactionRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .background(CardSurfaceWhite)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically

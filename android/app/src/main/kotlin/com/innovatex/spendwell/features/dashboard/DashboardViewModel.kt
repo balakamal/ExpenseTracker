@@ -6,12 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.analytics.MonthlyFinancialSummary
 import com.innovatex.spendwell.common.Money
-import com.innovatex.spendwell.data.seeder.SampleFinancialDataSeeder
-import com.innovatex.spendwell.database.SpendwellDatabase
 import com.innovatex.spendwell.domain.model.Account
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.repository.AccountRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
+import com.innovatex.spendwell.integrations.sms.SmsHistoryImportResult
+import com.innovatex.spendwell.integrations.sms.SmsHistoryImporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +31,8 @@ data class DashboardUiState(
     val recentTransactions: List<Transaction> = emptyList(),
     val accounts: List<Account> = emptyList(),
     val pendingReviewCount: Int = 0,
+    val isImporting: Boolean = false,
+    val importMessage: String? = null,
     val error: String? = null
 )
 
@@ -38,10 +40,12 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val accountRepository: AccountRepository,
-    private val database: SpendwellDatabase
+    private val smsHistoryImporter: SmsHistoryImporter
 ) : ViewModel() {
 
     private val isObfuscated = MutableStateFlow(false)
+    private val isImportingFlow = MutableStateFlow(false)
+    private val importMessageFlow = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<DashboardUiState> = combine(
         transactionRepository.observeAllTransactions().catch { e ->
@@ -56,8 +60,10 @@ class DashboardViewModel @Inject constructor(
             Log.e("DashboardViewModel", "Error observing pending review count", e)
             emit(0)
         },
-        isObfuscated
-    ) { transactions, accounts, pendingCount, obfuscated ->
+        isObfuscated,
+        isImportingFlow,
+        importMessageFlow
+    ) { transactions, accounts, pendingCount, obfuscated, importing, importMsg ->
         try {
             var totalBalance = Money.ZERO
             accounts.forEach { totalBalance += it.currentBalance }
@@ -76,7 +82,9 @@ class DashboardViewModel @Inject constructor(
                 monthlySummary = summary,
                 recentTransactions = transactions.take(5),
                 accounts = accounts,
-                pendingReviewCount = pendingCount
+                pendingReviewCount = pendingCount,
+                isImporting = importing,
+                importMessage = importMsg
             )
         } catch (e: Throwable) {
             Log.e("DashboardViewModel", "Error processing dashboard calculation", e)
@@ -111,9 +119,25 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun seedDemoData() {
+    fun importSmsHistory(
+        onComplete: ((SmsHistoryImportResult) -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        if (isImportingFlow.value) return
         viewModelScope.launch {
-            SampleFinancialDataSeeder.forceSeedDemoData(database)
+            isImportingFlow.value = true
+            importMessageFlow.value = null
+            try {
+                val result = smsHistoryImporter.importRecentHistory()
+                importMessageFlow.value = "Imported ${result.imported} transactions from SMS"
+                onComplete?.invoke(result)
+            } catch (e: Exception) {
+                val msg = e.message ?: "Failed to import SMS history"
+                importMessageFlow.value = msg
+                onError?.invoke(msg)
+            } finally {
+                isImportingFlow.value = false
+            }
         }
     }
 }

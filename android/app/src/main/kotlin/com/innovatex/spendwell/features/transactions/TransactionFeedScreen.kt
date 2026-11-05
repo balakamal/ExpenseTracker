@@ -116,7 +116,18 @@ fun TransactionFeedScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("ALL") }
-    var selectedMonth by remember { mutableStateOf("September 2024") }
+    val monthOptions = remember {
+        val formatter = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH)
+        val list = mutableListOf<String>()
+        val c = Calendar.getInstance()
+        for (i in 0..5) {
+            list.add(formatter.format(c.time))
+            c.add(Calendar.MONTH, -1)
+        }
+        list.add("All Time")
+        list
+    }
+    var selectedMonth by remember { mutableStateOf(monthOptions.first()) }
     var monthMenuExpanded by remember { mutableStateOf(false) }
     var isVoiceListening by remember { mutableStateOf(false) }
     var showLogExpenseSheet by remember { mutableStateOf(false) }
@@ -146,7 +157,11 @@ fun TransactionFeedScreen(
             "FLAGGED" -> !tx.isReviewed || tx.status == TransactionStatus.NEEDS_REVIEW
             else -> true
         }
-        matchesQuery && matchesFilter
+        val matchesMonth = if (selectedMonth == "All Time") true else {
+            val txDate = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH).format(Date(tx.timestamp))
+            txDate == selectedMonth
+        }
+        matchesQuery && matchesFilter && matchesMonth
     }
 
     // Monthly summary calculation
@@ -344,7 +359,7 @@ fun TransactionFeedScreen(
                             expanded = monthMenuExpanded,
                             onDismissRequest = { monthMenuExpanded = false }
                         ) {
-                            listOf("September 2024", "August 2024", "July 2024", "All Time").forEach { month ->
+                            monthOptions.forEach { month ->
                                 DropdownMenuItem(
                                     text = { Text(month) },
                                     onClick = {
