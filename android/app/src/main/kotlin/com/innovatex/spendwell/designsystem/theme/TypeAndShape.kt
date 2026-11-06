@@ -13,14 +13,20 @@ import androidx.compose.ui.unit.sp
 import com.innovatex.spendwell.R
 
 val ManropeFontFamily = FontFamily(
+    Font(R.font.manrope_semibold, FontWeight.Normal),
+    Font(R.font.manrope_semibold, FontWeight.Medium),
     Font(R.font.manrope_semibold, FontWeight.SemiBold),
-    Font(R.font.manrope_bold, FontWeight.Bold)
+    Font(R.font.manrope_bold, FontWeight.Bold),
+    Font(R.font.manrope_bold, FontWeight.ExtraBold),
+    Font(R.font.manrope_bold, FontWeight.Black)
 )
 
 val InterFontFamily = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
     Font(R.font.inter_medium, FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold)
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_semibold, FontWeight.Bold),
+    Font(R.font.inter_semibold, FontWeight.ExtraBold)
 )
 
 val SpendwellTypography = Typography(

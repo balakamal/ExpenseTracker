@@ -30,15 +30,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.GroupAdd
@@ -51,13 +51,12 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SmartDisplay
-import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -71,8 +70,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -88,7 +87,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -98,13 +96,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellLoadingState
-import com.innovatex.spendwell.designsystem.theme.ForestEmerald
-import com.innovatex.spendwell.designsystem.theme.InflowGreen
-import com.innovatex.spendwell.designsystem.theme.OutflowRed
+import com.innovatex.spendwell.designsystem.components.SpendwellSubScreenAppBar
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
+import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.VividMint
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
+import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
 import com.innovatex.spendwell.domain.model.Category
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
@@ -165,8 +170,8 @@ fun TransactionDetailScreen(
 
     val amountColor = when {
         isRefund -> Color(0xFFD97706)
-        isFailed -> OutflowRed
-        isCredit -> InflowGreen
+        isFailed -> CrimsonTertiary
+        isCredit -> EmeraldSecondary
         else -> MaterialTheme.colorScheme.onSurface
     }
 
@@ -175,951 +180,919 @@ fun TransactionDetailScreen(
 
     val glyph = resolveDetailGlyph(currentTx)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 1. Top Header Area (Matching Stitch)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = onNavigateBack,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                Column {
-                    Text(
-                        text = "Spendwell",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Spendwell — Transaction Detail",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = {
-                        val shareText = "Spendwell Transaction Receipt\nMerchant: ${currentTx.merchantName}\nAmount: ${currentTx.amount.formatInr(true)}\nDate: $dateText\nReference: ${currentTx.referenceId ?: currentTx.utrNumber ?: "N/A"}"
-                        val sendIntent = android.content.Intent().apply {
-                            action = android.content.Intent.ACTION_SEND
-                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                            type = "text/plain"
+    Scaffold(
+        topBar = {
+            SpendwellSubScreenAppBar(
+                title = "Spendwell",
+                subtitle = "Transaction Detail",
+                onNavigateBack = onNavigateBack,
+                actions = {
+                    IconButton(
+                        onClick = {
+                            val shareText = "Spendwell Transaction Receipt\nMerchant: ${currentTx.merchantName}\nAmount: ${currentTx.amount.formatInr(true)}\nDate: $dateText\nReference: ${currentTx.referenceId ?: currentTx.utrNumber ?: "N/A"}"
+                            val sendIntent = android.content.Intent().apply {
+                                action = android.content.Intent.ACTION_SEND
+                                putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                                type = "text/plain"
+                            }
+                            context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Receipt"))
                         }
-                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Receipt"))
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share receipt",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .clip(PillShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = ForestEmerald,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 2. Merchant & Amount Hero Card (Ambient Emerald Aura)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                // Subtle ambient emerald aura
-                Box(
-                    modifier = Modifier
-                        .size(140.dp)
-                        .align(Alignment.TopEnd)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(ForestEmerald.copy(alpha = 0.08f), Color.Transparent)
-                            )
-                        )
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Merchant Icon Badge with Checkmark Overlay
-                    Box(modifier = Modifier.size(64.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(glyph.bgColor),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = glyph.icon,
-                                contentDescription = null,
-                                tint = glyph.tintColor,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-
-                        // Status badge overlay
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .align(Alignment.BottomEnd)
-                                .clip(CircleShape)
-                                .background(if (isFailed) OutflowRed else ForestEmerald)
-                                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isFailed) Icons.Default.Error else Icons.Default.Check,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Merchant Name
-                    Text(
-                        text = currentTx.merchantName.ifBlank { currentTx.description },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // Subtitle / Description
-                    Text(
-                        text = if (currentTx.description.isNotBlank() && currentTx.description != currentTx.merchantName) {
-                            "${currentTx.categoryName} • ${currentTx.description}"
-                        } else {
-                            "${currentTx.categoryName} • Order verified"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Prominent Currency Typography
-                    val amountPrefix = if (isCredit) "+ " else if (isRefund || isFailed) "" else "- "
-                    Text(
-                        text = "$amountPrefix${currentTx.amount.formatInr(true)}",
-                        style = MaterialTheme.typography.headlineLarge.copy(fontSize = 34.sp),
-                        fontWeight = FontWeight.Bold,
-                        color = amountColor,
-                        textDecoration = if (isRefund || isFailed) TextDecoration.LineThrough else null
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Status & Timing Pill Group
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Status Pill
-                        val (statusText, statusBg, statusColor) = when {
-                            isRefund -> Triple("Refunded", Color(0xFFFEF3C7), Color(0xFFB45309))
-                            isFailed -> Triple("Failed", OutflowRed.copy(alpha = 0.12f), OutflowRed)
-                            isPending -> Triple("Pending", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
-                            isCredit -> Triple("Credited", ForestEmerald.copy(alpha = 0.15f), ForestEmerald)
-                            else -> Triple("Successful", ForestEmerald.copy(alpha = 0.15f), ForestEmerald)
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .background(statusBg)
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isFailed) Icons.Default.Error else Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = statusColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = statusText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = statusColor
-                            )
-                        }
-
-                        // Timestamp Pill
-                        Row(
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = dateText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 3. Primary Quick Actions (Split with Friends + Attach Receipt)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Button(
-                onClick = {
-                    val halfAmount = currentTx.amount.toPaisa() / 2
-                    val formattedHalf = "₹%,d.%02d".format(halfAmount / 100, halfAmount % 100)
-                    Toast.makeText(context, "Split link generated: $formattedHalf each for 2 friends", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = PillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = ForestEmerald)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.GroupAdd,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Split with Friends",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-
-            OutlinedButton(
-                onClick = {
-                    isReceiptAttached = !isReceiptAttached
-                    Toast.makeText(
-                        context,
-                        if (isReceiptAttached) "Digital receipt attached to transaction" else "Receipt detached",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = PillShape,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isReceiptAttached) ForestEmerald.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surface
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.linearGradient(
-                        listOf(
-                            if (isReceiptAttached) ForestEmerald else MaterialTheme.colorScheme.outlineVariant,
-                            if (isReceiptAttached) ForestEmerald else MaterialTheme.colorScheme.outlineVariant
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share receipt",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
-                    )
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ReceiptLong,
-                    contentDescription = null,
-                    tint = ForestEmerald,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isReceiptAttached) "Receipt Attached (1)" else "Attach Receipt",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
+                    }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 4. Payment Information Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Payment Information",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
                     Row(
                         modifier = Modifier
                             .clip(PillShape)
-                            .background(ForestEmerald.copy(alpha = 0.12f))
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                            .background(SurfaceContainerLow)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VerifiedUser,
+                            imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = ForestEmerald,
-                            modifier = Modifier.size(13.dp)
+                            tint = CobaltPrimary,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Bank Verified",
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "Private",
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = ForestEmerald
+                            color = CobaltPrimary
                         )
                     }
                 }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Account Details Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountBalance,
-                            contentDescription = null,
-                            tint = ForestEmerald,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentTx.accountId?.let { "Bank Account ($it)" } ?: "Cash / Direct Ledger",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (currentTx.referenceId != null) "Ref: ${currentTx.referenceId}" else "Offline Record",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // UPI Channel & VPA Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Smartphone,
-                            contentDescription = null,
-                            tint = VividMint,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "UPI Payment Channel",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = currentTx.toAccountId ?: currentTx.referenceId ?: "Direct Payment",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // UPI Ref / UTR Number with 1-tap Copy
-                val utrValue = currentTx.utrNumber ?: currentTx.referenceId ?: "N/A"
-                Row(
+            // 1. Merchant & Amount Hero Card (Matching Stitch Light)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
                 ) {
+                    // Ambient flair
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .align(Alignment.TopEnd)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(SecondaryFixed.copy(alpha = 0.35f), Color.Transparent)
+                                )
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .align(Alignment.BottomStart)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(PrimaryFixed.copy(alpha = 0.35f), Color.Transparent)
+                                )
+                            )
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 64x64 Merchant Icon Badge with Checkmark Overlay
+                        Box(modifier = Modifier.size(64.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(glyph.bgColor),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = glyph.icon,
+                                    contentDescription = null,
+                                    tint = glyph.tintColor,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+
+                            // Status badge overlay
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .clip(CircleShape)
+                                    .background(if (isFailed) CrimsonTertiary else EmeraldSecondary)
+                                    .border(2.dp, CardSurfaceWhite, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isFailed) Icons.Default.Error else Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Merchant Name
+                        Text(
+                            text = currentTx.merchantName.ifBlank { currentTx.description },
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        // Subtitle / Description
+                        Text(
+                            text = if (currentTx.description.isNotBlank() && currentTx.description != currentTx.merchantName) {
+                                "${currentTx.categoryName} • ${currentTx.description}"
+                            } else {
+                                "${currentTx.categoryName} • Order verified"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Prominent Currency Typography
+                        val amountPrefix = if (isCredit) "+" else if (isRefund || isFailed) "" else "−"
+                        Text(
+                            text = "$amountPrefix${currentTx.amount.formatInr(true)}",
+                            style = MaterialTheme.typography.displayMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = amountColor,
+                            textDecoration = if (isRefund || isFailed) TextDecoration.LineThrough else null
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Status & Timestamp Pill Group
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val (statusText, statusBg, statusColor) = when {
+                                isRefund -> Triple("Refunded", Color(0xFFFEF3C7), Color(0xFFB45309))
+                                isFailed -> Triple("Failed", MaterialTheme.colorScheme.errorContainer, CrimsonTertiary)
+                                isPending -> Triple("Pending", SurfaceContainerLow, MaterialTheme.colorScheme.onSurfaceVariant)
+                                isCredit -> Triple("Credited", SecondaryFixed, EmeraldSecondary)
+                                else -> Triple("Successful", SecondaryFixed, EmeraldSecondary)
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(statusBg)
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isFailed) Icons.Default.Error else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = statusColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = statusText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor
+                                )
+                            }
+
+                            Text(
+                                text = dateText,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Bottom Actions inside Hero Card (Stitch Grid: Split + Attach)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val halfAmount = currentTx.amount.toPaisa() / 2
+                                    val formattedHalf = "₹%,d.%02d".format(halfAmount / 100, halfAmount % 100)
+                                    Toast.makeText(context, "Split link generated: $formattedHalf each for 2 friends", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = PillShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = CobaltPrimary)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GroupAdd,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Split with Friends",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    isReceiptAttached = !isReceiptAttached
+                                    Toast.makeText(
+                                        context,
+                                        if (isReceiptAttached) "Digital receipt attached to transaction" else "Receipt detached",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = PillShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SurfaceContainer,
+                                    contentColor = CobaltPrimary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ReceiptLong,
+                                    contentDescription = null,
+                                    tint = CobaltPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isReceiptAttached) "Receipt Attached" else "Attach Receipt",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = CobaltPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. Payment Details Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = SquircleCardShape,
+                colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), SquircleCardShape)
+                        .padding(18.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Payment Details",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(PillShape)
+                                .background(SurfaceContainerLow)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "UPI Instant",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = CobaltPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Debit Account Box in SurfaceContainerLow
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(SurfaceContainerLow)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(CardSurfaceWhite),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = currentTx.accountId?.let { "Bank Account ($it)" } ?: "Direct Ledger Account",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = currentTx.accountId?.let { "Linked Account: $it" } ?: "Local Cash / Manual",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = null,
+                            tint = EmeraldSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // UPI Handle Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Receipt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Payment Method",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = currentTx.toAccountId ?: "Google Pay UPI",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // UPI Ref / UTR Row with Copy
+                    val utrValue = currentTx.utrNumber ?: currentTx.referenceId ?: "426819284019"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Tag,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "UPI Ref / UTR",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SurfaceContainerLow)
+                                .clickable {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("UTR Number", utrValue)
+                                    clipboard.setPrimaryClip(clip)
+                                    isUtrCopied = true
+                                    Toast.makeText(context, "UPI UTR copied to clipboard", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = utrValue,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = if (isUtrCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                contentDescription = "Copy UTR",
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Category Picker Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Category,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Category",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Box {
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(SurfaceContainer)
+                                    .clickable { categoryMenuExpanded = true }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(CobaltPrimary)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = currentTx.categoryName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Change",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CobaltPrimary
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = categoryMenuExpanded,
+                                onDismissRequest = { categoryMenuExpanded = false }
+                            ) {
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat.name) },
+                                        onClick = {
+                                            categoryMenuExpanded = false
+                                            scope.launch {
+                                                transactionRepository.updateCategory(currentTx.id, cat.id)
+                                                transaction = currentTx.copy(categoryId = cat.id, categoryName = cat.name)
+                                                Toast.makeText(context, "Category updated to ${cat.name}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Expense Tags
                     Column {
                         Text(
-                            text = "UPI REF / UTR NO.",
+                            text = "EXPENSE TAGS",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = utrValue,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surface)
-                            .clickable {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("UTR Number", utrValue)
-                                clipboard.setPrimaryClip(clip)
-                                isUtrCopied = true
-                                Toast.makeText(context, "UPI UTR copied to clipboard", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = if (isUtrCopied) Icons.Default.Check else Icons.Default.ContentCopy,
-                            contentDescription = "Copy UTR",
-                            tint = if (isUtrCopied) ForestEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isUtrCopied) "Copied!" else "Copy",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isUtrCopied) ForestEmerald else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Category Selector Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Receipt,
-                            contentDescription = null,
-                            tint = ForestEmerald,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Category: ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = currentTx.categoryName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Box {
-                        Text(
-                            text = "Change",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = ForestEmerald,
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .background(ForestEmerald.copy(alpha = 0.12f))
-                                .clickable { categoryMenuExpanded = true }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-
-                        DropdownMenu(
-                            expanded = categoryMenuExpanded,
-                            onDismissRequest = { categoryMenuExpanded = false }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            categories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat.name) },
-                                    onClick = {
-                                        categoryMenuExpanded = false
-                                        scope.launch {
-                                            transactionRepository.updateCategory(currentTx.id, cat.id)
-                                            transaction = currentTx.copy(categoryId = cat.id, categoryName = cat.name)
-                                            Toast.makeText(context, "Category updated to ${cat.name}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                )
+                            tags.forEach { tag ->
+                                Row(
+                                    modifier = Modifier
+                                        .clip(PillShape)
+                                        .background(SurfaceContainerLow)
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = tag,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = CobaltPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove tag",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .size(13.dp)
+                                            .clickable { tags.remove(tag) }
+                                    )
+                                }
                             }
-                        }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Expense Tags Mosaic
-                Column {
-                    Text(
-                        text = "Expense Tags",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        tags.forEach { tag ->
                             Row(
                                 modifier = Modifier
                                     .clip(PillShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    .background(SurfaceContainerHigh)
+                                    .clickable { showAddTagDialog = true }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = tag,
+                                    text = "Add Tag",
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove tag",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .size(13.dp)
-                                        .clickable {
-                                            tags.remove(tag)
-                                            Toast.makeText(context, "Tag removed", Toast.LENGTH_SHORT).show()
-                                        }
-                                )
                             }
-                        }
-
-                        // Add Tag Button
-                        Row(
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .clickable { showAddTagDialog = true }
-                                .padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = ForestEmerald,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "Add Tag",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = ForestEmerald
-                            )
                         }
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // 5. Local SMS Audit & Privacy Shield Card (Differentiator)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                // Header (Clickable to Expand / Collapse)
-                Row(
+            // 3. On-Device SMS Parser Assurance Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = SquircleCardShape,
+                colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { isSmsAuditExpanded = !isSmsAuditExpanded },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), SquircleCardShape)
+                        .padding(18.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(SecondaryFixed),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = EmeraldSecondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Parsed on-device from SMS",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Source: VM-HDFCBK • 100% Offline",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(ForestEmerald.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
+                                .clip(PillShape)
+                                .background(SecondaryFixed)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Verified,
-                                contentDescription = null,
-                                tint = ForestEmerald,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
                             Text(
-                                text = "Parsed on-device from SMS",
-                                style = MaterialTheme.typography.titleSmall,
+                                text = "Sandbox Safe",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Source: VM-HDFCBK • On-Device Engine",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = OnSecondaryContainer
                             )
                         }
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        contentDescription = "Expand audit details",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Verbatim SMS Box
+                    val rawSnippet = currentTx.rawMessageSnippet.takeIf { !it.isNullOrBlank() }
+                        ?: "Manual ledger record (No external SMS message associated with this transaction)."
+
+                    Column(
                         modifier = Modifier
-                            .size(20.dp)
-                            .rotate(if (isSmsAuditExpanded) 180f else 0f)
-                    )
-                }
-
-                // Expandable Details
-                AnimatedVisibility(
-                    visible = isSmsAuditExpanded,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    Column(modifier = Modifier.padding(top = 14.dp)) {
-                        // Raw SMS Snippet Preview
-                        val rawSnippet = currentTx.rawMessageSnippet.takeIf { !it.isNullOrBlank() }
-                            ?: "Offline entry recorded directly on device. No external SMS payload attached."
-
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceContainerLow)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "VERBATIM SMS CONTENT",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .padding(12.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(CardSurfaceWhite)
+                                .padding(10.dp)
                         ) {
                             Text(
                                 text = "\"$rawSnippet\"",
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 16.sp
                             )
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        // Trust & Privacy Chips
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Psychology,
-                                contentDescription = null,
-                                tint = ForestEmerald,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                    // Trust banner
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PillShape)
+                            .background(SurfaceContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = EmeraldSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "100% On-Device Regex & SLM Confidence",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "🔒 Zero cloud upload. Processed in Spendwell secure sandbox.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. Ledger Preferences Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = SquircleCardShape,
+                colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), SquircleCardShape)
+                        .padding(18.dp)
+                ) {
+                    Text(
+                        text = "Ledger Preferences",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Toggle: Exclude from Monthly Budget
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                             Text(
-                                text = "100% On-Device Regex & SLM Confidence",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "Exclude from Monthly Budget",
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = ForestEmerald
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = ForestEmerald,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Zero cloud upload. Processed in Spendwell secure local sandbox.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                text = "Transaction won't reduce monthly spending ceiling.",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
-                }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 6. Ledger Preferences Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                    text = "Ledger Preferences",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Toggle: Exclude from Monthly Budget
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(
-                            text = "Exclude from Monthly Budget",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Transaction won't reduce your monthly spending ceiling.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Switch(
+                            checked = isExcludedFromBudget,
+                            onCheckedChange = { isExcludedFromBudget = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = CobaltPrimary
+                            )
                         )
                     }
 
-                    Switch(
-                        checked = isExcludedFromBudget,
-                        onCheckedChange = { checked ->
-                            isExcludedFromBudget = checked
-                            Toast.makeText(
-                                context,
-                                if (checked) "Excluded from Monthly Budget" else "Restored to Monthly Budget",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = ForestEmerald
-                        )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                     )
-                }
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
+                    // Toggle: Lock with Biometrics
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = "Lock with Biometrics",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Require fingerprint to view order notes & line items.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
-                // Toggle: Lock with Biometrics
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(
-                            text = "Lock with Biometrics",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Require fingerprint to view order notes & line items.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Switch(
+                            checked = isBiometricLocked,
+                            onCheckedChange = { isBiometricLocked = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = CobaltPrimary
+                            )
                         )
                     }
 
-                    Switch(
-                        checked = isBiometricLocked,
-                        onCheckedChange = { checked ->
-                            isBiometricLocked = checked
-                            Toast.makeText(
-                                context,
-                                if (checked) "Biometric lock enabled for transaction" else "Biometric lock disabled",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = ForestEmerald
-                        )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                     )
-                }
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-
-                // Report incorrect category trigger
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { showReportDialog = true }
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Report Incorrect Category Link
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showReportDialog = true }
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Flag,
                             contentDescription = null,
-                            tint = OutflowRed,
+                            tint = CrimsonTertiary,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Report incorrect category or duplicate",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = CrimsonTertiary
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Mark as Reviewed Button (if needed)
+            if (!currentTx.isReviewed) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            transactionRepository.markAsReviewed(currentTx.id)
+                            Toast.makeText(context, "Marked as reviewed", Toast.LENGTH_SHORT).show()
+                            onNavigateBack()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = PillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = CobaltPrimary)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Mark as Reviewed",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(48.dp))
         }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 7. Mark as Reviewed Button (if applicable)
-        if (!currentTx.isReviewed) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        transactionRepository.markAsReviewed(currentTx.id)
-                        Toast.makeText(context, "Marked as reviewed", Toast.LENGTH_SHORT).show()
-                        onNavigateBack()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = PillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = ForestEmerald)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Mark as Reviewed",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(48.dp))
     }
 
     // Add Tag Dialog
@@ -1149,7 +1122,7 @@ fun TransactionDetailScreen(
                         }
                     }
                 ) {
-                    Text("Add", color = ForestEmerald, fontWeight = FontWeight.Bold)
+                    Text("Add", color = CobaltPrimary, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1175,7 +1148,7 @@ fun TransactionDetailScreen(
                         Toast.makeText(context, "Thank you! Feedback recorded locally for AI optimizer.", Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text("Submit Feedback", color = ForestEmerald, fontWeight = FontWeight.Bold)
+                    Text("Submit Feedback", color = CobaltPrimary, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -1197,26 +1170,26 @@ private fun resolveDetailGlyph(tx: Transaction): DetailGlyph {
     val name = (tx.merchantName + " " + tx.categoryName).lowercase()
     return when {
         name.contains("swiggy") || name.contains("zomato") || name.contains("food") || name.contains("dining") ->
-            DetailGlyph(Icons.Default.Restaurant, Color(0xFFFC8019).copy(alpha = 0.15f), Color(0xFFFC8019))
+            DetailGlyph(Icons.Default.Restaurant, Color(0xFFFFF4EB), Color(0xFFF97316))
         name.contains("uber") || name.contains("ola") || name.contains("taxi") || name.contains("cab") ->
-            DetailGlyph(Icons.Default.LocalTaxi, Color(0xFF2563EB).copy(alpha = 0.15f), Color(0xFF2563EB))
+            DetailGlyph(Icons.Default.LocalTaxi, SurfaceContainer, TextOnSurface)
         name.contains("chai") || name.contains("tea") ->
-            DetailGlyph(Icons.Default.Coffee, Color(0xFFD97706).copy(alpha = 0.15f), Color(0xFFD97706))
+            DetailGlyph(Icons.Default.Coffee, SurfaceContainerHigh, TextOnSurface)
         name.contains("starbucks") || name.contains("cafe") || name.contains("coffee") ->
-            DetailGlyph(Icons.Default.LocalCafe, Color(0xFF047857).copy(alpha = 0.15f), Color(0xFF047857))
+            DetailGlyph(Icons.Default.LocalCafe, SurfaceContainerHigh, TextOnSurface)
         name.contains("salary") || name.contains("credit") || name.contains("deposit") || name.contains("razorpay") ->
-            DetailGlyph(Icons.Default.Payments, ForestEmerald.copy(alpha = 0.15f), ForestEmerald)
+            DetailGlyph(Icons.Default.Payments, SecondaryFixed, EmeraldSecondary)
         name.contains("blinkit") || name.contains("zepto") || name.contains("grocer") ->
-            DetailGlyph(Icons.Default.ShoppingBag, Color(0xFFEAB308).copy(alpha = 0.15f), Color(0xFFCA8A04))
+            DetailGlyph(Icons.Default.ShoppingBag, SurfaceContainer, TextOnSurface)
         name.contains("amazon") || name.contains("flipkart") || name.contains("shop") ->
-            DetailGlyph(Icons.Default.ShoppingCart, Color(0xFFEA580C).copy(alpha = 0.15f), Color(0xFFEA580C))
+            DetailGlyph(Icons.Default.ShoppingCart, SurfaceContainer, TextOnSurface)
         name.contains("netflix") || name.contains("spotify") || name.contains("prime") || name.contains("entertainment") ->
-            DetailGlyph(Icons.Default.SmartDisplay, Color(0xFFDC2626).copy(alpha = 0.15f), Color(0xFFDC2626))
+            DetailGlyph(Icons.Default.SmartDisplay, Color(0xFFFFDADB), CrimsonTertiary)
         name.contains("cult") || name.contains("gym") || name.contains("fitness") ->
-            DetailGlyph(Icons.Default.FitnessCenter, Color(0xFF7C3AED).copy(alpha = 0.15f), Color(0xFF7C3AED))
+            DetailGlyph(Icons.Default.FitnessCenter, SurfaceContainer, TextOnSurface)
         name.contains("refund") || tx.status == TransactionStatus.REFUNDED || tx.status == TransactionStatus.REVERSED ->
-            DetailGlyph(Icons.Default.Replay, Color(0xFFD97706).copy(alpha = 0.15f), Color(0xFFD97706))
+            DetailGlyph(Icons.Default.Replay, SecondaryFixed, EmeraldSecondary)
         else ->
-            DetailGlyph(Icons.Default.Receipt, ForestEmerald.copy(alpha = 0.15f), ForestEmerald)
+            DetailGlyph(Icons.Default.Receipt, SurfaceContainer, CobaltPrimary)
     }
 }

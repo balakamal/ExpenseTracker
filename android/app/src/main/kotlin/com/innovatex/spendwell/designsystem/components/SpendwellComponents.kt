@@ -12,27 +12,38 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SmartDisplay
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,14 +55,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
 import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.ForestEmerald
 import com.innovatex.spendwell.designsystem.theme.InflowGreen
+import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import com.innovatex.spendwell.designsystem.theme.TertiaryFixed
+import com.innovatex.spendwell.designsystem.theme.TextOnSurface
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
@@ -60,9 +81,186 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
+fun SpendwellTopAppBar(
+    title: String = "Spendwell",
+    subtitle: String = "Home",
+    isPrivate: Boolean = true,
+    onTogglePrivacy: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
+        color = CardSurfaceWhite.copy(alpha = 0.95f),
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(PrimaryFixed),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = CobaltPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-0.5).sp
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(PillShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { onTogglePrivacy() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isPrivate) Icons.Default.Lock else Icons.Default.LockOpen,
+                        contentDescription = null,
+                        tint = CobaltPrimary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isPrivate) "Private" else "Public",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(onClick = onProfileClick) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(CobaltPrimary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpendwellSubScreenAppBar(
+    title: String,
+    subtitle: String? = null,
+    onNavigateBack: () -> Unit,
+    actions: @Composable (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
+        color = CardSurfaceWhite.copy(alpha = 0.95f),
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+            if (actions != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    actions()
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SpendwellCard(
     modifier: Modifier = Modifier,
     backgroundColor: Color = CardSurfaceWhite,
+    elevation: Dp = 1.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
@@ -77,17 +275,39 @@ fun SpendwellCard(
     Surface(
         modifier = clickableModifier.border(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
             shape = SquircleCardShape
         ),
         shape = SquircleCardShape,
         color = backgroundColor,
         tonalElevation = 0.dp,
-        shadowElevation = 1.dp
+        shadowElevation = elevation
     ) {
         Box(modifier = Modifier.padding(16.dp)) {
             content()
         }
+    }
+}
+
+@Composable
+fun SpendwellCardContainer(
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = CardSurfaceWhite,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clip(SquircleCardShape)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                shape = SquircleCardShape
+            ),
+        shape = SquircleCardShape,
+        color = backgroundColor,
+        shadowElevation = 1.dp
+    ) {
+        content()
     }
 }
 
@@ -107,8 +327,8 @@ fun SpendwellPrimaryButton(
         enabled = enabled,
         shape = PillShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            containerColor = CobaltPrimary,
+            contentColor = Color.White
         )
     ) {
         Row(
@@ -144,8 +364,8 @@ fun SpendwellTonalButton(
         enabled = enabled,
         shape = PillShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.primary
+            containerColor = SurfaceContainerLow,
+            contentColor = CobaltPrimary
         )
     ) {
         Row(
@@ -168,8 +388,8 @@ fun SpendwellTonalButton(
 @Composable
 fun SpendwellPillBadge(
     text: String,
-    backgroundColor: Color = MaterialTheme.colorScheme.secondaryContainer,
-    textColor: Color = MaterialTheme.colorScheme.primary,
+    backgroundColor: Color = SurfaceContainerLow,
+    textColor: Color = CobaltPrimary,
     icon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
@@ -209,7 +429,7 @@ fun SpendwellFilterPill(
             )
             .border(
                 width = 1.dp,
-                color = if (isSelected) CobaltPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                color = if (isSelected) CobaltPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 shape = CircleShape
             )
             .clickable { onClick() }
@@ -233,22 +453,23 @@ fun SpendwellTransactionRow(
     val isCredit = transaction.type == TransactionType.CREDIT
     val isRefundOrReversed = transaction.status == TransactionStatus.REFUNDED || transaction.status == TransactionStatus.REVERSED
     val isFailed = transaction.status == TransactionStatus.FAILED
-    val isPending = transaction.status == TransactionStatus.PENDING
+    val isPending = transaction.status == TransactionStatus.PENDING || transaction.status == TransactionStatus.NEEDS_REVIEW
 
     val (glyphIcon, glyphBg, glyphTint) = when (transaction.categoryId) {
-        "cat_food" -> Triple(Icons.Default.Restaurant, Color(0xFFFC8019).copy(alpha = 0.12f), Color(0xFFFC8019))
-        "cat_groceries" -> Triple(Icons.Default.ShoppingCart, ForestEmerald.copy(alpha = 0.12f), ForestEmerald)
-        "cat_salary" -> Triple(Icons.Default.Payments, ForestEmerald, Color.White)
-        "cat_shopping" -> Triple(Icons.Default.ShoppingBag, Color(0xFF8B5CF6).copy(alpha = 0.12f), Color(0xFF8B5CF6))
-        "cat_transport" -> Triple(Icons.Default.DirectionsCar, Color(0xFF3B82F6).copy(alpha = 0.12f), Color(0xFF3B82F6))
-        "cat_entertainment" -> Triple(Icons.Default.SmartDisplay, Color(0xFFEC4899).copy(alpha = 0.12f), Color(0xFFEC4899))
-        "cat_health" -> Triple(Icons.Default.FitnessCenter, Color(0xFFEF4444).copy(alpha = 0.12f), Color(0xFFEF4444))
-        else -> Triple(Icons.Default.ReceiptLong, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.primary)
+        "cat_food" -> Triple(Icons.Default.Restaurant, TertiaryFixed, CrimsonTertiary)
+        "cat_groceries" -> Triple(Icons.Default.ShoppingCart, SurfaceContainer, TextOnSurface)
+        "cat_salary" -> Triple(Icons.Default.Payments, SecondaryFixed, EmeraldSecondary)
+        "cat_shopping" -> Triple(Icons.Default.ShoppingBag, SurfaceContainer, TextOnSurface)
+        "cat_transport" -> Triple(Icons.Default.DirectionsCar, SurfaceContainer, TextOnSurface)
+        "cat_entertainment" -> Triple(Icons.Default.SmartDisplay, TertiaryFixed, CrimsonTertiary)
+        "cat_health" -> Triple(Icons.Default.FitnessCenter, SurfaceContainer, TextOnSurface)
+        "cat_investment" -> Triple(Icons.Default.TrendingUp, PrimaryFixed, CobaltPrimary)
+        else -> Triple(Icons.Default.ReceiptLong, SurfaceContainer, CobaltPrimary)
     }
 
     val amountColor = when {
         isRefundOrReversed || isFailed -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-        isCredit -> InflowGreen
+        isCredit -> EmeraldSecondary
         else -> MaterialTheme.colorScheme.onSurface
     }
 
@@ -267,17 +488,14 @@ fun SpendwellTransactionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardSurfaceWhite)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Leading circular category glyph
+        // Leading 40x40 circular category glyph
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(glyphBg),
             contentAlignment = Alignment.Center
@@ -286,31 +504,68 @@ fun SpendwellTransactionRow(
                 imageVector = glyphIcon,
                 contentDescription = null,
                 tint = glyphTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         // Center body
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(
                     text = transaction.merchantName.ifBlank { transaction.description },
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     textDecoration = textDecoration,
                     maxLines = 1,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                if (isRefundOrReversed) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    SpendwellPillBadge(
-                        text = "Refunded",
-                        backgroundColor = Color(0xFFF9E37A).copy(alpha = 0.3f),
-                        textColor = Color(0xFF524600)
-                    )
+                if (isPending) {
+                    Box(
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Pending Reconcile",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (isRefundOrReversed) {
+                    Box(
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .background(SecondaryFixed)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Refunded",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = OnSecondaryContainer
+                        )
+                    }
+                } else if (isCredit) {
+                    Box(
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .background(SecondaryFixed)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Credited",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = OnSecondaryContainer
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
@@ -323,13 +578,14 @@ fun SpendwellTransactionRow(
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
-        // Trailing amount + status
+        // Trailing amount + status badge
         Column(horizontalAlignment = Alignment.End) {
+            val sign = if (isCredit) "+" else "−"
             Text(
-                text = transaction.amount.formatSigned(isCredit),
-                style = MaterialTheme.typography.titleMedium,
+                text = "$sign${transaction.amount.formatInr(true)}",
+                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 16.sp),
                 fontWeight = FontWeight.Bold,
                 color = amountColor,
                 textDecoration = textDecoration
@@ -338,50 +594,58 @@ fun SpendwellTransactionRow(
             when {
                 isPending -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.outline)
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = CrimsonTertiary,
+                            modifier = Modifier.size(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "Pending",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontWeight = FontWeight.SemiBold
+                            text = "Syncing",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 isFailed -> {
                     Text(
                         text = "Failed",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 isRefundOrReversed -> {
-                    Text(
-                        text = "Reversed",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                isCredit -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Verified,
+                            imageVector = Icons.Default.Replay,
                             contentDescription = null,
-                            tint = ForestEmerald,
+                            tint = EmeraldSecondary,
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "Credited",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ForestEmerald,
+                            text = "Reversed",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = EmeraldSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                isCredit -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = EmeraldSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Verified",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = EmeraldSecondary,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -391,14 +655,14 @@ fun SpendwellTransactionRow(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = ForestEmerald,
+                            tint = EmeraldSecondary,
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "Success",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = ForestEmerald,
+                            text = "Cleared",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = EmeraldSecondary,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -419,7 +683,7 @@ fun SpendwellLoadingState(
         verticalArrangement = Arrangement.Center
     ) {
         CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
+            color = CobaltPrimary,
             strokeWidth = 3.dp,
             modifier = Modifier.size(44.dp)
         )
@@ -450,13 +714,13 @@ fun SpendwellEmptyState(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondaryContainer),
+                .background(PrimaryFixed),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = CobaltPrimary,
                 modifier = Modifier.size(32.dp)
             )
         }
@@ -476,7 +740,7 @@ fun SpendwellEmptyState(
         )
         if (actionText != null && onActionClick != null) {
             Spacer(modifier = Modifier.height(20.dp))
-            SpendwellTonalButton(
+            SpendwellPrimaryButton(
                 text = actionText,
                 onClick = onActionClick,
                 modifier = Modifier.fillMaxWidth(0.7f)
@@ -510,7 +774,7 @@ fun SpendwellErrorState(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
-        SpendwellTonalButton(
+        SpendwellPrimaryButton(
             text = "Retry",
             onClick = onRetry,
             leadingIcon = Icons.Default.Refresh,

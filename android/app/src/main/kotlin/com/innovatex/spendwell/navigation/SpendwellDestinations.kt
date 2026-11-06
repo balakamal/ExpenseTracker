@@ -13,8 +13,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
     object PrivacyMode : Screen("privacy_mode", "Privacy Mode")
     object Dashboard : Screen("dashboard", "Home", Icons.Default.Home)
     object Transactions : Screen("transactions", "Transactions", Icons.Default.ReceiptLong)
-    object Analytics : Screen("analytics", "Analytics", Icons.Default.PieChart)
-    object Budgets : Screen("budgets", "Budgets", Icons.Default.Savings)
+    object Analytics : Screen("analytics", "Insights", Icons.Default.PieChart)
+    object Budgets : Screen("budgets", "Budgets", Icons.Default.Tune)
     object Advisor : Screen("advisor", "AI Advisor", Icons.Default.AutoAwesome)
 
     object TransactionDetail : Screen("transaction_detail/{transactionId}", "Transaction Details") {

@@ -11,6 +11,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,21 +21,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockClock
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
@@ -46,10 +44,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,21 +57,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.common.Money
+import com.innovatex.spendwell.designsystem.components.SpendwellCard
+import com.innovatex.spendwell.designsystem.components.SpendwellCardContainer
 import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
 import com.innovatex.spendwell.designsystem.components.SpendwellFilterPill
+import com.innovatex.spendwell.designsystem.components.SpendwellTopAppBar
 import com.innovatex.spendwell.designsystem.components.SpendwellTransactionRow
-import com.innovatex.spendwell.designsystem.theme.ForestEmerald
-import com.innovatex.spendwell.designsystem.theme.InflowGreen
-import com.innovatex.spendwell.designsystem.theme.OutflowRed
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
+import com.innovatex.spendwell.designsystem.theme.InterFontFamily
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.VividMint
-import com.innovatex.spendwell.domain.model.FinancialNature
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
@@ -129,15 +134,12 @@ fun TransactionFeedScreen(
     }
     var selectedMonth by remember { mutableStateOf(monthOptions.first()) }
     var monthMenuExpanded by remember { mutableStateOf(false) }
-    var isVoiceListening by remember { mutableStateOf(false) }
     var showLogExpenseSheet by remember { mutableStateOf(false) }
 
     // Counts for filter pills
     val debitsCount = allTransactions.count { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
     val creditsCount = allTransactions.count { it.type == TransactionType.CREDIT }
     val pendingCount = allTransactions.count { it.status == TransactionStatus.NEEDS_REVIEW || it.status == TransactionStatus.PENDING }
-    val refundsCount = allTransactions.count { it.status == TransactionStatus.REFUNDED || it.status == TransactionStatus.REVERSED || it.categoryName.contains("Refund", ignoreCase = true) }
-    val flaggedCount = allTransactions.count { !it.isReviewed || it.status == TransactionStatus.NEEDS_REVIEW }
 
     // Filtering logic
     val filteredTransactions = allTransactions.filter { tx ->
@@ -153,8 +155,6 @@ fun TransactionFeedScreen(
             "DEBITS" -> tx.type == TransactionType.DEBIT && tx.status != TransactionStatus.REFUNDED && tx.status != TransactionStatus.REVERSED && tx.status != TransactionStatus.FAILED
             "CREDITS" -> tx.type == TransactionType.CREDIT
             "PENDING" -> tx.status == TransactionStatus.NEEDS_REVIEW || tx.status == TransactionStatus.PENDING
-            "REFUNDS" -> tx.status == TransactionStatus.REFUNDED || tx.status == TransactionStatus.REVERSED || tx.categoryName.contains("Refund", ignoreCase = true)
-            "FLAGGED" -> !tx.isReviewed || tx.status == TransactionStatus.NEEDS_REVIEW
             else -> true
         }
         val matchesMonth = if (selectedMonth == "All Time") true else {
@@ -180,141 +180,124 @@ fun TransactionFeedScreen(
         groupTransactionsByDate(filteredTransactions)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    Scaffold(
+        topBar = {
+            SpendwellTopAppBar(
+                title = "Spendwell",
+                subtitle = "Spendwell — Transactions Ledger (Light)",
+                isPrivate = true,
+                onSearchClick = {},
+                onProfileClick = {}
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showLogExpenseSheet = true },
+                containerColor = CobaltPrimary,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.size(54.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add transaction manually",
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 1. Top Header Area (Matching Stitch)
+            // 1. Search Bar & Tune Filter Button
             item {
-                Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "Spendwell",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "Spendwell — Transaction Feed",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Private Mode Pill Badge
+                    // Search Bar Pill
                     Row(
                         modifier = Modifier
-                            .clip(PillShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(CircleShape)
+                            .background(CardSurfaceWhite)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape)
+                            .padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = ForestEmerald,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Private Mode",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // 2. Search Bar with Mic & Filter Icons
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = {
-                        Text(
-                            if (isVoiceListening) "Listening for merchant or amount..." else "Search merchants, notes, UPI IDs...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = CobaltPrimary,
                             modifier = Modifier.size(20.dp)
                         )
-                    },
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    isVoiceListening = !isVoiceListening
-                                    Toast.makeText(
-                                        context,
-                                        if (isVoiceListening) "Voice listening: Speak merchant or amount..." else "Voice search ended",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Search",
-                                    tint = if (isVoiceListening) ForestEmerald else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(19.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "Search merchants, notes, tags",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                             }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontFamily = InterFontFamily,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (searchQuery.isNotEmpty()) {
                             IconButton(
-                                onClick = {
-                                    selectedFilter = if (selectedFilter == "ALL") "DEBITS" else "ALL"
-                                }
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier.size(20.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "Filter",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(19.dp)
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = PillShape,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedBorderColor = ForestEmerald
-                    ),
-                    singleLine = true
-                )
+                    }
+
+                    // Round Filter Tune Button
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(CardSurfaceWhite)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape)
+                            .clickable {
+                                selectedFilter = if (selectedFilter == "ALL") "DEBITS" else "ALL"
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Filter Options",
+                            tint = CobaltPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 3. Date Selector & Horizontal Filter Pills
+            // 2. Filter Chips Scrollable Carousel
             item {
                 Row(
                     modifier = Modifier
@@ -323,23 +306,17 @@ fun TransactionFeedScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Date Range Selector Pill
+                    // Month Dropdown Pill
                     Box {
                         Row(
                             modifier = Modifier
-                                .clip(PillShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clip(CircleShape)
+                                .background(CardSurfaceWhite)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape)
                                 .clickable { monthMenuExpanded = true }
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = null,
-                                tint = ForestEmerald,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = selectedMonth,
                                 style = MaterialTheme.typography.labelMedium,
@@ -348,7 +325,7 @@ fun TransactionFeedScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                imageVector = Icons.Default.ExpandMore,
+                                imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
@@ -371,14 +348,6 @@ fun TransactionFeedScreen(
                         }
                     }
 
-                    // Divider
-                    Box(
-                        modifier = Modifier
-                            .height(18.dp)
-                            .width(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-
                     // Filter Pills
                     SpendwellFilterPill(
                         label = "All (${allTransactions.size})",
@@ -400,166 +369,218 @@ fun TransactionFeedScreen(
                         isSelected = selectedFilter == "PENDING",
                         onClick = { selectedFilter = "PENDING" }
                     )
-                    SpendwellFilterPill(
-                        label = "Refunds ($refundsCount)",
-                        isSelected = selectedFilter == "REFUNDS",
-                        onClick = { selectedFilter = "REFUNDS" }
-                    )
-                    SpendwellFilterPill(
-                        label = "Flagged / AI ($flaggedCount)",
-                        isSelected = selectedFilter == "FLAGGED",
-                        onClick = { selectedFilter = "FLAGGED" }
-                    )
                 }
+
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // 4. Spending Summary Mini-Banner (Month Overview)
+            // 3. Month Overview Card (Stitch White Squircle Card)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = SquircleCardShape,
+                    colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), SquircleCardShape)
+                            .padding(16.dp)
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Insights,
+                                    contentDescription = null,
+                                    tint = CobaltPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "MONTH OVERVIEW",
+                                    text = "${selectedMonth.uppercase()} NET CASHFLOW",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(PillShape)
-                                        .background(ForestEmerald.copy(alpha = 0.15f))
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "Verified",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = ForestEmerald
-                                    )
-                                }
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(SurfaceContainerLow)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Bolt,
+                                    imageVector = Icons.Default.Lock,
                                     contentDescription = null,
-                                    tint = ForestEmerald,
-                                    modifier = Modifier.size(15.dp)
+                                    tint = EmeraldSecondary,
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "${allTransactions.size} parsed via SMS",
+                                    text = "${allTransactions.size} parsed via SMS • On-Device",
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = ForestEmerald
+                                    color = EmeraldSecondary,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
+                        // 3-Column Metrics Grid
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Outflow
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Outflow",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = outflowTotal.formatInr(true),
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = CrimsonTertiary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "$debitsCount items",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-
-                            Box(
-                                modifier = Modifier
-                                    .height(24.dp)
-                                    .width(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant)
-                            )
 
                             // Inflow
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Inflow",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "+ ${inflowTotal.formatInr(true)}",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "+${inflowTotal.formatInr(true)}",
+                                    style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = InflowGreen
+                                    color = EmeraldSecondary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "$creditsCount items",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
-                            Box(
-                                modifier = Modifier
-                                    .height(24.dp)
-                                    .width(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant)
-                            )
-
-                            // Net
-                            Column {
+                            // Net Savings
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Net",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = "Net Savings",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
-                                val netSign = if (!netTotal.isNegative) "+ " else ""
+                                val netSign = if (!netTotal.isNegative) "+" else ""
                                 Text(
                                     text = "$netSign${netTotal.formatInr(true)}",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (!netTotal.isNegative) InflowGreen else OutflowRed
+                                    color = CobaltPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (!netTotal.isNegative) "+58% surplus" else "Deficit",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = if (!netTotal.isNegative) EmeraldSecondary else CrimsonTertiary,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Mini Progress Ratio Indicator
+                        val totalFlow = (inflowTotal + outflowTotal).toPaisa().toDouble()
+                        val inflowRatio = if (totalFlow > 0) (inflowTotal.toPaisa().toDouble() / totalFlow).coerceIn(0.1, 0.9) else 0.7
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceContainer)
+                        ) {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(inflowRatio.toFloat())
+                                        .fillMaxSize()
+                                        .background(EmeraldSecondary)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxSize()
+                                        .background(CrimsonTertiary)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Savings cushion healthy",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Budget Cap: 42% used",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CobaltPrimary
+                            )
                         }
                     }
                 }
+
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // 5. Grouped Transactions Section
+            // 4. Grouped Transactions Section
             if (filteredTransactions.isEmpty()) {
                 item {
-                    SpendwellEmptyState(
-                        title = if (allTransactions.isEmpty()) "Ledger is Ready" else "No matching transactions",
-                        description = when {
-                            allTransactions.isEmpty() -> "Transactions parsed on-device from SMS and payment notifications will appear here automatically."
-                            searchQuery.isNotBlank() -> "No transactions match \"$searchQuery\". Try clearing your search."
-                            else -> "No transactions found under the \"$selectedFilter\" filter."
-                        },
-                        actionText = if (searchQuery.isNotBlank() || selectedFilter != "ALL") "Reset Filters" else null,
-                        onActionClick = {
-                            searchQuery = ""
-                            selectedFilter = "ALL"
-                        }
-                    )
+                    SpendwellCard(modifier = Modifier.fillMaxWidth()) {
+                        SpendwellEmptyState(
+                            title = if (allTransactions.isEmpty()) "Ledger is Ready" else "No matching transactions",
+                            description = when {
+                                allTransactions.isEmpty() -> "Transactions parsed on-device from SMS and payment notifications will appear here automatically."
+                                searchQuery.isNotBlank() -> "No transactions match \"$searchQuery\". Try clearing your search."
+                                else -> "No transactions found under the \"$selectedFilter\" filter."
+                            },
+                            actionText = if (searchQuery.isNotBlank() || selectedFilter != "ALL") "Reset Filters" else null,
+                            onActionClick = {
+                                searchQuery = ""
+                                selectedFilter = "ALL"
+                            }
+                        )
+                    }
                 }
             } else {
                 groupedTransactions.forEach { (dateHeader, txsInGroup) ->
@@ -575,12 +596,21 @@ fun TransactionFeedScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = dateHeader,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = dateHeader,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(CobaltPrimary)
+                                )
+                            }
                             Text(
                                 text = "${txsInGroup.size} Transactions • ${groupOutflow.formatInr(true)}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -591,13 +621,8 @@ fun TransactionFeedScreen(
                     }
 
                     item(key = "card_$dateHeader") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        SpendwellCardContainer(modifier = Modifier.fillMaxWidth()) {
+                            Column {
                                 txsInGroup.forEachIndexed { index, tx ->
                                     SpendwellTransactionRow(
                                         transaction = tx,
@@ -605,8 +630,8 @@ fun TransactionFeedScreen(
                                     )
                                     if (index < txsInGroup.lastIndex) {
                                         HorizontalDivider(
-                                            modifier = Modifier.padding(horizontal = 16.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(horizontal = 14.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
                                             thickness = 0.8.dp
                                         )
                                     }
@@ -617,103 +642,120 @@ fun TransactionFeedScreen(
                     }
                 }
 
-                // 6. End of Stream Indicator
+                // 5. 90-Day Local Archive Footer Card
                 item {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .clip(SquircleCardShape)
+                            .background(SurfaceContainerLow)
+                            .padding(16.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.LockClock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceContainer)
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FolderZip,
+                                    contentDescription = null,
+                                    tint = CobaltPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "90-Day Local Archive",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Transactions older than 90 days are archived locally in encrypted storage to maintain peak performance and absolute confidentiality.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 16.sp
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Transactions older than 90 days are archived locally in encrypted storage.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Search Complete Archive",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ForestEmerald,
-                            modifier = Modifier
-                                .clip(PillShape)
-                                .clickable {
-                                    Toast.makeText(context, "Archive index: All transactions already in local encrypted SQLite.", Toast.LENGTH_SHORT).show()
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(CircleShape)
+                                    .background(CardSurfaceWhite)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape)
+                                    .clickable {
+                                        Toast.makeText(context, "Archive index ready: 0 offline records", Toast.LENGTH_SHORT).show()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = CobaltPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Search Archive",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(CircleShape)
+                                    .background(CardSurfaceWhite)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), CircleShape)
+                                    .clickable {
+                                        Toast.makeText(context, "Exporting encrypted statement...", Toast.LENGTH_SHORT).show()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        tint = CobaltPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Get Statement",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(88.dp))
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
-            }
-        }
-
-        // Floating Fast Action Panel (Statement Download Pill + Add Cash FAB)
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Statement Export Pill
-            Row(
-                modifier = Modifier
-                    .clip(PillShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, PillShape)
-                    .clickable {
-                        Toast.makeText(context, "Exporting ledger statement (CSV / PDF)...", Toast.LENGTH_SHORT).show()
-                    }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    tint = ForestEmerald,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Statement",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            // + FAB for Manual Cash
-            FloatingActionButton(
-                onClick = { showLogExpenseSheet = true },
-                containerColor = ForestEmerald,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(54.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add manual expense",
-                    modifier = Modifier.size(26.dp)
-                )
             }
         }
     }
