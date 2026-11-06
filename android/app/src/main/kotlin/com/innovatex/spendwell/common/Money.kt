@@ -28,6 +28,14 @@ data class Money(
             return Money(bd, currencyCode)
         }
 
+        fun fromRupees(value: Double, currencyCode: String = DEFAULT_CURRENCY): Money {
+            return fromDouble(value, currencyCode)
+        }
+
+        fun fromRupees(value: Number, currencyCode: String = DEFAULT_CURRENCY): Money {
+            return fromDouble(value.toDouble(), currencyCode)
+        }
+
         fun fromString(value: String, currencyCode: String = DEFAULT_CURRENCY): Money {
             val cleaned = value.replace(",", "").trim()
             val bd = try {

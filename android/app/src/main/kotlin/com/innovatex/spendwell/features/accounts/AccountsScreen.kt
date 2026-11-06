@@ -64,7 +64,7 @@ class AccountsViewModel @Inject constructor(
     private val accountRepository: AccountRepository
 ) : ViewModel() {
 
-    val accounts: StateFlow<List<Account>> = accountRepository.observeAllAccounts()
+    val accounts: StateFlow<List<Account>> = accountRepository.observeAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun createAccount(bankName: String, accountName: String, last4: String, balance: Double) {
@@ -78,7 +78,7 @@ class AccountsViewModel @Inject constructor(
                 currentBalance = Money.fromRupees(balance),
                 isPrimary = accounts.value.isEmpty()
             )
-            accountRepository.insertAccount(account)
+            accountRepository.saveAccount(account)
         }
     }
 }

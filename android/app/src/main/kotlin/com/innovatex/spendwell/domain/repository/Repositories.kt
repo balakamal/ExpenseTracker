@@ -28,8 +28,10 @@ interface TransactionRepository {
 
 interface AccountRepository {
     fun observeAccounts(): Flow<List<Account>>
+    fun observeAllAccounts(): Flow<List<Account>> = observeAccounts()
     suspend fun getAccountById(id: String): Account?
     suspend fun saveAccount(account: Account)
+    suspend fun insertAccount(account: Account) = saveAccount(account)
     suspend fun adjustBalance(accountId: String, deltaPaisa: Long)
 }
 
@@ -48,8 +50,10 @@ interface BudgetRepository {
 
 interface SavingsGoalRepository {
     fun observeGoals(): Flow<List<SavingsGoal>>
+    fun observeAllGoals(): Flow<List<SavingsGoal>> = observeGoals()
     suspend fun getGoalById(id: String): SavingsGoal?
     suspend fun saveGoal(goal: SavingsGoal)
+    suspend fun insertGoal(goal: SavingsGoal) = saveGoal(goal)
     suspend fun deleteGoal(goal: SavingsGoal)
 }
 

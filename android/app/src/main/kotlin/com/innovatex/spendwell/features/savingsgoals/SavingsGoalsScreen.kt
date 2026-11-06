@@ -63,7 +63,7 @@ class SavingsGoalsViewModel @Inject constructor(
     private val savingsGoalRepository: SavingsGoalRepository
 ) : ViewModel() {
 
-    val goals: StateFlow<List<SavingsGoal>> = savingsGoalRepository.observeAllGoals()
+    val goals: StateFlow<List<SavingsGoal>> = savingsGoalRepository.observeGoals()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -76,11 +76,11 @@ class SavingsGoalsViewModel @Inject constructor(
                 id = UUID.randomUUID().toString(),
                 name = title,
                 targetAmount = Money.fromRupees(targetAmount),
-                currentAmount = Money.ZERO,
+                currentSaved = Money.ZERO,
                 targetDate = System.currentTimeMillis() + (180L * 24 * 60 * 60 * 1000L), // 6 months default
-                colorHex = "#10B981"
+                category = "GENERAL"
             )
-            savingsGoalRepository.insertGoal(goal)
+            savingsGoalRepository.saveGoal(goal)
         }
     }
 }
@@ -205,7 +205,7 @@ private fun GoalCard(goal: SavingsGoal) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = goal.currentAmount.formatInr(true),
+                    text = goal.currentSaved.formatInr(true),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = InflowGreen

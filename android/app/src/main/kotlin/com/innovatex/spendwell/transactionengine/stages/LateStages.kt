@@ -107,19 +107,72 @@ sealed class LifecycleResolution {
     object Standard : LifecycleResolution()
 }
 
-object Stage11DeterministicMerchantRules {
+object Stage11CategoryClassification {
+
+    private val MERCHANT_CATEGORY_MAP = mapOf(
+        "Swiggy" to "cat_food",
+        "Zomato" to "cat_food",
+        "Starbucks" to "cat_food",
+        "McDonald's" to "cat_food",
+        "Domino's Pizza" to "cat_food",
+        "Blinkit" to "cat_groceries",
+        "Zepto" to "cat_groceries",
+        "Amazon" to "cat_shopping",
+        "Flipkart" to "cat_shopping",
+        "Myntra" to "cat_shopping",
+        "Uber" to "cat_transport",
+        "Ola" to "cat_transport",
+        "Rapido" to "cat_transport",
+        "IRCTC" to "cat_transport",
+        "MakeMyTrip" to "cat_transport",
+        "Airtel" to "cat_utilities",
+        "Jio" to "cat_utilities",
+        "Tata Power" to "cat_utilities",
+        "BESCOM" to "cat_utilities",
+        "Netflix" to "cat_entertainment",
+        "Spotify" to "cat_entertainment",
+        "Disney+ Hotstar" to "cat_entertainment",
+        "YouTube Premium" to "cat_entertainment",
+        "Cult.fit" to "cat_health",
+        "Zerodha" to "cat_investment",
+        "Groww" to "cat_investment"
+    )
+
+    fun classify(info: ExtractedFinancialInfo): Pair<String, Float> {
+        if (info.financialNature == FinancialNature.INCOME) {
+            return Pair("cat_salary", 0.95f)
+        }
+        if (info.financialNature == FinancialNature.INVESTMENT_TRANSFER) {
+            return Pair("cat_investment", 0.95f)
+        }
+        if (info.financialNature == FinancialNature.INTERNAL_TRANSFER ||
+            info.financialNature == FinancialNature.CREDIT_CARD_BILL_PAYMENT
+        ) {
+            return Pair("cat_transfer", 0.90f)
+        }
+
+        val directCategory = MERCHANT_CATEGORY_MAP[info.normalizedMerchant]
+        if (directCategory != null) {
+            return Pair(directCategory, 0.98f)
+        }
+
+        return classify(info.normalizedMerchant)
+    }
 
     suspend fun classify(
         db: SpendwellDatabase,
         merchantName: String
     ): Pair<String, Float> {
         val clean = merchantName.lowercase(Locale.ROOT)
-
-        // 1. Check user-defined or learnt merchant rules
-        val rule = db.merchantRuleDao().findRuleByPattern(clean)
-        if (rule != null) {
-            return Pair(rule.targetCategoryId, 1.0f)
+        val merchant = db.merchantDao().findByCleanName(clean)
+        if (merchant?.defaultCategoryId != null) {
+            return Pair(merchant.defaultCategoryId, merchant.confidenceScore)
         }
+        return classify(merchantName)
+    }
+
+    fun classify(merchantName: String): Pair<String, Float> {
+        val clean = merchantName.lowercase(Locale.ROOT)
 
         // 2. High-precision deterministic merchant pattern matching
         return when {
@@ -143,7 +196,7 @@ object Stage11DeterministicMerchantRules {
             clean.contains("uber") || clean.contains("ola") || clean.contains("rapido") ||
                     clean.contains("irctc") || clean.contains("makemytrip") || clean.contains("goibibo") ||
                     clean.contains("indigo") || clean.contains("air india") || clean.contains("metro") ||
-                    clean.contains("fuel") || clean.contains("petrol") || clean.contains("hpcl") || clean.contains("bpcl") || clean.contains("ioc") -> Pair("cat_travel", 0.95f)
+                    clean.contains("fuel") || clean.contains("petrol") || clean.contains("hpcl") || clean.contains("bpcl") || clean.contains("ioc") -> Pair("cat_transport", 0.95f)
 
             // Utilities & Bills
             clean.contains("electricity") || clean.contains("bescom") || clean.contains("airtel") ||
@@ -163,7 +216,7 @@ object Stage11DeterministicMerchantRules {
             // Healthcare & Pharmacy
             clean.contains("apollo") || clean.contains("pharmeasy") || clean.contains("1mg") ||
                     clean.contains("medplus") || clean.contains("hospital") || clean.contains("clinic") ||
-                    clean.contains("diagnostic") || clean.contains("practo") -> Pair("cat_healthcare", 0.95f)
+                    clean.contains("diagnostic") || clean.contains("practo") -> Pair("cat_health", 0.95f)
 
             // Investments & Wealth
             clean.contains("zerodha") || clean.contains("groww") || clean.contains("upstox") ||
@@ -175,12 +228,85 @@ object Stage11DeterministicMerchantRules {
                     clean.contains("dividend") || clean.contains("interest credited") -> Pair("cat_salary", 0.98f)
 
             // Default fallback category
-            else -> Pair("cat_miscellaneous", 0.40f)
+            else -> Pair("cat_misc", 0.40f)
         }
     }
 }
 
+object Stage11DeterministicMerchantRules {
+
+    suspend fun classify(
+        db: SpendwellDatabase,
+        merchantName: String
+    ): Pair<String, Float> {
+        return Stage11CategoryClassification.classify(db, merchantName)
+    }
+}
+
+object Stage12LedgerPersistence {
+
+    suspend fun persist(
+        db: SpendwellDatabase,
+        info: ExtractedFinancialInfo,
+        normalized: NormalizedMessage,
+        duplicateResolution: DuplicateResolution,
+        lifecycleResolution: LifecycleResolution,
+        categoryId: String,
+        confidence: Float
+    ): EngineResult {
+        return Stage12StatePersistence.persist(
+            db = db,
+            normalized = normalized,
+            info = info,
+            duplicateResolution = duplicateResolution,
+            lifecycleResolution = lifecycleResolution,
+            categoryId = categoryId,
+            confidence = confidence
+        )
+    }
+
+    suspend fun persist(
+        db: SpendwellDatabase,
+        normalized: NormalizedMessage,
+        info: ExtractedFinancialInfo,
+        duplicateResolution: DuplicateResolution,
+        lifecycleResolution: LifecycleResolution,
+        categoryId: String,
+        confidence: Float
+    ): EngineResult {
+        return Stage12StatePersistence.persist(
+            db = db,
+            normalized = normalized,
+            info = info,
+            duplicateResolution = duplicateResolution,
+            lifecycleResolution = lifecycleResolution,
+            categoryId = categoryId,
+            confidence = confidence
+        )
+    }
+}
+
 object Stage12StatePersistence {
+
+    suspend fun persist(
+        db: SpendwellDatabase,
+        info: ExtractedFinancialInfo,
+        normalized: NormalizedMessage,
+        duplicateResolution: DuplicateResolution,
+        lifecycleResolution: LifecycleResolution,
+        categoryId: String,
+        confidence: Float
+    ): EngineResult {
+        return persist(
+            db = db,
+            normalized = normalized,
+            info = info,
+            duplicateResolution = duplicateResolution,
+            lifecycleResolution = lifecycleResolution,
+            categoryId = categoryId,
+            confidence = confidence
+        )
+    }
 
     suspend fun persist(
         db: SpendwellDatabase,
