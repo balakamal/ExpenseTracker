@@ -254,69 +254,6 @@ object Stage12LedgerPersistence {
         categoryId: String,
         confidence: Float
     ): EngineResult {
-        return Stage12StatePersistence.persist(
-            db = db,
-            normalized = normalized,
-            info = info,
-            duplicateResolution = duplicateResolution,
-            lifecycleResolution = lifecycleResolution,
-            categoryId = categoryId,
-            confidence = confidence
-        )
-    }
-
-    suspend fun persist(
-        db: SpendwellDatabase,
-        normalized: NormalizedMessage,
-        info: ExtractedFinancialInfo,
-        duplicateResolution: DuplicateResolution,
-        lifecycleResolution: LifecycleResolution,
-        categoryId: String,
-        confidence: Float
-    ): EngineResult {
-        return Stage12StatePersistence.persist(
-            db = db,
-            normalized = normalized,
-            info = info,
-            duplicateResolution = duplicateResolution,
-            lifecycleResolution = lifecycleResolution,
-            categoryId = categoryId,
-            confidence = confidence
-        )
-    }
-}
-
-object Stage12StatePersistence {
-
-    suspend fun persist(
-        db: SpendwellDatabase,
-        info: ExtractedFinancialInfo,
-        normalized: NormalizedMessage,
-        duplicateResolution: DuplicateResolution,
-        lifecycleResolution: LifecycleResolution,
-        categoryId: String,
-        confidence: Float
-    ): EngineResult {
-        return persist(
-            db = db,
-            normalized = normalized,
-            info = info,
-            duplicateResolution = duplicateResolution,
-            lifecycleResolution = lifecycleResolution,
-            categoryId = categoryId,
-            confidence = confidence
-        )
-    }
-
-    suspend fun persist(
-        db: SpendwellDatabase,
-        normalized: NormalizedMessage,
-        info: ExtractedFinancialInfo,
-        duplicateResolution: DuplicateResolution,
-        lifecycleResolution: LifecycleResolution,
-        categoryId: String,
-        confidence: Float
-    ): EngineResult {
         // Multi-channel idempotency hash
         val hash = sha256("${info.amount.toPaisa()}:${info.normalizedMerchant}:${info.timestamp}")
 
@@ -513,3 +450,5 @@ object Stage12StatePersistence {
         )
     }
 }
+
+typealias Stage12StatePersistence = Stage12LedgerPersistence
