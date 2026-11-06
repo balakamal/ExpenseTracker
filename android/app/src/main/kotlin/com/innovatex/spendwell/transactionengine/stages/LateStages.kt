@@ -1,6 +1,7 @@
 package com.innovatex.spendwell.transactionengine.stages
 
 import com.innovatex.spendwell.database.SpendwellDatabase
+import com.innovatex.spendwell.database.entity.AccountEntity
 import com.innovatex.spendwell.database.entity.DuplicateCandidateEntity
 import com.innovatex.spendwell.database.entity.MerchantEntity
 import com.innovatex.spendwell.database.entity.TransactionClassificationEntity
@@ -102,91 +103,107 @@ object Stage10TransactionLifecycleResolution {
 }
 
 sealed class LifecycleResolution {
-    object Standard : LifecycleResolution()
     data class LinkedRefund(val originalTransactionId: String) : LifecycleResolution()
+    object Standard : LifecycleResolution()
 }
 
-object Stage11CategoryClassification {
+object Stage11DeterministicMerchantRules {
 
-    private val MERCHANT_CATEGORY_MAP = mapOf(
-        "Swiggy" to "cat_food",
-        "Zomato" to "cat_food",
-        "Starbucks" to "cat_food",
-        "McDonald's" to "cat_food",
-        "Domino's Pizza" to "cat_food",
-        "Blinkit" to "cat_groceries",
-        "Zepto" to "cat_groceries",
-        "Amazon" to "cat_shopping",
-        "Flipkart" to "cat_shopping",
-        "Myntra" to "cat_shopping",
-        "Uber" to "cat_transport",
-        "Ola" to "cat_transport",
-        "Rapido" to "cat_transport",
-        "IRCTC" to "cat_transport",
-        "MakeMyTrip" to "cat_transport",
-        "Airtel" to "cat_utilities",
-        "Jio" to "cat_utilities",
-        "Tata Power" to "cat_utilities",
-        "BESCOM" to "cat_utilities",
-        "Netflix" to "cat_entertainment",
-        "Spotify" to "cat_entertainment",
-        "Disney+ Hotstar" to "cat_entertainment",
-        "YouTube Premium" to "cat_entertainment",
-        "Cult.fit" to "cat_health",
-        "Zerodha" to "cat_investment",
-        "Groww" to "cat_investment"
-    )
+    suspend fun classify(
+        db: SpendwellDatabase,
+        merchantName: String
+    ): Pair<String, Float> {
+        val clean = merchantName.lowercase(Locale.ROOT)
 
-    fun classify(info: ExtractedFinancialInfo): Pair<String, Float> {
-        if (info.financialNature == FinancialNature.INCOME) {
-            return Pair("cat_salary", 0.95f)
-        }
-        if (info.financialNature == FinancialNature.INVESTMENT_TRANSFER) {
-            return Pair("cat_investment", 0.95f)
-        }
-        if (info.financialNature == FinancialNature.INTERNAL_TRANSFER ||
-            info.financialNature == FinancialNature.CREDIT_CARD_BILL_PAYMENT
-        ) {
-            return Pair("cat_transfer", 0.90f)
+        // 1. Check user-defined or learnt merchant rules
+        val rule = db.merchantRuleDao().findRuleByPattern(clean)
+        if (rule != null) {
+            return Pair(rule.targetCategoryId, 1.0f)
         }
 
-        val directCategory = MERCHANT_CATEGORY_MAP[info.normalizedMerchant]
-        if (directCategory != null) {
-            return Pair(directCategory, 0.98f)
-        }
+        // 2. High-precision deterministic merchant pattern matching
+        return when {
+            // Food & Dining
+            clean.contains("swiggy") || clean.contains("zomato") || clean.contains("mcdonald") ||
+                    clean.contains("domino") || clean.contains("starbucks") || clean.contains("kfc") ||
+                    clean.contains("burger king") || clean.contains("subway") || clean.contains("restaurant") ||
+                    clean.contains("cafe") || clean.contains("bakery") || clean.contains("pizza") -> Pair("cat_food", 0.95f)
 
-        return Pair("cat_misc", 0.50f)
+            // Groceries & Daily Needs
+            clean.contains("blinkit") || clean.contains("zepto") || clean.contains("instamart") ||
+                    clean.contains("bigbasket") || clean.contains("dmart") || clean.contains("nature basket") ||
+                    clean.contains("reliance fresh") || clean.contains("supermarket") || clean.contains("grocery") -> Pair("cat_groceries", 0.95f)
+
+            // Shopping & E-Commerce
+            clean.contains("amazon") || clean.contains("flipkart") || clean.contains("myntra") ||
+                    clean.contains("ajio") || clean.contains("tata cliq") || clean.contains("nykaa") ||
+                    clean.contains("zara") || clean.contains("h&m") || clean.contains("ikea") -> Pair("cat_shopping", 0.90f)
+
+            // Travel & Mobility
+            clean.contains("uber") || clean.contains("ola") || clean.contains("rapido") ||
+                    clean.contains("irctc") || clean.contains("makemytrip") || clean.contains("goibibo") ||
+                    clean.contains("indigo") || clean.contains("air india") || clean.contains("metro") ||
+                    clean.contains("fuel") || clean.contains("petrol") || clean.contains("hpcl") || clean.contains("bpcl") || clean.contains("ioc") -> Pair("cat_travel", 0.95f)
+
+            // Utilities & Bills
+            clean.contains("electricity") || clean.contains("bescom") || clean.contains("airtel") ||
+                    clean.contains("jio") || clean.contains("vodafone") || clean.contains("vi bill") ||
+                    clean.contains("broadband") || clean.contains("act fiber") || clean.contains("piped gas") ||
+                    clean.contains("water board") || clean.contains("recharge") -> Pair("cat_utilities", 0.95f)
+
+            // Housing & Rent
+            clean.contains("nobroker") || clean.contains("rent") || clean.contains("maintenance") ||
+                    clean.contains("housing") || clean.contains("society") -> Pair("cat_housing", 0.90f)
+
+            // Entertainment & OTT
+            clean.contains("netflix") || clean.contains("spotify") || clean.contains("prime video") ||
+                    clean.contains("hotstar") || clean.contains("youtube") || clean.contains("bookmyshow") ||
+                    clean.contains("pvr") || clean.contains("inox") || clean.contains("cinema") -> Pair("cat_entertainment", 0.95f)
+
+            // Healthcare & Pharmacy
+            clean.contains("apollo") || clean.contains("pharmeasy") || clean.contains("1mg") ||
+                    clean.contains("medplus") || clean.contains("hospital") || clean.contains("clinic") ||
+                    clean.contains("diagnostic") || clean.contains("practo") -> Pair("cat_healthcare", 0.95f)
+
+            // Investments & Wealth
+            clean.contains("zerodha") || clean.contains("groww") || clean.contains("upstox") ||
+                    clean.contains("mutual fund") || clean.contains("kuvera") || clean.contains("et money") ||
+                    clean.contains("indmoney") || clean.contains("smallcase") || clean.contains("camsonline") -> Pair("cat_investment", 0.98f)
+
+            // Salary & Income
+            clean.contains("salary") || clean.contains("payroll") || clean.contains("stipend") ||
+                    clean.contains("dividend") || clean.contains("interest credited") -> Pair("cat_salary", 0.98f)
+
+            // Default fallback category
+            else -> Pair("cat_miscellaneous", 0.40f)
+        }
     }
 }
 
-object Stage12LedgerPersistence {
+object Stage12StatePersistence {
 
     suspend fun persist(
         db: SpendwellDatabase,
-        info: ExtractedFinancialInfo,
         normalized: NormalizedMessage,
+        info: ExtractedFinancialInfo,
         duplicateResolution: DuplicateResolution,
         lifecycleResolution: LifecycleResolution,
         categoryId: String,
         confidence: Float
     ): EngineResult {
-        val hash = sha256(normalized.signal.rawText + normalized.signal.senderAddress + normalized.signal.timestamp)
+        // Multi-channel idempotency hash
+        val hash = sha256("${info.amount.toPaisa()}:${info.normalizedMerchant}:${info.timestamp}")
 
-        // Check if exact source event hash already exists
-        val existingEvent = db.transactionSourceEventDao().findByHash(hash)
-        if (existingEvent != null) {
-            // Already processed this exact signal
-            val canonicalTx = existingEvent.canonicalTransactionId?.let { db.transactionDao().getTransactionById(it) }
-            if (canonicalTx != null) {
-                return EngineResult.Success(
-                    transaction = canonicalTx.toDomainMinimal(),
-                    isNewTransaction = false,
-                    isDuplicateMerged = true
-                )
-            }
+        // Check if exact source signal was already ingested
+        val existingSourceEvent = db.transactionSourceEventDao().findByHash(hash)
+        if (existingSourceEvent != null) {
+            return EngineResult.Dropped(
+                dropReason = com.innovatex.spendwell.transactionengine.model.DropReason.SPAM_OR_PROMOTIONAL,
+                message = "Exact signal payload was previously ingested and verified"
+            )
         }
 
-        // Handle Exact Duplicate match: link source event to existing canonical transaction
+        // If duplicate is an exact match (e.g. SMS + Push Notification for same transaction)
         if (duplicateResolution is DuplicateResolution.ExactMatch) {
             val existingTx = duplicateResolution.existingTransaction
             val sourceEvent = TransactionSourceEventEntity(
@@ -206,13 +223,33 @@ object Stage12LedgerPersistence {
             )
         }
 
-        // Account association
-        val account = info.accountLast4?.let { last4 ->
+        // Account association (find or auto-provision from detected signal)
+        var account = info.accountLast4?.let { last4 ->
             if (info.bankName != null) {
                 db.accountDao().findAccountByLast4AndBank(last4, info.bankName)
             } else {
                 db.accountDao().findAccountByLast4(last4)
             }
+        }
+        if (account == null && info.accountLast4 != null) {
+            val bank = info.bankName ?: "Bank"
+            val isCard = normalized.normalizedText.contains("card", ignoreCase = true) ||
+                    normalized.normalizedText.contains("credit", ignoreCase = true)
+            val acctType = if (isCard) "CREDIT_CARD" else "SAVINGS"
+            val acctName = "$bank ••${info.accountLast4}"
+            val newAccount = AccountEntity(
+                id = UUID.randomUUID().toString(),
+                accountName = acctName,
+                accountType = acctType,
+                accountNumberLast4 = info.accountLast4,
+                bankName = bank,
+                currentBalancePaisa = 0L,
+                currency = "INR",
+                isPrimary = false,
+                isActive = true
+            )
+            db.accountDao().insert(newAccount)
+            account = newAccount
         }
         val accountId = account?.id
 

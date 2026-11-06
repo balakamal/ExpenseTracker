@@ -10,11 +10,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -58,24 +63,24 @@ class SavingsGoalsViewModel @Inject constructor(
     private val savingsGoalRepository: SavingsGoalRepository
 ) : ViewModel() {
 
-    val goals: StateFlow<List<SavingsGoal>> = savingsGoalRepository.observeGoals()
+    val goals: StateFlow<List<SavingsGoal>> = savingsGoalRepository.observeAllGoals()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    fun createGoal(name: String, targetAmountDouble: Double) {
+    fun createGoal(title: String, targetAmount: Double) {
         viewModelScope.launch {
             val goal = SavingsGoal(
                 id = UUID.randomUUID().toString(),
-                name = name,
-                targetAmount = Money.fromDouble(targetAmountDouble),
-                currentSaved = Money.ZERO,
-                targetDate = System.currentTimeMillis() + 90L * 24 * 60 * 60 * 1000L,
-                category = "SAVINGS"
+                name = title,
+                targetAmount = Money.fromRupees(targetAmount),
+                currentAmount = Money.ZERO,
+                targetDate = System.currentTimeMillis() + (180L * 24 * 60 * 60 * 1000L), // 6 months default
+                colorHex = "#10B981"
             )
-            savingsGoalRepository.saveGoal(goal)
+            savingsGoalRepository.insertGoal(goal)
         }
     }
 }
@@ -83,6 +88,7 @@ class SavingsGoalsViewModel @Inject constructor(
 @Composable
 fun SavingsGoalsScreen(
     viewModel: SavingsGoalsViewModel,
+    onNavigateBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val goals by viewModel.goals.collectAsState()
@@ -94,32 +100,42 @@ fun SavingsGoalsScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Savings Goals",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Track progress toward target milestones",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back to Home",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Column {
+                    Text(
+                        text = "Savings Goals",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Track progress toward target milestones",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             SpendwellPrimaryButton(
                 text = "New Goal",
                 leadingIcon = Icons.Default.Add,
                 onClick = { showAddDialog = true },
-                modifier = Modifier.fillMaxWidth(0.42f)
+                modifier = Modifier.width(130.dp)
             )
         }
 
@@ -160,7 +176,7 @@ fun SavingsGoalsScreen(
 
 @Composable
 private fun GoalCard(goal: SavingsGoal) {
-    val dateText = SimpleDateFormat("MMM yyyy", Locale.ENGLISH).format(Date(goal.targetDate))
+    val dateText = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH).format(Date(goal.targetDate))
 
     SpendwellCard(modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -176,27 +192,28 @@ private fun GoalCard(goal: SavingsGoal) {
                 )
 
                 SpendwellPillBadge(
-                    text = "${String.format(Locale.ENGLISH, "%.0f", goal.progressPercentage)}% SAVED",
+                    text = "${goal.progressPercentage.toInt()}%",
                     backgroundColor = MaterialTheme.colorScheme.secondaryContainer,
                     textColor = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Saved: ${goal.currentSaved.formatInr(true)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = InflowGreen,
-                    fontWeight = FontWeight.SemiBold
+                    text = goal.currentAmount.formatInr(true),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = InflowGreen
                 )
                 Text(
-                    text = "Target: ${goal.targetAmount.formatInr(true)}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Goal: ${goal.targetAmount.formatInr(true)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
                 )
             }

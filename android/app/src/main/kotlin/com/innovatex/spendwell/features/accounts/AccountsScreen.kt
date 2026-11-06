@@ -18,9 +18,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -62,25 +64,21 @@ class AccountsViewModel @Inject constructor(
     private val accountRepository: AccountRepository
 ) : ViewModel() {
 
-    val accounts: StateFlow<List<Account>> = accountRepository.observeAccounts()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    val accounts: StateFlow<List<Account>> = accountRepository.observeAllAccounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun createAccount(bankName: String, accountName: String, last4: String, initialBalanceDouble: Double) {
+    fun createAccount(bankName: String, accountName: String, last4: String, balance: Double) {
         viewModelScope.launch {
             val account = Account(
                 id = UUID.randomUUID().toString(),
                 accountName = accountName,
-                accountType = AccountType.SAVINGS,
+                accountType = if (bankName.contains("card", ignoreCase = true)) AccountType.CREDIT_CARD else AccountType.SAVINGS,
                 accountNumberLast4 = last4,
                 bankName = bankName,
-                currentBalance = Money.fromDouble(initialBalanceDouble),
+                currentBalance = Money.fromRupees(balance),
                 isPrimary = accounts.value.isEmpty()
             )
-            accountRepository.saveAccount(account)
+            accountRepository.insertAccount(account)
         }
     }
 }
@@ -88,6 +86,7 @@ class AccountsViewModel @Inject constructor(
 @Composable
 fun AccountsScreen(
     viewModel: AccountsViewModel,
+    onNavigateBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val accounts by viewModel.accounts.collectAsState()
@@ -99,32 +98,42 @@ fun AccountsScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Accounts & Cards",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Manage connected ledgers and balances",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back to Home",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Column {
+                    Text(
+                        text = "Accounts & Cards",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Manage connected ledgers and balances",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             SpendwellPrimaryButton(
                 text = "Add Account",
                 leadingIcon = Icons.Default.Add,
                 onClick = { showAddAccountDialog = true },
-                modifier = Modifier.fillMaxWidth(0.45f)
+                modifier = Modifier.width(140.dp)
             )
         }
 

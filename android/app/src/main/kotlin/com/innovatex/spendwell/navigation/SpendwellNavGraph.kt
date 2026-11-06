@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -94,12 +95,16 @@ fun SpendwellApp(
                 SpendwellBottomBar(
                     currentRoute = currentRoute,
                     onNavigateToDestination = { screen ->
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                        if (screen.route == Screen.Dashboard.route) {
+                            navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                        } else {
+                            navController.navigate(screen.route) {
+                                popUpTo(Screen.Dashboard.route) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
                     }
                 )
@@ -137,7 +142,8 @@ fun SpendwellApp(
                     onNavigateToReviewCenter = { navController.navigate(Screen.ReviewCenter.route) },
                     onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
                     onNavigateToReconciliation = { navController.navigate(Screen.Reconciliation.route) },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
                 )
             }
 
@@ -174,37 +180,57 @@ fun SpendwellApp(
             }
 
             composable(Screen.ReviewCenter.route) {
-                ReviewCenterScreen(viewModel = hiltViewModel())
+                ReviewCenterScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Accounts.route) {
-                AccountsScreen(viewModel = hiltViewModel())
+                AccountsScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Recurring.route) {
-                RecurringScreen(viewModel = hiltViewModel())
+                RecurringScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Reconciliation.route) {
-                ReconciliationScreen(viewModel = hiltViewModel())
+                ReconciliationScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.AiModel.route) {
-                AiModelManagementScreen()
+                AiModelManagementScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Permissions.route) {
-                PermissionManagementScreen()
+                PermissionManagementScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.SavingsGoals.route) {
-                SavingsGoalsScreen(viewModel = hiltViewModel())
+                SavingsGoalsScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToModelManagement = { navController.navigate(Screen.AiModel.route) },
-                    onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
+                    onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }
@@ -239,9 +265,11 @@ private fun SpendwellBottomBar(
 
                 Column(
                     modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onNavigateToDestination(screen) }
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                        .padding(horizontal = 2.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {

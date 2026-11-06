@@ -3,6 +3,10 @@ package com.innovatex.spendwell.features.dashboard
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import android.os.Build
+import androidx.compose.material.icons.filled.Sms
+import androidx.compose.runtime.LaunchedEffect
+import com.innovatex.spendwell.designsystem.components.SpendwellPrimaryButton
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -98,6 +102,7 @@ fun DashboardScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToReconciliation: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToPermissions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -111,22 +116,41 @@ fun DashboardScreen(
         )
     }
 
+    val requiredPermissions = remember {
+        buildList {
+            add(Manifest.permission.READ_SMS)
+            add(Manifest.permission.RECEIVE_SMS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        val granted = results[Manifest.permission.READ_SMS] == true ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        val granted = (results[Manifest.permission.READ_SMS] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) &&
+            (results[Manifest.permission.RECEIVE_SMS] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED)
         hasSmsPermission = granted
         if (granted) {
-            Toast.makeText(context, "SMS permission granted! Starting import...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Permissions granted! Reading SMS history...", Toast.LENGTH_SHORT).show()
             viewModel.importSmsHistory(
                 onComplete = { result ->
-                    Toast.makeText(context, "Import complete! ${result.imported} new transactions added.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Ledger synchronized! ${result.imported} transactions imported.", Toast.LENGTH_LONG).show()
                 },
                 onError = { err ->
                     Toast.makeText(context, err, Toast.LENGTH_LONG).show()
                 }
             )
+        }
+    }
+
+    // Automatically prompt for required permissions on app launch if not granted
+    LaunchedEffect(Unit) {
+        if (!hasSmsPermission) {
+            permissionLauncher.launch(requiredPermissions)
         }
     }
 
@@ -365,6 +389,60 @@ fun DashboardScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                                // Permission Setup Notice Banner
+                if (!hasSmsPermission) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp)),
+                        colors = CardDefaults.cardColors(containerColor = PrimaryFixed)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(CobaltPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sms,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Enable Automatic Tracking",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CobaltPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Grant SMS & alert permissions so Spendwell can detect transactions and update your ledger offline.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            SpendwellPrimaryButton(
+                                text = "Grant",
+                                onClick = { permissionLauncher.launch(requiredPermissions) },
+                                modifier = Modifier.width(88.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 // 3. Primary Bank Accounts & Reconciled Balance Card (Stitch White Card)
                 Card(

@@ -17,13 +17,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +91,7 @@ class PermissionManagementViewModel @Inject constructor(
 
 @Composable
 fun PermissionManagementScreen(
+    onNavigateBack: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: PermissionManagementViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
@@ -132,12 +138,28 @@ fun PermissionManagementScreen(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp).verticalScroll(rememberScrollState())
     ) {
-        Spacer(Modifier.height(20.dp))
-        Text("Permission Management", style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(6.dp))
-        Text("Choose which on-device sources Spendwell can access. Permissions are optional and can be revoked in Android settings.",
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back to Home",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Column {
+                Text("Permission Management", style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                Text("Choose which on-device sources Spendwell can access. Permissions are optional and can be revoked in Android settings.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
         Spacer(Modifier.height(24.dp))
 
         PermissionItemCard(

@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,6 +82,7 @@ class ReviewCenterViewModel @Inject constructor(
 
     fun mergeCandidate(candidateId: String, duplicateTxId: String) {
         viewModelScope.launch {
+            // Delete duplicate transaction or link as duplicate, mark candidate as resolved
             duplicateRepository.resolveDuplicate(candidateId, "MERGED")
             transactionRepository.deleteTransaction(duplicateTxId)
         }
@@ -87,6 +90,7 @@ class ReviewCenterViewModel @Inject constructor(
 
     fun keepBoth(candidateId: String, duplicateTxId: String) {
         viewModelScope.launch {
+            // Unflag candidate, acknowledge both
             duplicateRepository.resolveDuplicate(candidateId, "KEPT_BOTH")
             transactionRepository.markAsReviewed(duplicateTxId)
         }
@@ -96,6 +100,7 @@ class ReviewCenterViewModel @Inject constructor(
 @Composable
 fun ReviewCenterScreen(
     viewModel: ReviewCenterViewModel,
+    onNavigateBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.reviewItems.collectAsState()
@@ -106,22 +111,34 @@ fun ReviewCenterScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Transaction Review Center",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Review potential duplicates and unverified alerts",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Back to Home",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Column {
+                Text(
+                    text = "Transaction Review Center",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Review potential duplicates and unverified alerts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
