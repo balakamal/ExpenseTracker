@@ -251,7 +251,10 @@ fun DashboardScreen(
                 val monthName = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH).format(cal.time)
                 val totalDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
                 val currentDay = cal.get(Calendar.DAY_OF_MONTH)
-                val daysRemaining = (totalDaysInMonth - currentDay).coerceAtLeast(1)
+                val fallbackDaysRemaining = (totalDaysInMonth - currentDay).coerceAtLeast(1)
+                val cycleWindow = state.monthlySummary?.cycleWindow
+                val daysRemaining = cycleWindow?.daysRemaining ?: fallbackDaysRemaining
+                val cycleLabel = cycleWindow?.label ?: monthName
                 val hourOfDay = cal.get(Calendar.HOUR_OF_DAY)
                 val timeGreeting = when (hourOfDay) {
                     in 4..11 -> "Good morning"
@@ -284,7 +287,7 @@ fun DashboardScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "$monthName • $daysRemaining days left in month",
+                                text = "$cycleLabel • $daysRemaining days left in cycle",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

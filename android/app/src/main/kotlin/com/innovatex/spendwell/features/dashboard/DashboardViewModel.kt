@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.analytics.MonthlyFinancialSummary
 import com.innovatex.spendwell.common.Money
+import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
 import com.innovatex.spendwell.domain.model.Account
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.repository.AccountRepository
@@ -46,7 +47,8 @@ private data class DashboardRepoData(
 class DashboardViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val accountRepository: AccountRepository,
-    private val smsHistoryImporter: SmsHistoryImporter
+    private val smsHistoryImporter: SmsHistoryImporter,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     private val isObfuscated = MutableStateFlow(false)
@@ -74,8 +76,9 @@ class DashboardViewModel @Inject constructor(
         repositoryDataFlow,
         isObfuscated,
         isImportingFlow,
-        importMessageFlow
-    ) { repoData, obfuscated, importing, importMsg ->
+        importMessageFlow,
+        userPreferencesRepository.cycleStartDay
+    ) { repoData, obfuscated, importing, importMsg, cycleStartDay ->
         try {
             var totalBalance = Money.ZERO
             repoData.accounts.forEach { totalBalance += it.currentBalance }
@@ -84,7 +87,8 @@ class DashboardViewModel @Inject constructor(
             val summary = FinancialAnalyticsEngine.analyze(
                 transactions = repoData.transactions,
                 year = cal.get(Calendar.YEAR),
-                monthZeroIndexed = cal.get(Calendar.MONTH)
+                monthZeroIndexed = cal.get(Calendar.MONTH),
+                cycleStartDay = cycleStartDay
             )
 
             DashboardUiState(
@@ -140,7 +144,10 @@ class DashboardViewModel @Inject constructor(
             isImportingFlow.value = true
             importMessageFlow.value = null
             try {
-                val result = smsHistoryImporter.importRecentHistory()
+                val result = smsHistoryImporter.importRecentHistory(days = 30)
+                val cal = Calendar.getInstance()
+                val monthKey = "%04d-%02d".format(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+                userPreferencesRepository.addSyncedMonth(monthKey)
                 importMessageFlow.value = "Imported ${result.imported} transactions from SMS"
                 onComplete?.invoke(result)
             } catch (e: Exception) {

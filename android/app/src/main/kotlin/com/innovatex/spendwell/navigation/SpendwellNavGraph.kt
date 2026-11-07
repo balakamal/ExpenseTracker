@@ -26,7 +26,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
+import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
 import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
@@ -66,14 +69,28 @@ import com.innovatex.spendwell.features.savingsgoals.SavingsGoalsScreen
 import com.innovatex.spendwell.features.settings.SettingsScreen
 import com.innovatex.spendwell.features.transactiondetail.TransactionDetailScreen
 import com.innovatex.spendwell.features.transactions.TransactionFeedScreen
+import kotlinx.coroutines.launch
 
 @Composable
 fun SpendwellApp(
     transactionRepository: TransactionRepository,
     categoryRepository: CategoryRepository,
     aiAdvisorEngine: SpendwellAiAdvisorEngine,
+    userPreferencesRepository: UserPreferencesRepository,
     navController: NavHostController = rememberNavController()
 ) {
+    val isOnboardingCompleted by userPreferencesRepository.isOnboardingCompleted.collectAsState(initial = null)
+    val coroutineScope = rememberCoroutineScope()
+
+    // Show blank background while loading preference state to prevent flickering
+    if (isOnboardingCompleted == null) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {}
+        return
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -113,12 +130,15 @@ fun SpendwellApp(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Dashboard.route,
+            startDestination = if (isOnboardingCompleted == true) Screen.Dashboard.route else Screen.Onboarding.route,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(
-                    onGetStarted = {
+                    onGetStarted = { cycleDay ->
+                        coroutineScope.launch {
+                            userPreferencesRepository.setCycleStartDay(cycleDay)
+                        }
                         navController.navigate(Screen.PrivacyMode.route)
                     }
                 )
@@ -126,7 +146,11 @@ fun SpendwellApp(
 
             composable(Screen.PrivacyMode.route) {
                 PrivacyModeScreen(
-                    onContinue = {
+                    onContinue = { isPrivate ->
+                        coroutineScope.launch {
+                            userPreferencesRepository.setPrivateMode(isPrivate)
+                            userPreferencesRepository.setOnboardingCompleted(true)
+                        }
                         navController.navigate(Screen.Dashboard.route) {
                             popUpTo(Screen.Onboarding.route) { inclusive = true }
                         }

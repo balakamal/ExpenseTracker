@@ -3,8 +3,12 @@ package com.innovatex.spendwell.analytics
 import com.innovatex.spendwell.common.Money
 import com.innovatex.spendwell.domain.model.FinancialNature
 import com.innovatex.spendwell.domain.model.Transaction
+import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 data class CategorySpending(
     val categoryId: String,
@@ -27,6 +31,16 @@ data class SpendingAnomaly(
     val deviationMultiple: Float
 )
 
+data class FinancialCycleWindow(
+    val label: String,            // e.g. "10 Oct – 09 Nov 2026" or "November 2026"
+    val monthLabel: String,       // e.g. "November 2026"
+    val startTime: Long,
+    val endTime: Long,
+    val daysRemaining: Int,
+    val currentDayIndex: Int,
+    val totalDays: Int
+)
+
 data class MonthlyFinancialSummary(
     val totalIncome: Money,
     val totalExpenses: Money,
@@ -36,28 +50,132 @@ data class MonthlyFinancialSummary(
     val projectedMonthEndSpend: Money,
     val categoryBreakdown: List<CategorySpending>,
     val topMerchants: List<MerchantSpending>,
-    val anomalies: List<SpendingAnomaly>
+    val anomalies: List<SpendingAnomaly>,
+    val cycleWindow: FinancialCycleWindow? = null
 )
 
 object FinancialAnalyticsEngine {
 
-    fun analyze(transactions: List<Transaction>, year: Int, monthZeroIndexed: Int): MonthlyFinancialSummary {
-        val cal = Calendar.getInstance()
-        cal.set(year, monthZeroIndexed, 1, 0, 0, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val monthStart = cal.timeInMillis
+    fun calculateCycle(year: Int, monthZeroIndexed: Int, cycleStartDay: Int = 1): FinancialCycleWindow {
+        val calStart = Calendar.getInstance()
+        val calEnd = Calendar.getInstance()
+        val now = System.currentTimeMillis()
 
-        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-        cal.set(year, monthZeroIndexed, daysInMonth, 23, 59, 59)
-        val monthEnd = cal.timeInMillis
+        val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH)
+        val shortDateFormat = SimpleDateFormat("dd MMM", Locale.ENGLISH)
 
-        val monthTx = transactions.filter { it.timestamp in monthStart..monthEnd }
+        when {
+            cycleStartDay <= 1 -> {
+                calStart.set(year, monthZeroIndexed, 1, 0, 0, 0)
+                calStart.set(Calendar.MILLISECOND, 0)
+                val daysInMonth = calStart.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calEnd.set(year, monthZeroIndexed, daysInMonth, 23, 59, 59)
+                calEnd.set(Calendar.MILLISECOND, 999)
+
+                val mLabel = monthFormat.format(calStart.time)
+                val currentDay = if (now in calStart.timeInMillis..calEnd.timeInMillis) {
+                    val c = Calendar.getInstance().apply { timeInMillis = now }
+                    c.get(Calendar.DAY_OF_MONTH)
+                } else daysInMonth
+
+                val remaining = ((calEnd.timeInMillis - now) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+
+                return FinancialCycleWindow(
+                    label = mLabel,
+                    monthLabel = mLabel,
+                    startTime = calStart.timeInMillis,
+                    endTime = calEnd.timeInMillis,
+                    daysRemaining = remaining,
+                    currentDayIndex = currentDay.coerceAtLeast(1),
+                    totalDays = daysInMonth
+                )
+            }
+
+            cycleStartDay == -1 -> {
+                // Last day of previous month to day before last day of current month
+                calStart.set(year, monthZeroIndexed - 1, 1, 0, 0, 0)
+                calStart.set(Calendar.MILLISECOND, 0)
+                val lastDayPrev = calStart.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calStart.set(Calendar.DAY_OF_MONTH, lastDayPrev)
+
+                calEnd.set(year, monthZeroIndexed, 1, 23, 59, 59)
+                val lastDayCurr = calEnd.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calEnd.set(Calendar.DAY_OF_MONTH, (lastDayCurr - 1).coerceAtLeast(1))
+                calEnd.set(Calendar.MILLISECOND, 999)
+
+                val totalDays = (((calEnd.timeInMillis - calStart.timeInMillis) / (24 * 60 * 60 * 1000L)) + 1).toInt()
+                val remaining = ((calEnd.timeInMillis - now) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                val currentDayIndex = (totalDays - remaining).coerceIn(1, totalDays)
+
+                val mLabel = monthFormat.format(calEnd.time)
+                val label = "${shortDateFormat.format(calStart.time)} – ${shortDateFormat.format(calEnd.time)}"
+
+                return FinancialCycleWindow(
+                    label = label,
+                    monthLabel = mLabel,
+                    startTime = calStart.timeInMillis,
+                    endTime = calEnd.timeInMillis,
+                    daysRemaining = remaining,
+                    currentDayIndex = currentDayIndex,
+                    totalDays = totalDays
+                )
+            }
+
+            else -> {
+                // cycleStartDay > 1 (e.g. 10th)
+                // Cycle for month M starts on day `cycleStartDay` of M-1 and ends on day `cycleStartDay - 1` of M
+                calStart.set(year, monthZeroIndexed - 1, 1, 0, 0, 0)
+                calStart.set(Calendar.MILLISECOND, 0)
+                val maxPrev = calStart.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calStart.set(Calendar.DAY_OF_MONTH, cycleStartDay.coerceAtMost(maxPrev))
+
+                calEnd.set(year, monthZeroIndexed, 1, 23, 59, 59)
+                calEnd.set(Calendar.MILLISECOND, 999)
+                val maxCurr = calEnd.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calEnd.set(Calendar.DAY_OF_MONTH, (cycleStartDay - 1).coerceIn(1, maxCurr))
+
+                val totalDays = (((calEnd.timeInMillis - calStart.timeInMillis) / (24 * 60 * 60 * 1000L)) + 1).toInt()
+                val remaining = ((calEnd.timeInMillis - now) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                val currentDayIndex = (totalDays - remaining).coerceIn(1, totalDays)
+
+                val mLabel = monthFormat.format(calEnd.time)
+                val label = "${shortDateFormat.format(calStart.time)} – ${shortDateFormat.format(calEnd.time)}"
+
+                return FinancialCycleWindow(
+                    label = label,
+                    monthLabel = mLabel,
+                    startTime = calStart.timeInMillis,
+                    endTime = calEnd.timeInMillis,
+                    daysRemaining = remaining,
+                    currentDayIndex = currentDayIndex,
+                    totalDays = totalDays
+                )
+            }
+        }
+    }
+
+    fun analyze(
+        transactions: List<Transaction>,
+        year: Int,
+        monthZeroIndexed: Int,
+        cycleStartDay: Int = 1
+    ): MonthlyFinancialSummary {
+        val cycle = calculateCycle(year, monthZeroIndexed, cycleStartDay)
+
+        // Strictly exclude transactions pending review, failed, or reversed to prevent inaccurate totals
+        val validTransactions = transactions.filter {
+            it.status != TransactionStatus.NEEDS_REVIEW &&
+                    it.status != TransactionStatus.FAILED &&
+                    it.status != TransactionStatus.REVERSED
+        }
+
+        val cycleTx = validTransactions.filter { it.timestamp in cycle.startTime..cycle.endTime }
 
         // Filter income vs consumption expenses
         var totalIncome = Money.ZERO
         var totalExpenses = Money.ZERO
 
-        for (tx in monthTx) {
+        for (tx in cycleTx) {
             when (tx.financialNature) {
                 FinancialNature.INCOME -> {
                     totalIncome += tx.amount
@@ -80,20 +198,11 @@ object FinancialAnalyticsEngine {
             ((netSavings.toDisplayDouble() / totalIncome.toDisplayDouble()) * 100).toFloat().coerceIn(-100f, 100f)
         } else 0f
 
-        // Velocity
-        val currentDay = Calendar.getInstance().let {
-            if (it.get(Calendar.YEAR) == year && it.get(Calendar.MONTH) == monthZeroIndexed) {
-                it.get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
-            } else {
-                daysInMonth
-            }
-        }
-
-        val avgDaily = Money.fromDouble(totalExpenses.toDisplayDouble() / currentDay)
-        val projected = Money.fromDouble(avgDaily.toDisplayDouble() * daysInMonth)
+        val avgDaily = Money.fromDouble(totalExpenses.toDisplayDouble() / cycle.currentDayIndex)
+        val projected = Money.fromDouble(avgDaily.toDisplayDouble() * cycle.totalDays)
 
         // Category breakdown
-        val expenseTx = monthTx.filter { it.financialNature == FinancialNature.CONSUMPTION_EXPENSE }
+        val expenseTx = cycleTx.filter { it.financialNature == FinancialNature.CONSUMPTION_EXPENSE }
         val byCategory = expenseTx.groupBy { it.categoryId ?: "cat_misc" }
 
         val categoryBreakdown = byCategory.map { (catId, txs) ->
@@ -150,7 +259,8 @@ object FinancialAnalyticsEngine {
             projectedMonthEndSpend = projected,
             categoryBreakdown = categoryBreakdown,
             topMerchants = topMerchants,
-            anomalies = anomalies
+            anomalies = anomalies,
+            cycleWindow = cycle
         )
     }
 

@@ -12,11 +12,25 @@ import java.util.regex.Pattern
 object Stage5TransactionDetection {
 
     private val TRANSACTION_INDICATORS = listOf(
-        Pattern.compile("(?i)\\b(?:debited|withdrawn|spent|paid|sent|deducted)\\b"),
-        Pattern.compile("(?i)\\b(?:credited|deposited|received|refunded|reversed|cashback received)\\b")
+        Pattern.compile("(?i)\\b(?:debited|withdrawn|spent|paid|sent|deducted|charged|purchase)\\b"),
+        Pattern.compile("(?i)\\b(?:credited|deposited|salary credited|refunded|reversed|cashback received)\\b")
     )
 
     fun isTransaction(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT)
+
+        // Negative indicators
+        if (lower.contains("points received") || lower.contains("reward points") ||
+            lower.contains("message received") || lower.contains("request received") ||
+            lower.contains("pre-approved") || lower.contains("loan sanctioned")
+        ) {
+            // Check if there's an actual debit/credit verb
+            val hasExplicitTxn = lower.contains("debited for") || lower.contains("debited with") ||
+                    lower.contains("debited by") || lower.contains("credited with") ||
+                    lower.contains("paid ₹") || lower.contains("sent ₹")
+            if (!hasExplicitTxn) return false
+        }
+
         for (pattern in TRANSACTION_INDICATORS) {
             if (pattern.matcher(text).find()) {
                 return true
@@ -176,9 +190,20 @@ object Stage7AmountAndDirectionValidation {
             return FinancialNature.CASH_WITHDRAWAL
         }
 
-        // Credit Card bill payment
-        if (lowerMerch.contains("credit card bill") || lowerMerch.contains("cc payment") ||
-            rawText.contains("credit card payment") || rawText.contains("card bill paid")
+        // Internal transfer / Self-transfer (strictly excluded from consumption expenses)
+        if (lowerMerch.contains("self") || lowerMerch.contains("own account") ||
+            rawText.contains("transfer to self") || rawText.contains("self transfer") ||
+            rawText.contains("transfer between own") || rawText.contains("to own a/c") ||
+            rawText.contains("sent to self")
+        ) {
+            return FinancialNature.INTERNAL_TRANSFER
+        }
+
+        // Credit Card bill payment (strictly excluded from consumption expenses to prevent double counting)
+        if (lowerMerch.contains("credit card") || lowerMerch.contains("cc payment") || lowerMerch.contains("cred") ||
+            rawText.contains("credit card payment") || rawText.contains("card bill paid") ||
+            rawText.contains("towards credit card") || rawText.contains("payment received for your credit card") ||
+            rawText.contains("payment for card ending")
         ) {
             return FinancialNature.CREDIT_CARD_BILL_PAYMENT
         }

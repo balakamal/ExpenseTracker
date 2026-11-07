@@ -6,6 +6,7 @@ import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.Calendar
@@ -54,6 +55,17 @@ class FinancialAnalyticsTest {
                 accountId = "acc_1",
                 description = "Zerodha Broking"
             ),
+            // Internal transfer (₹ 10,000) - must NOT be counted as expense
+            Transaction(
+                id = "3b",
+                amount = Money.fromString("10000.00"),
+                type = TransactionType.DEBIT,
+                status = TransactionStatus.SUCCESSFUL,
+                financialNature = FinancialNature.INTERNAL_TRANSFER,
+                timestamp = timestamp,
+                accountId = "acc_1",
+                description = "Self Transfer"
+            ),
             // Salary Inflow (₹ 80,000)
             Transaction(
                 id = "4",
@@ -74,6 +86,110 @@ class FinancialAnalyticsTest {
         assertEquals("₹ 1,500.00", summary.totalExpenses.formatInr(true))
         // Net savings = 80,000 - 1,500 = 78,500
         assertEquals("₹ 78,500.00", summary.netSavings.formatInr(true))
+    }
+
+    @Test
+    fun `test needs_review and failed transactions are excluded from totals`() {
+        val cal = Calendar.getInstance()
+        cal.set(2026, Calendar.OCTOBER, 15, 12, 0, 0)
+        val timestamp = cal.timeInMillis
+
+        val txList = listOf(
+            Transaction(
+                id = "1",
+                amount = Money.fromString("1000.00"),
+                type = TransactionType.DEBIT,
+                status = TransactionStatus.SUCCESSFUL,
+                financialNature = FinancialNature.CONSUMPTION_EXPENSE,
+                timestamp = timestamp,
+                accountId = "acc_1",
+                description = "Grocery"
+            ),
+            Transaction(
+                id = "2",
+                amount = Money.fromString("50000.00"),
+                type = TransactionType.DEBIT,
+                status = TransactionStatus.NEEDS_REVIEW, // Suspicious or duplicate candidate
+                financialNature = FinancialNature.CONSUMPTION_EXPENSE,
+                timestamp = timestamp,
+                accountId = "acc_1",
+                description = "Pending Review Spike"
+            ),
+            Transaction(
+                id = "3",
+                amount = Money.fromString("2000.00"),
+                type = TransactionType.DEBIT,
+                status = TransactionStatus.FAILED,
+                financialNature = FinancialNature.CONSUMPTION_EXPENSE,
+                timestamp = timestamp,
+                accountId = "acc_1",
+                description = "Failed Debit"
+            )
+        )
+
+        val summary = FinancialAnalyticsEngine.analyze(txList, 2026, Calendar.OCTOBER)
+        // Only the successful ₹ 1,000 transaction should be counted
+        assertEquals("₹ 1,000.00", summary.totalExpenses.formatInr(true))
+    }
+
+    @Test
+    fun `test custom salary cycle window calculation`() {
+        // Test cycle starting on the 10th of October 2026
+        val cycle10th = FinancialAnalyticsEngine.calculateCycle(2026, Calendar.OCTOBER, 10)
+        assertEquals("10 Oct – 09 Nov 2026", cycle10th.label)
+        assertEquals(31, cycle10th.totalDaysInCycle)
+
+        // Test cycle starting on the 1st (standard calendar)
+        val cycle1st = FinancialAnalyticsEngine.calculateCycle(2026, Calendar.OCTOBER, 1)
+        assertEquals("01 Oct – 31 Oct 2026", cycle1st.label)
+        assertEquals(31, cycle1st.totalDaysInCycle)
+
+        // Test cycle on last day of month (-1)
+        val cycleLastDay = FinancialAnalyticsEngine.calculateCycle(2026, Calendar.OCTOBER, -1)
+        assertEquals("31 Oct – 29 Nov 2026", cycleLastDay.label)
+    }
+
+    @Test
+    fun `test custom cycle filtering partitions transactions accurately`() {
+        // Salary cycle starts on the 10th of every month
+        val cal = Calendar.getInstance()
+
+        // Tx on 5th October (belongs to 10 Sep - 09 Oct cycle, NOT current cycle)
+        cal.set(2026, Calendar.OCTOBER, 5, 12, 0, 0)
+        val txBeforeCycle = Transaction(
+            id = "tx_before",
+            amount = Money.fromString("3000.00"),
+            type = TransactionType.DEBIT,
+            status = TransactionStatus.SUCCESSFUL,
+            financialNature = FinancialNature.CONSUMPTION_EXPENSE,
+            timestamp = cal.timeInMillis,
+            accountId = "acc_1",
+            description = "Previous Cycle Rent"
+        )
+
+        // Tx on 12th October (belongs to current 10 Oct - 09 Nov cycle)
+        cal.set(2026, Calendar.OCTOBER, 12, 12, 0, 0)
+        val txInCycle = Transaction(
+            id = "tx_current",
+            amount = Money.fromString("750.00"),
+            type = TransactionType.DEBIT,
+            status = TransactionStatus.SUCCESSFUL,
+            financialNature = FinancialNature.CONSUMPTION_EXPENSE,
+            timestamp = cal.timeInMillis,
+            accountId = "acc_1",
+            description = "Current Cycle Swiggy"
+        )
+
+        val summary = FinancialAnalyticsEngine.analyze(
+            transactions = listOf(txBeforeCycle, txInCycle),
+            year = 2026,
+            monthZeroIndexed = Calendar.OCTOBER,
+            cycleStartDay = 10
+        )
+
+        // Should strictly only include txInCycle (₹ 750.00)
+        assertEquals("₹ 750.00", summary.totalExpenses.formatInr(true))
+        assertEquals("10 Oct – 09 Nov 2026", summary.cycleWindow.label)
     }
 
     @Test

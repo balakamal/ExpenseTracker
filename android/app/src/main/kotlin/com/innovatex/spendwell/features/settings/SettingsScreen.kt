@@ -1,6 +1,8 @@
 package com.innovatex.spendwell.features.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,25 +16,34 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,21 +53,54 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellPillBadge
 import com.innovatex.spendwell.designsystem.components.SpendwellTonalButton
+import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
+import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
+import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.OutflowRed
+import com.innovatex.spendwell.designsystem.theme.PillShape
+import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
+import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
+import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
+import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import java.util.Calendar
 
 @Composable
 fun SettingsScreen(
     onNavigateToModelManagement: () -> Unit,
     onNavigateToPermissions: () -> Unit,
     onNavigateBack: () -> Unit = {},
+    viewModel: SettingsViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
-    var isPrivateMode by remember { mutableStateOf(true) }
+    val currentCycleDay by viewModel.cycleStartDay.collectAsState()
+    val isPrivateMode by viewModel.isPrivateMode.collectAsState()
+    val isModelDownloaded by viewModel.isModelDownloaded.collectAsState()
+
     var isBiometricEnabled by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
+
+    val presetOptions = listOf(
+        Pair("1st of Month", 1),
+        Pair("5th", 5),
+        Pair("10th", 10),
+        Pair("25th", 25),
+        Pair("Last Day", -1)
+    )
+
+    val cal = Calendar.getInstance()
+    val currentCycle = remember(currentCycleDay) {
+        FinancialAnalyticsEngine.calculateCycle(
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            currentCycleDay
+        )
+    }
 
     Column(
         modifier = modifier
@@ -87,7 +131,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Security enclave, encrypted storage & preferences",
+                    text = "Preferences, salary cycle & encrypted enclave",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -96,7 +140,131 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Encryption Enclave Status
+        // 1. Financial Cycle / Salary Day Setting
+        SpendwellCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryFixed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Salary / Expense Cycle",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val dayLabel = when (currentCycleDay) {
+                                -1 -> "Last day of month"
+                                1 -> "1st of month (Calendar)"
+                                else -> "${currentCycleDay}th of every month"
+                            }
+                            Text(
+                                text = dayLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CobaltPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    SpendwellPillBadge(text = "ACTIVE")
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Choose the day your salary is credited or when your monthly expense cycle should reset. Spendwell will calculate runway and summaries based on your personal cycle.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Presets row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    presetOptions.forEach { (label, day) ->
+                        val isSelected = currentCycleDay == day
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) CobaltPrimary else SurfaceContainerLow)
+                                .clickable { viewModel.setCycleStartDay(day) }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Custom slider (1 to 31)
+                Text(
+                    text = "Or choose custom day of month (1 to 31):",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val sliderValue = if (currentCycleDay > 0) currentCycleDay.toFloat() else 31f
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { viewModel.setCycleStartDay(it.toInt()) },
+                    valueRange = 1f..31f,
+                    steps = 29,
+                    colors = SliderDefaults.colors(
+                        thumbColor = CobaltPrimary,
+                        activeTrackColor = CobaltPrimary
+                    )
+                )
+
+                // Live Cycle Range Display
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceContainerLow)
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = "Current Cycle Window: ${currentCycle.label} • ${currentCycle.daysRemaining} days left",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = CobaltPrimary
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2. Encryption Enclave Status
         SpendwellCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -133,7 +301,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Privacy & Biometrics
+        // 3. Privacy & Biometrics
         SpendwellCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -143,11 +311,11 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "Strict Private Mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(text = "Disables all non-local features. Zero internet manifest permissions.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(text = "100% on-device. SMS & transactions never leave this phone.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = isPrivateMode,
-                        onCheckedChange = { isPrivateMode = it },
+                        onCheckedChange = { viewModel.setPrivateMode(it) },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MaterialTheme.colorScheme.primary)
                     )
                 }
@@ -174,17 +342,34 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // AI & Permission navigation
+        // 4. AI & Permission navigation
         SpendwellCard(modifier = Modifier.fillMaxWidth()) {
             Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "On-Device AI Engine", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    SpendwellPillBadge(
+                        text = if (isModelDownloaded) "GEMMA 2B ACTIVE" else "NOT INSTALLED"
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Manage your local Gemma 2B LiteRT LLM weights for private on-device financial insights and query reasoning.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
                 SpendwellTonalButton(
-                    text = "AI Model Management",
-                    leadingIcon = Icons.Default.Security,
+                    text = if (isModelDownloaded) "Configure Gemma 2B Engine" else "Download Gemma 2B Model",
+                    leadingIcon = Icons.Default.SmartToy,
                     onClick = onNavigateToModelManagement
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 SpendwellTonalButton(
-                    text = "System Permissions",
+                    text = "Manage SMS & Notification Permissions",
                     leadingIcon = Icons.Default.Info,
                     onClick = onNavigateToPermissions
                 )
@@ -193,7 +378,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Data Management Card
+        // 5. Data Management Card
         SpendwellCard(modifier = Modifier.fillMaxWidth()) {
             Column {
                 Text(text = "Data Management", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

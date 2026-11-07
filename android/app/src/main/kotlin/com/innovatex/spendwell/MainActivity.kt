@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
+import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
 import com.innovatex.spendwell.designsystem.theme.SpendwellTheme
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
@@ -28,6 +29,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var aiAdvisorEngine: SpendwellAiAdvisorEngine
+
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +61,8 @@ class MainActivity : ComponentActivity() {
                     SpendwellApp(
                         transactionRepository = transactionRepository,
                         categoryRepository = categoryRepository,
-                        aiAdvisorEngine = aiAdvisorEngine
+                        aiAdvisorEngine = aiAdvisorEngine,
+                        userPreferencesRepository = userPreferencesRepository
                     )
                 }
             }

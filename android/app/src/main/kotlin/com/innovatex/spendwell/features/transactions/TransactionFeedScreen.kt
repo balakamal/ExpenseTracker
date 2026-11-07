@@ -61,9 +61,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
+import com.innovatex.spendwell.analytics.FinancialCycleWindow
 import com.innovatex.spendwell.common.Money
+import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
 import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellCardContainer
 import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
@@ -81,10 +85,12 @@ import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import com.innovatex.spendwell.domain.model.FinancialNature
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
 import com.innovatex.spendwell.domain.repository.TransactionRepository
+import com.innovatex.spendwell.integrations.sms.SmsHistoryImporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -96,16 +102,42 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+data class CycleFilterOption(
+    val label: String,
+    val startTime: Long,
+    val endTime: Long,
+    val isAllTime: Boolean = false
+)
+
 @HiltViewModel
 class TransactionFeedViewModel @Inject constructor(
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val smsHistoryImporter: SmsHistoryImporter
 ) : ViewModel() {
     val transactions: StateFlow<List<Transaction>> = transactionRepository.observeAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val cycleStartDay: StateFlow<Int> = userPreferencesRepository.cycleStartDay
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1)
+
+    val syncedMonths: StateFlow<Set<String>> = userPreferencesRepository.syncedMonths
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     fun saveTransaction(tx: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(tx)
+        }
+    }
+
+    fun lazyLoadCycleHistory(startTime: Long, endTime: Long) {
+        viewModelScope.launch {
+            val key = "${startTime}_${endTime}"
+            if (syncedMonths.value.contains(key)) return@launch
+            try {
+                smsHistoryImporter.importHistoryForRange(startTime, endTime)
+                userPreferencesRepository.addSyncedMonth(key)
+            } catch (ignored: Exception) {}
         }
     }
 }
@@ -118,31 +150,59 @@ fun TransactionFeedScreen(
 ) {
     val context = LocalContext.current
     val allTransactions by viewModel.transactions.collectAsState()
+    val cycleStartDay by viewModel.cycleStartDay.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("ALL") }
-    val monthOptions = remember {
-        val formatter = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH)
-        val list = mutableListOf<String>()
-        val c = Calendar.getInstance()
+
+    val cycleOptions = remember(cycleStartDay) {
+        val list = mutableListOf<CycleFilterOption>()
+        val cal = Calendar.getInstance()
         for (i in 0..5) {
-            list.add(formatter.format(c.time))
-            c.add(Calendar.MONTH, -1)
+            val y = cal.get(Calendar.YEAR)
+            val m = cal.get(Calendar.MONTH)
+            val cycle = FinancialAnalyticsEngine.calculateCycle(y, m, cycleStartDay)
+            list.add(CycleFilterOption(cycle.label, cycle.startTime, cycle.endTime, false))
+            cal.add(Calendar.MONTH, -1)
         }
-        list.add("All Time")
+        list.add(CycleFilterOption("All Time", 0L, Long.MAX_VALUE, true))
         list
     }
-    var selectedMonth by remember { mutableStateOf(monthOptions.first()) }
+
+    var selectedCycle by remember(cycleOptions) { mutableStateOf(cycleOptions.first()) }
     var monthMenuExpanded by remember { mutableStateOf(false) }
     var showLogExpenseSheet by remember { mutableStateOf(false) }
 
-    // Counts for filter pills
-    val debitsCount = allTransactions.count { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
-    val creditsCount = allTransactions.count { it.type == TransactionType.CREDIT }
-    val pendingCount = allTransactions.count { it.status == TransactionStatus.NEEDS_REVIEW || it.status == TransactionStatus.PENDING }
+    // Pre-filter transactions for the selected month/cycle window
+    val cycleFilteredTransactions = remember(allTransactions, selectedCycle) {
+        if (selectedCycle.isAllTime) {
+            allTransactions
+        } else {
+            allTransactions.filter { it.timestamp in selectedCycle.startTime..selectedCycle.endTime }
+        }
+    }
 
-    // Filtering logic
-    val filteredTransactions = allTransactions.filter { tx ->
+    // Counts for filter pills strictly for the selected cycle
+    val debitsCount = cycleFilteredTransactions.count {
+        it.type == TransactionType.DEBIT &&
+                it.status != TransactionStatus.REFUNDED &&
+                it.status != TransactionStatus.REVERSED &&
+                it.status != TransactionStatus.FAILED &&
+                it.status != TransactionStatus.NEEDS_REVIEW
+    }
+    val creditsCount = cycleFilteredTransactions.count {
+        it.type == TransactionType.CREDIT &&
+                it.status != TransactionStatus.REFUNDED &&
+                it.status != TransactionStatus.REVERSED &&
+                it.status != TransactionStatus.FAILED &&
+                it.status != TransactionStatus.NEEDS_REVIEW
+    }
+    val pendingCount = cycleFilteredTransactions.count {
+        it.status == TransactionStatus.NEEDS_REVIEW || it.status == TransactionStatus.PENDING
+    }
+
+    // Filtering logic with search query and selected filter tab
+    val filteredTransactions = cycleFilteredTransactions.filter { tx ->
         val matchesQuery = searchQuery.isBlank() ||
             tx.merchantName.contains(searchQuery, ignoreCase = true) ||
             tx.description.contains(searchQuery, ignoreCase = true) ||
@@ -152,25 +212,41 @@ fun TransactionFeedScreen(
             tx.amount.formatInr(false).contains(searchQuery)
 
         val matchesFilter = when (selectedFilter) {
-            "DEBITS" -> tx.type == TransactionType.DEBIT && tx.status != TransactionStatus.REFUNDED && tx.status != TransactionStatus.REVERSED && tx.status != TransactionStatus.FAILED
-            "CREDITS" -> tx.type == TransactionType.CREDIT
+            "DEBITS" -> tx.type == TransactionType.DEBIT &&
+                    tx.status != TransactionStatus.REFUNDED &&
+                    tx.status != TransactionStatus.REVERSED &&
+                    tx.status != TransactionStatus.FAILED
+            "CREDITS" -> tx.type == TransactionType.CREDIT &&
+                    tx.status != TransactionStatus.FAILED &&
+                    tx.status != TransactionStatus.REVERSED
             "PENDING" -> tx.status == TransactionStatus.NEEDS_REVIEW || tx.status == TransactionStatus.PENDING
             else -> true
         }
-        val matchesMonth = if (selectedMonth == "All Time") true else {
-            val txDate = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH).format(Date(tx.timestamp))
-            txDate == selectedMonth
-        }
-        matchesQuery && matchesFilter && matchesMonth
+        matchesQuery && matchesFilter
     }
 
-    // Monthly summary calculation
-    val outflowTotal = allTransactions
-        .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
+    // Monthly summary calculation strictly from cycleFilteredTransactions
+    // Exclude CC Bill payments and internal transfers from consumption outflow to prevent double-counting
+    val outflowTotal = cycleFilteredTransactions
+        .filter {
+            it.type == TransactionType.DEBIT &&
+                    it.status != TransactionStatus.REFUNDED &&
+                    it.status != TransactionStatus.REVERSED &&
+                    it.status != TransactionStatus.FAILED &&
+                    it.status != TransactionStatus.NEEDS_REVIEW &&
+                    it.financialNature != FinancialNature.CREDIT_CARD_BILL_PAYMENT &&
+                    it.financialNature != FinancialNature.INTERNAL_TRANSFER
+        }
         .fold(Money.ZERO) { acc, tx -> acc + tx.amount }
 
-    val inflowTotal = allTransactions
-        .filter { it.type == TransactionType.CREDIT }
+    val inflowTotal = cycleFilteredTransactions
+        .filter {
+            it.type == TransactionType.CREDIT &&
+                    it.status != TransactionStatus.REFUNDED &&
+                    it.status != TransactionStatus.REVERSED &&
+                    it.status != TransactionStatus.FAILED &&
+                    it.status != TransactionStatus.NEEDS_REVIEW
+        }
         .fold(Money.ZERO) { acc, tx -> acc + tx.amount }
 
     val netTotal = inflowTotal - outflowTotal
@@ -306,7 +382,7 @@ fun TransactionFeedScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Month Dropdown Pill
+                    // Month/Cycle Dropdown Pill
                     Box {
                         Row(
                             modifier = Modifier
@@ -318,7 +394,7 @@ fun TransactionFeedScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = selectedMonth,
+                                text = selectedCycle.label,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -336,12 +412,15 @@ fun TransactionFeedScreen(
                             expanded = monthMenuExpanded,
                             onDismissRequest = { monthMenuExpanded = false }
                         ) {
-                            monthOptions.forEach { month ->
+                            cycleOptions.forEach { cycle ->
                                 DropdownMenuItem(
-                                    text = { Text(month) },
+                                    text = { Text(cycle.label) },
                                     onClick = {
-                                        selectedMonth = month
+                                        selectedCycle = cycle
                                         monthMenuExpanded = false
+                                        if (!cycle.isAllTime) {
+                                            viewModel.lazyLoadCycleHistory(cycle.startTime, cycle.endTime)
+                                        }
                                     }
                                 )
                             }
@@ -350,7 +429,7 @@ fun TransactionFeedScreen(
 
                     // Filter Pills
                     SpendwellFilterPill(
-                        label = "All (${allTransactions.size})",
+                        label = "All (${cycleFilteredTransactions.size})",
                         isSelected = selectedFilter == "ALL",
                         onClick = { selectedFilter = "ALL" }
                     )
@@ -402,7 +481,7 @@ fun TransactionFeedScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "${selectedMonth.uppercase()} NET CASHFLOW",
+                                    text = "${selectedCycle.label.uppercase()} NET CASHFLOW",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp,
@@ -412,9 +491,9 @@ fun TransactionFeedScreen(
 
                             Row(
                                 modifier = Modifier
-                                    .clip(PillShape)
-                                    .background(SurfaceContainerLow)
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                .clip(PillShape)
+                                .background(SurfaceContainerLow)
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -425,7 +504,7 @@ fun TransactionFeedScreen(
                                 )
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "${allTransactions.size} parsed via SMS • On-Device",
+                                    text = "${cycleFilteredTransactions.size} records • On-Device",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = EmeraldSecondary,
                                     fontWeight = FontWeight.SemiBold
@@ -502,7 +581,7 @@ fun TransactionFeedScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (!netTotal.isNegative) "+58% surplus" else "Deficit",
+                                    text = if (!netTotal.isNegative) "Surplus" else "Deficit",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                     color = if (!netTotal.isNegative) EmeraldSecondary else CrimsonTertiary,
                                     fontWeight = FontWeight.SemiBold
@@ -546,12 +625,12 @@ fun TransactionFeedScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Savings cushion healthy",
+                                text = "Filtered strictly for ${selectedCycle.label}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "Budget Cap: 42% used",
+                                text = "${filteredTransactions.size} shown",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = CobaltPrimary
@@ -586,7 +665,15 @@ fun TransactionFeedScreen(
                 groupedTransactions.forEach { (dateHeader, txsInGroup) ->
                     item(key = "header_$dateHeader") {
                         val groupOutflow = txsInGroup
-                            .filter { it.type == TransactionType.DEBIT && it.status != TransactionStatus.REFUNDED && it.status != TransactionStatus.REVERSED && it.status != TransactionStatus.FAILED }
+                            .filter {
+                                it.type == TransactionType.DEBIT &&
+                                        it.status != TransactionStatus.REFUNDED &&
+                                        it.status != TransactionStatus.REVERSED &&
+                                        it.status != TransactionStatus.FAILED &&
+                                        it.status != TransactionStatus.NEEDS_REVIEW &&
+                                        it.financialNature != FinancialNature.CREDIT_CARD_BILL_PAYMENT &&
+                                        it.financialNature != FinancialNature.INTERNAL_TRANSFER
+                            }
                             .fold(Money.ZERO) { acc, tx -> acc + tx.amount }
 
                         Row(

@@ -37,15 +37,18 @@ object Stage9DuplicateCandidateDetection {
             }
         }
 
-        // 2. Fuzzy window check: amount matches within 10-minute window
-        val windowMs = 10 * 60 * 1000L
+        // 2. Fuzzy window check: amount matches within 20-minute window
+        val windowMs = 20 * 60 * 1000L
         val startTime = info.timestamp - windowMs
         val endTime = info.timestamp + windowMs
         val candidates = txDao.findCandidatesByAmountAndWindow(info.amount.toPaisa(), startTime, endTime)
 
         val potentialDuplicate = candidates.firstOrNull { existing ->
             existing.accountLast4Matches(info.accountLast4) ||
-                    existing.merchantMatches(info.normalizedMerchant)
+                    existing.merchantMatches(info.normalizedMerchant) ||
+                    (info.accountLast4 == null && existing.description.isNotBlank() && info.normalizedMerchant.isNotBlank() &&
+                     (existing.description.contains(info.normalizedMerchant, ignoreCase = true) ||
+                      info.normalizedMerchant.contains(existing.description, ignoreCase = true)))
         }
 
         if (potentialDuplicate != null) {
@@ -254,19 +257,30 @@ object Stage12LedgerPersistence {
         categoryId: String,
         confidence: Float
     ): EngineResult {
-        // Multi-channel idempotency hash
-        val hash = sha256("${info.amount.toPaisa()}:${info.normalizedMerchant}:${info.timestamp}")
+        // Multi-channel 15-minute idempotency hash
+        // Allows identical purchases reported via SMS and Push notification to match
+        val bucket15Min = info.timestamp / (15 * 60 * 1000L)
+        val hash = sha256("${info.amount.toPaisa()}:${info.normalizedMerchant}:$bucket15Min")
 
         // Check if exact source signal was already ingested
         val existingSourceEvent = db.transactionSourceEventDao().findByHash(hash)
         if (existingSourceEvent != null) {
+            val canonicalTxId = existingSourceEvent.canonicalTransactionId
+            val existingTx = canonicalTxId?.let { db.transactionDao().getTransactionById(it) }
+            if (existingTx != null) {
+                return EngineResult.Success(
+                    transaction = existingTx.toDomainMinimal(),
+                    isNewTransaction = false,
+                    isDuplicateMerged = true
+                )
+            }
             return EngineResult.Dropped(
                 dropReason = com.innovatex.spendwell.transactionengine.model.DropReason.SPAM_OR_PROMOTIONAL,
                 message = "Exact signal payload was previously ingested and verified"
             )
         }
 
-        // If duplicate is an exact match (e.g. SMS + Push Notification for same transaction)
+        // If duplicate is an exact match (e.g. Reference ID match)
         if (duplicateResolution is DuplicateResolution.ExactMatch) {
             val existingTx = duplicateResolution.existingTransaction
             val sourceEvent = TransactionSourceEventEntity(
@@ -379,8 +393,8 @@ object Stage12LedgerPersistence {
         )
         db.transactionSourceEventDao().insert(sourceEvent)
 
-        // Update account balance if known
-        if (accountId != null && info.status == TransactionStatus.SUCCESSFUL) {
+        // Update account balance only if confirmed and successful (NOT unreviewed duplicate candidates)
+        if (accountId != null && txStatus == TransactionStatus.SUCCESSFUL) {
             val delta = if (info.transactionType == TransactionType.CREDIT) {
                 info.amount.toPaisa()
             } else {
@@ -396,7 +410,7 @@ object Stage12LedgerPersistence {
             candidateId = UUID.randomUUID().toString()
             val reasons = JSONArray().apply {
                 put("Same amount ₹${info.amount.formatInr(false)}")
-                put("Occurred within 10-minute window")
+                put("Occurred within 20-minute window")
             }.toString()
 
             db.duplicateCandidateDao().insert(

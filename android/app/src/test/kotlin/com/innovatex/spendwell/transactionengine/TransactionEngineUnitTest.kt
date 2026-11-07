@@ -126,6 +126,36 @@ class TransactionEngineUnitTest {
     }
 
     @Test
+    fun `test e-statement generated notice is dropped at stage 4`() {
+        val raw = "Your e-statement for HDFC Bank Credit Card ending 9876 is generated. Total Due: Rs 42,500.00. Min Due: Rs 2,500.00. Pay by 20-Nov."
+        val signal = RawSignal(SourceType.SMS, "VM-HDFCBK", raw)
+        val normalized = Stage3MessageNormalization.normalize(signal)
+
+        val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
+        assertEquals(DropReason.PAYMENT_REMINDER_NOT_TRANSACTION, dropReason)
+    }
+
+    @Test
+    fun `test upcoming auto debit mandate reminder is dropped at stage 4`() {
+        val raw = "Reminder: Your SIP mandate of INR 5,000 will be debited from A/c 5432 on 15-Nov-26 towards NIPPON INDIA MF."
+        val signal = RawSignal(SourceType.SMS, "AX-UTIBNK", raw)
+        val normalized = Stage3MessageNormalization.normalize(signal)
+
+        val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
+        assertEquals(DropReason.PAYMENT_REMINDER_NOT_TRANSACTION, dropReason)
+    }
+
+    @Test
+    fun `test utility bill due notice is dropped at stage 4`() {
+        val raw = "Dear Consumer, your electricity bill of Rs 1,480.00 is due on 10-Nov. Pay immediately to avoid disconnection."
+        val signal = RawSignal(SourceType.SMS, "TD-BESCOM", raw)
+        val normalized = Stage3MessageNormalization.normalize(signal)
+
+        val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
+        assertEquals(DropReason.PAYMENT_REMINDER_NOT_TRANSACTION, dropReason)
+    }
+
+    @Test
     fun `test promotional loan spam is dropped at stage 4`() {
         val raw = "Congratulations! You are pre-approved for personal loan up to Rs. 5,00,000 at lowest interest rates. Click here to avail: bit.ly/loan"
         val signal = RawSignal(SourceType.SMS, "BZ-LOAN", raw)
@@ -133,6 +163,22 @@ class TransactionEngineUnitTest {
 
         val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
         assertEquals(DropReason.SPAM_OR_PROMOTIONAL, dropReason)
+    }
+
+    @Test
+    fun `test personal phone number SMS is dropped as non-financial`() {
+        val raw = "Hey, can you please send me Rs 500 when you get a chance?"
+        val signal = RawSignal(SourceType.SMS, "+919876543210", raw)
+        val normalized = Stage3MessageNormalization.normalize(signal)
+
+        val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
+        assertEquals(DropReason.NON_FINANCIAL_MESSAGE, dropReason)
+    }
+
+    @Test
+    fun `test reward points received is rejected in stage 5`() {
+        val raw = "Congratulations, 500 reward points credited to your credit card rewards account."
+        assertFalse(Stage5TransactionDetection.isTransaction(raw))
     }
 
     @Test
