@@ -133,6 +133,7 @@ class BudgetViewModel @Inject constructor(
 @Composable
 fun BudgetManagementScreen(
     viewModel: BudgetViewModel,
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val budgets by viewModel.budgets.collectAsState()
@@ -159,7 +160,8 @@ fun BudgetManagementScreen(
             SpendwellTopAppBar(
                 title = "Spendwell",
                 subtitle = "Budgets & Settings",
-                isPrivate = true
+                isPrivate = true,
+                onProfileClick = onNavigateToSettings
             )
         }
     ) { padding ->

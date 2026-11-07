@@ -135,8 +135,11 @@ fun SpendwellApp(
         ) {
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(
-                    onGetStarted = { cycleDay ->
+                    onGetStarted = { name, cycleDay ->
                         coroutineScope.launch {
+                            if (name.isNotBlank()) {
+                                userPreferencesRepository.setUserName(name)
+                            }
                             userPreferencesRepository.setCycleStartDay(cycleDay)
                         }
                         navController.navigate(Screen.PrivacyMode.route)
@@ -174,7 +177,8 @@ fun SpendwellApp(
             composable(Screen.Transactions.route) {
                 TransactionFeedScreen(
                     viewModel = hiltViewModel(),
-                    onNavigateToDetail = { id -> navController.navigate(Screen.TransactionDetail.createRoute(id)) }
+                    onNavigateToDetail = { id -> navController.navigate(Screen.TransactionDetail.createRoute(id)) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
 
@@ -192,15 +196,26 @@ fun SpendwellApp(
             }
 
             composable(Screen.Analytics.route) {
-                AnalyticsScreen(viewModel = hiltViewModel())
+                AnalyticsScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                )
             }
 
             composable(Screen.Budgets.route) {
-                BudgetManagementScreen(viewModel = hiltViewModel())
+                BudgetManagementScreen(
+                    viewModel = hiltViewModel(),
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                )
             }
 
             composable(Screen.Advisor.route) {
-                AiAdvisorScreen(engine = aiAdvisorEngine)
+                val currentUserName by userPreferencesRepository.userName.collectAsState(initial = "")
+                AiAdvisorScreen(
+                    engine = aiAdvisorEngine,
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    userName = currentUserName
+                )
             }
 
             composable(Screen.ReviewCenter.route) {

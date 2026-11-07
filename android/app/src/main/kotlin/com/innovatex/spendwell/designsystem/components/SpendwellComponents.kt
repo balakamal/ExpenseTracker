@@ -85,6 +85,7 @@ fun SpendwellTopAppBar(
     title: String = "Spendwell",
     subtitle: String = "Home",
     isPrivate: Boolean = true,
+    userName: String = "",
     onTogglePrivacy: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
@@ -180,12 +181,21 @@ fun SpendwellTopAppBar(
                             .background(CobaltPrimary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        if (userName.isNotBlank()) {
+                            Text(
+                                text = userName.trim().take(1).uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Profile",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

@@ -219,6 +219,7 @@ fun DashboardScreen(
                 title = "Spendwell",
                 subtitle = "Home",
                 isPrivate = !state.isBalanceObfuscated,
+                userName = state.userName,
                 onTogglePrivacy = { viewModel.toggleBalanceObfuscation() },
                 onSearchClick = onNavigateToTransactions,
                 onProfileClick = onNavigateToSettings
@@ -268,8 +269,13 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        val personalizedGreeting = if (state.userName.isNotBlank()) {
+                            "$timeGreeting, ${state.userName}"
+                        } else {
+                            timeGreeting
+                        }
                         Text(
-                            text = timeGreeting,
+                            text = personalizedGreeting,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,

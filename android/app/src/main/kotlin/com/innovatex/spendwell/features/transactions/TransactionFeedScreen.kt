@@ -146,6 +146,7 @@ class TransactionFeedViewModel @Inject constructor(
 fun TransactionFeedScreen(
     viewModel: TransactionFeedViewModel,
     onNavigateToDetail: (String) -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -263,7 +264,7 @@ fun TransactionFeedScreen(
                 subtitle = "Spendwell — Transactions Ledger (Light)",
                 isPrivate = true,
                 onSearchClick = {},
-                onProfileClick = {}
+                onProfileClick = onNavigateToSettings
             )
         },
         floatingActionButton = {

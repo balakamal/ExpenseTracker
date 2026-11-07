@@ -31,6 +31,11 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_SYNCED_MONTHS = stringSetPreferencesKey("synced_months")
         val KEY_HF_API_TOKEN = stringPreferencesKey("hf_api_token")
         val KEY_CUSTOM_MODEL_URL = stringPreferencesKey("custom_model_url")
+        val KEY_USER_NAME = stringPreferencesKey("user_name")
+    }
+
+    val userName: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_USER_NAME] ?: ""
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -126,6 +131,12 @@ class UserPreferencesRepository @Inject constructor(
             } else {
                 preferences[KEY_CUSTOM_MODEL_URL] = url.trim()
             }
+        }
+    }
+
+    suspend fun setUserName(name: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_USER_NAME] = name.trim()
         }
     }
 }

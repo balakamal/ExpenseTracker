@@ -55,6 +55,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
 import com.innovatex.spendwell.ai.AiChatMessage
 import com.innovatex.spendwell.ai.MessageSender
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
@@ -80,18 +81,24 @@ import java.util.UUID
 @Composable
 fun AiAdvisorScreen(
     engine: SpendwellAiAdvisorEngine,
+    onNavigateToSettings: () -> Unit = {},
+    userName: String = "",
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
     var isThinking by remember { mutableStateOf(false) }
 
-    val messages = remember {
+    val isGemmaReady = remember { engine.isGemmaModelReady() }
+    val isModelDownloaded by engine.isModelDownloaded.collectAsState(initial = false)
+
+    val greetingName = if (userName.isNotBlank()) " $userName" else ""
+    val messages = remember(userName) {
         mutableStateListOf(
             AiChatMessage(
                 id = "init_1",
                 sender = MessageSender.ADVISOR,
-                text = "Good morning! Based on your ledger, your finances are processed with 100% on-device privacy. Ask me anything about your cashflow, savings targets, or spending velocity."
+                text = "Good morning$greetingName! Based on your ledger, your finances are processed with 100% on-device privacy. Ask me anything about your cashflow, savings targets, or spending velocity."
             )
         )
     }
@@ -133,7 +140,9 @@ fun AiAdvisorScreen(
             SpendwellTopAppBar(
                 title = "Spendwell",
                 subtitle = "AI Advisor",
-                isPrivate = true
+                isPrivate = true,
+                userName = userName,
+                onProfileClick = onNavigateToSettings
             )
         }
     ) { padding ->
@@ -187,7 +196,7 @@ fun AiAdvisorScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "Powered by On-Device Gemma 2B",
+                                        text = if (isGemmaReady) "Powered by On-Device Gemma 2B (INT4)" else "Spendwell Heuristic Engine",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = OnPrimaryFixed
@@ -199,14 +208,14 @@ fun AiAdvisorScreen(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
-                                            .background(EmeraldSecondary)
+                                            .background(if (isGemmaReady) EmeraldSecondary else MaterialTheme.colorScheme.tertiary)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "Local NPU",
+                                        text = if (isGemmaReady) "Gemma Active" else "Gemma Not Active",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = EmeraldSecondary
+                                        color = if (isGemmaReady) EmeraldSecondary else MaterialTheme.colorScheme.tertiary
                                     )
                                 }
                             }

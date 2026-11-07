@@ -26,11 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -59,10 +62,11 @@ import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
 
 @Composable
 fun OnboardingScreen(
-    onGetStarted: (cycleStartDay: Int) -> Unit,
+    onGetStarted: (userName: String, cycleStartDay: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var step by remember { mutableIntStateOf(0) }
+    var userName by remember { mutableStateOf("") }
     var selectedCycleDay by remember { mutableIntStateOf(1) } // 1..31 or -1 for last day
 
     Column(
@@ -93,7 +97,10 @@ fun OnboardingScreen(
                 label = "onboarding_step"
             ) { targetStep ->
                 if (targetStep == 0) {
-                    WelcomeIntroStep()
+                    WelcomeIntroStep(
+                        userName = userName,
+                        onUserNameChange = { userName = it }
+                    )
                 } else {
                     SalaryCycleSelectionStep(
                         selectedCycleDay = selectedCycleDay,
@@ -116,7 +123,7 @@ fun OnboardingScreen(
                     if (step == 0) {
                         step = 1
                     } else {
-                        onGetStarted(selectedCycleDay)
+                        onGetStarted(userName.trim(), selectedCycleDay)
                     }
                 }
             )
@@ -132,7 +139,10 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun WelcomeIntroStep() {
+private fun WelcomeIntroStep(
+    userName: String,
+    onUserNameChange: (String) -> Unit
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "Spendwell",
@@ -150,7 +160,65 @@ private fun WelcomeIntroStep() {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(36.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // User name personalization card
+        SpendwellCard(
+            modifier = Modifier.fillMaxWidth(),
+            backgroundColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryFixed),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = CobaltPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "What should we call you?",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Personalizes greetings and on-device AI advisor",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = userName,
+                    onValueChange = onUserNameChange,
+                    placeholder = { Text("Enter your name (e.g. Alex)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CobaltPrimary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         SpendwellCard(
             modifier = Modifier.fillMaxWidth(),

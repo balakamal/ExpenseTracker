@@ -24,6 +24,15 @@ class SettingsViewModel @Inject constructor(
     val isModelDownloaded: StateFlow<Boolean> = userPreferencesRepository.isModelDownloaded
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val userName: StateFlow<String> = userPreferencesRepository.userName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setUserName(name: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUserName(name)
+        }
+    }
+
     fun setCycleStartDay(day: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setCycleStartDay(day)

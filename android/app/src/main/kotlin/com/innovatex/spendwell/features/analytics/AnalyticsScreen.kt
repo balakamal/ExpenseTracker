@@ -143,6 +143,7 @@ class AnalyticsViewModel @Inject constructor(
 @Composable
 fun AnalyticsScreen(
     viewModel: AnalyticsViewModel,
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val summary by viewModel.summary.collectAsState()
@@ -185,7 +186,7 @@ fun AnalyticsScreen(
                 subtitle = "Spending Analytics",
                 isPrivate = true,
                 onSearchClick = {},
-                onProfileClick = {}
+                onProfileClick = onNavigateToSettings
             )
         }
     ) { padding ->

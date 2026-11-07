@@ -34,6 +34,7 @@ data class DashboardUiState(
     val pendingReviewCount: Int = 0,
     val isImporting: Boolean = false,
     val importMessage: String? = null,
+    val userName: String = "",
     val error: String? = null
 )
 
@@ -77,8 +78,9 @@ class DashboardViewModel @Inject constructor(
         isObfuscated,
         isImportingFlow,
         importMessageFlow,
-        userPreferencesRepository.cycleStartDay
-    ) { repoData, obfuscated, importing, importMsg, cycleStartDay ->
+        userPreferencesRepository.cycleStartDay,
+        userPreferencesRepository.userName
+    ) { repoData, obfuscated, importing, importMsg, cycleStartDay, userName ->
         try {
             var totalBalance = Money.ZERO
             repoData.accounts.forEach { totalBalance += it.currentBalance }
@@ -100,7 +102,8 @@ class DashboardViewModel @Inject constructor(
                 accounts = repoData.accounts,
                 pendingReviewCount = repoData.pendingReviewCount,
                 isImporting = importing,
-                importMessage = importMsg
+                importMessage = importMsg,
+                userName = userName
             )
         } catch (e: Throwable) {
             Log.e("DashboardViewModel", "Error processing dashboard calculation", e)
