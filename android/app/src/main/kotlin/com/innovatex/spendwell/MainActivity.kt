@@ -6,8 +6,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
 import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
@@ -56,8 +60,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            SpendwellTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            val themeMode by userPreferencesRepository.themeMode.collectAsState(initial = "SYSTEM")
+            val isDark = when (themeMode) {
+                "LIGHT" -> false
+                "DARK" -> true
+                else -> isSystemInDarkTheme()
+            }
+
+            SpendwellTheme(darkTheme = isDark) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     SpendwellApp(
                         transactionRepository = transactionRepository,
                         categoryRepository = categoryRepository,

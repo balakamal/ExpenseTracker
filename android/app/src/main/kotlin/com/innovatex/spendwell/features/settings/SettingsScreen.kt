@@ -20,13 +20,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SmartToy
@@ -63,12 +67,9 @@ import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.designsystem.components.SpendwellCard
 import com.innovatex.spendwell.designsystem.components.SpendwellPillBadge
 import com.innovatex.spendwell.designsystem.components.SpendwellTonalButton
-import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.OutflowRed
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
@@ -86,6 +87,7 @@ fun SettingsScreen(
     val isPrivateMode by viewModel.isPrivateMode.collectAsState()
     val isModelDownloaded by viewModel.isModelDownloaded.collectAsState()
     val userName by viewModel.userName.collectAsState()
+    val currentThemeMode by viewModel.themeMode.collectAsState()
 
     var isBiometricEnabled by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
@@ -141,7 +143,7 @@ fun SettingsScreen(
                         showEditNameDialog = false
                     }
                 ) {
-                    Text("Save", fontWeight = FontWeight.Bold, color = CobaltPrimary)
+                    Text("Save", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
@@ -203,7 +205,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(CircleShape)
-                                .background(CobaltPrimary),
+                                .background(MaterialTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             if (userName.isNotBlank()) {
@@ -211,13 +213,13 @@ fun SettingsScreen(
                                     text = userName.trim().take(1).uppercase(),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
                                 Icon(
                                     Icons.Default.Person,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -252,7 +254,7 @@ fun SettingsScreen(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit Name",
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -260,8 +262,105 @@ fun SettingsScreen(
                             text = "Edit",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = CobaltPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Theme & Appearance Card
+        SpendwellCard(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Theme & Appearance",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Select system default, light, or dark mode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val themeOptions = listOf(
+                        Triple("SYSTEM", "System", Icons.Default.BrightnessAuto),
+                        Triple("LIGHT", "Light", Icons.Default.LightMode),
+                        Triple("DARK", "Dark", Icons.Default.DarkMode)
+                    )
+
+                    themeOptions.forEach { (modeKey, label, icon) ->
+                        val isSelected = currentThemeMode == modeKey
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { viewModel.setThemeMode(modeKey) }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -282,13 +381,13 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(PrimaryFixed),
+                                .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.CalendarToday,
                                 contentDescription = null,
-                                tint = CobaltPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -297,7 +396,8 @@ fun SettingsScreen(
                             Text(
                                 text = "Salary / Expense Cycle",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             val dayLabel = when (currentCycleDay) {
                                 -2 -> "Last working day of month"
@@ -308,7 +408,7 @@ fun SettingsScreen(
                             Text(
                                 text = dayLabel,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = CobaltPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -342,7 +442,7 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isSelected) CobaltPrimary else SurfaceContainerLow)
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                         .clickable { viewModel.setCycleStartDay(day) }
                                         .padding(vertical = 8.dp, horizontal = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -351,7 +451,7 @@ fun SettingsScreen(
                                         text = label,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         textAlign = TextAlign.Center
                                     )
@@ -377,8 +477,8 @@ fun SettingsScreen(
                     valueRange = 1f..31f,
                     steps = 29,
                     colors = SliderDefaults.colors(
-                        thumbColor = CobaltPrimary,
-                        activeTrackColor = CobaltPrimary
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary
                     )
                 )
 
@@ -387,14 +487,14 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(SurfaceContainerLow)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(10.dp)
                 ) {
                     Text(
                         text = "Current Cycle Window: ${currentCycle.label} • ${currentCycle.daysRemaining} days left",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = CobaltPrimary
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }

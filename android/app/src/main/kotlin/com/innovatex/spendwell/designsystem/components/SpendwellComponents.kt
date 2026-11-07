@@ -59,14 +59,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
 import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.ForestEmerald
 import com.innovatex.spendwell.designsystem.theme.InflowGreen
 import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
@@ -111,13 +109,13 @@ fun SpendwellTopAppBar(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PrimaryFixed),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.AccountBalanceWallet,
                         contentDescription = null,
-                        tint = CobaltPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -159,7 +157,7 @@ fun SpendwellTopAppBar(
                     Icon(
                         imageVector = if (isPrivate) Icons.Default.Lock else Icons.Default.LockOpen,
                         contentDescription = null,
-                        tint = CobaltPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -178,7 +176,7 @@ fun SpendwellTopAppBar(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(CobaltPrimary),
+                            .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         if (userName.isNotBlank()) {
@@ -186,13 +184,13 @@ fun SpendwellTopAppBar(
                                 text = userName.trim().take(1).uppercase(),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Profile",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -337,8 +335,8 @@ fun SpendwellPrimaryButton(
         enabled = enabled,
         shape = PillShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = CobaltPrimary,
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
         )
     ) {
         Row(
@@ -374,8 +372,8 @@ fun SpendwellTonalButton(
         enabled = enabled,
         shape = PillShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = SurfaceContainerLow,
-            contentColor = CobaltPrimary
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.primary
         )
     ) {
         Row(
@@ -398,8 +396,8 @@ fun SpendwellTonalButton(
 @Composable
 fun SpendwellPillBadge(
     text: String,
-    backgroundColor: Color = SurfaceContainerLow,
-    textColor: Color = CobaltPrimary,
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    textColor: Color = MaterialTheme.colorScheme.primary,
     icon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
@@ -434,12 +432,12 @@ fun SpendwellFilterPill(
         modifier = modifier
             .clip(CircleShape)
             .background(
-                if (isSelected) PrimaryFixed
-                else CardSurfaceWhite
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
             )
             .border(
                 width = 1.dp,
-                color = if (isSelected) CobaltPrimary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 shape = CircleShape
             )
             .clickable { onClick() }
@@ -449,7 +447,7 @@ fun SpendwellFilterPill(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) CobaltPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -473,8 +471,8 @@ fun SpendwellTransactionRow(
         "cat_transport" -> Triple(Icons.Default.DirectionsCar, SurfaceContainer, TextOnSurface)
         "cat_entertainment" -> Triple(Icons.Default.SmartDisplay, TertiaryFixed, CrimsonTertiary)
         "cat_health" -> Triple(Icons.Default.FitnessCenter, SurfaceContainer, TextOnSurface)
-        "cat_investment" -> Triple(Icons.Default.TrendingUp, PrimaryFixed, CobaltPrimary)
-        else -> Triple(Icons.Default.ReceiptLong, SurfaceContainer, CobaltPrimary)
+        "cat_investment" -> Triple(Icons.Default.TrendingUp, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary)
+        else -> Triple(Icons.Default.ReceiptLong, SurfaceContainer, MaterialTheme.colorScheme.primary)
     }
 
     val amountColor = when {
@@ -693,7 +691,7 @@ fun SpendwellLoadingState(
         verticalArrangement = Arrangement.Center
     ) {
         CircularProgressIndicator(
-            color = CobaltPrimary,
+            color = MaterialTheme.colorScheme.primary,
             strokeWidth = 3.dp,
             modifier = Modifier.size(44.dp)
         )
@@ -724,13 +722,13 @@ fun SpendwellEmptyState(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(PrimaryFixed),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = CobaltPrimary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp)
             )
         }

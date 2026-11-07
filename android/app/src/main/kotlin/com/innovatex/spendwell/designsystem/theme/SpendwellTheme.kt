@@ -38,31 +38,16 @@ val OnTertiaryFixed = Color(0xFF40000E)
 val TertiaryFixedDim = Color(0xFFFFB2B7)
 val OnTertiaryFixedVariant = Color(0xFF91002B)
 
-// Canvas & Surfaces (Light)
-val CanvasBackground = Color(0xFFF8F9FF)
-val CardSurfaceWhite = Color(0xFFFFFFFF)
-val SurfaceContainerLowest = Color(0xFFFFFFFF)
-val SurfaceContainerLow = Color(0xFFEFF4FF)
-val SurfaceContainer = Color(0xFFE9EEFA)
-val SurfaceContainerHigh = Color(0xFFE3E8F4)
-val SurfaceContainerHighest = Color(0xFFDDE3EF)
-
-val TextOnSurface = Color(0xFF161C24)
-val TextOnSurfaceVariant = Color(0xFF434653)
-val BorderOutline = Color(0xFF737685)
-val BorderOutlineVariant = Color(0xFFC3C6D6)
-
 val ErrorRed = Color(0xFFBA1A1A)
 val OnError = Color(0xFFFFFFFF)
 val ErrorContainer = Color(0xFFFFDAD6)
 val OnErrorContainer = Color(0xFF93000A)
 
-// Backward compatibility aliases
+// Backward compatibility static aliases
 val ForestEmerald = EmeraldSecondary
 val ForestEmeraldDark = OnSecondaryContainer
 val VividMint = SecondaryFixedDim
 val MintContainer = EmeraldSecondaryContainer
-val DeepCharcoal = TextOnSurface
 val OutflowRed = CrimsonTertiary
 val InflowGreen = EmeraldSecondary
 val WarningAmber = Color(0xFFF59E0B)
@@ -70,68 +55,133 @@ val PrimaryContainer = CobaltPrimaryContainer
 val SecondaryContainer = EmeraldSecondaryContainer
 val TertiaryContainer = CrimsonTertiaryContainer
 
+// Dynamic Theme Adaptive Accessors (100% Light & Dark Mode Parity)
+val CardSurfaceWhite: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+val CanvasBackground: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+val SurfaceContainerLow: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceContainerLow
+
+val SurfaceContainer: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceContainer
+
+val SurfaceContainerHigh: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceContainerHigh
+
+val SurfaceContainerHighest: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceContainerHighest
+
+val SurfaceContainerLowest: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceContainerLowest
+
+val TextOnSurface: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+val TextOnSurfaceVariant: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+val DeepCharcoal: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+val BorderOutline: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+val BorderOutlineVariant: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outlineVariant
+
+// Light Theme Palette
+private val LightCanvas = Color(0xFFF6F8FC)
+private val LightSurface = Color(0xFFFFFFFF)
+private val LightOnSurface = Color(0xFF0F172A)
+private val LightOnSurfaceVariant = Color(0xFF475569)
+private val LightOutline = Color(0xFF94A3B8)
+private val LightOutlineVariant = Color(0xFFE2E8F0)
+
 private val LightSpendwellColorScheme = lightColorScheme(
     primary = CobaltPrimary,
     onPrimary = OnPrimary,
-    primaryContainer = CobaltPrimaryContainer,
-    onPrimaryContainer = OnPrimaryContainer,
+    primaryContainer = Color(0xFFDAE2FF),
+    onPrimaryContainer = Color(0xFF001848),
     secondary = EmeraldSecondary,
     onSecondary = OnSecondary,
-    secondaryContainer = EmeraldSecondaryContainer,
-    onSecondaryContainer = OnSecondaryContainer,
+    secondaryContainer = Color(0xFF85F8C6),
+    onSecondaryContainer = Color(0xFF002115),
     tertiary = CrimsonTertiary,
     onTertiary = OnTertiary,
-    tertiaryContainer = CrimsonTertiaryContainer,
-    onTertiaryContainer = OnTertiaryContainer,
-    background = CanvasBackground,
-    onBackground = TextOnSurface,
-    surface = CanvasBackground,
-    onSurface = TextOnSurface,
-    surfaceVariant = SurfaceContainerHigh,
-    onSurfaceVariant = TextOnSurfaceVariant,
-    surfaceContainerLowest = SurfaceContainerLowest,
-    surfaceContainerLow = SurfaceContainerLow,
-    surfaceContainer = SurfaceContainer,
-    surfaceContainerHigh = SurfaceContainerHigh,
-    surfaceContainerHighest = SurfaceContainerHighest,
+    tertiaryContainer = Color(0xFFFFDADB),
+    onTertiaryContainer = Color(0xFF40000E),
+    background = LightCanvas,
+    onBackground = LightOnSurface,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    surfaceVariant = Color(0xFFEFF3FA),
+    onSurfaceVariant = LightOnSurfaceVariant,
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF1F4FA),
+    surfaceContainer = LightSurface,
+    surfaceContainerHigh = Color(0xFFE2E8F0),
+    surfaceContainerHighest = Color(0xFFCBD5E1),
     error = ErrorRed,
     onError = OnError,
     errorContainer = ErrorContainer,
     onErrorContainer = OnErrorContainer,
-    outline = BorderOutline,
-    outlineVariant = BorderOutlineVariant
+    outline = LightOutline,
+    outlineVariant = LightOutlineVariant
 )
 
+// Dark Theme Palette (Obsidian & Deep FinTech Canvas)
+private val DarkCanvas = Color(0xFF0B0E14)
+private val DarkSurface = Color(0xFF151922)
+private val DarkOnSurface = Color(0xFFF1F5F9)
+private val DarkOnSurfaceVariant = Color(0xFF94A3B8)
+private val DarkOutline = Color(0xFF475569)
+private val DarkOutlineVariant = Color(0xFF242A38)
+
 private val DarkSpendwellColorScheme = darkColorScheme(
-    primary = PrimaryFixedDim,
-    onPrimary = Color(0xFF002B74),
-    primaryContainer = Color(0xFF0040A2),
-    onPrimaryContainer = PrimaryFixed,
-    secondary = SecondaryFixedDim,
+    primary = Color(0xFF85A8FF),
+    onPrimary = Color(0xFF00296B),
+    primaryContainer = Color(0xFF1E2B4D),
+    onPrimaryContainer = Color(0xFFDAE2FF),
+    secondary = Color(0xFF68DBAB),
     onSecondary = Color(0xFF003825),
     secondaryContainer = Color(0xFF005138),
-    onSecondaryContainer = SecondaryFixed,
-    tertiary = TertiaryFixedDim,
+    onSecondaryContainer = Color(0xFF85F8C6),
+    tertiary = Color(0xFFFFB2B7),
     onTertiary = Color(0xFF561D25),
-    tertiaryContainer = Color(0xFF72333B),
-    onTertiaryContainer = TertiaryFixed,
-    background = Color(0xFF10141A),
-    onBackground = Color(0xFFE0E2EC),
-    surface = Color(0xFF10141A),
-    onSurface = Color(0xFFE0E2EC),
-    surfaceVariant = Color(0xFF43474E),
-    onSurfaceVariant = Color(0xFFC4C6D0),
-    surfaceContainerLowest = Color(0xFF0C0F14),
-    surfaceContainerLow = Color(0xFF191C22),
-    surfaceContainer = Color(0xFF1D2026),
-    surfaceContainerHigh = Color(0xFF272A31),
-    surfaceContainerHighest = Color(0xFF32353C),
+    tertiaryContainer = Color(0xFF4D1420),
+    onTertiaryContainer = Color(0xFFFFDADB),
+    background = DarkCanvas,
+    onBackground = DarkOnSurface,
+    surface = DarkSurface,
+    onSurface = DarkOnSurface,
+    surfaceVariant = Color(0xFF1E2432),
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    surfaceContainerLowest = Color(0xFF0E1118),
+    surfaceContainerLow = Color(0xFF11141C),
+    surfaceContainer = DarkSurface,
+    surfaceContainerHigh = Color(0xFF1E2432),
+    surfaceContainerHighest = Color(0xFF282F3E),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0xFF8E909A),
-    outlineVariant = Color(0xFF43474E)
+    outline = DarkOutline,
+    outlineVariant = DarkOutlineVariant
 )
 
 @Composable

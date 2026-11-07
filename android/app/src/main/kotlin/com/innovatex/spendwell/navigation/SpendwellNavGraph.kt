@@ -48,8 +48,6 @@ import androidx.navigation.navArgument
 import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
 import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
-import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
@@ -298,8 +296,8 @@ private fun SpendwellBottomBar(
         ) {
             Screen.bottomNavItems.forEach { screen ->
                 val isSelected = currentRoute == screen.route
-                val activeBg = if (isSelected) PrimaryFixed else Color.Transparent
-                val activeTint = if (isSelected) CobaltPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                val activeBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                val activeTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
 
                 Column(

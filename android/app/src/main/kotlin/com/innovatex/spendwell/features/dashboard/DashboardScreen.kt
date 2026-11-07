@@ -79,12 +79,10 @@ import com.innovatex.spendwell.designsystem.components.SpendwellPrimaryButton
 import com.innovatex.spendwell.designsystem.components.SpendwellTopAppBar
 import com.innovatex.spendwell.designsystem.components.SpendwellTransactionRow
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
 import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
@@ -228,8 +226,8 @@ fun DashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showLogExpenseSheet = true },
-                containerColor = CobaltPrimary,
-                contentColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = CircleShape
             ) {
                 Icon(
@@ -288,7 +286,7 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = null,
-                                tint = CobaltPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -335,7 +333,7 @@ fun DashboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(18.dp)),
-                        colors = CardDefaults.cardColors(containerColor = PrimaryFixed)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Row(
                             modifier = Modifier
@@ -347,13 +345,13 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(CircleShape)
-                                    .background(CobaltPrimary),
+                                    .background(MaterialTheme.colorScheme.primary),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Sms,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -363,7 +361,7 @@ fun DashboardScreen(
                                     text = "Enable Automatic Tracking",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = CobaltPrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
@@ -566,14 +564,14 @@ fun DashboardScreen(
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = null,
-                                        tint = CobaltPrimary,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Ledger Balance",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = CobaltPrimary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -701,7 +699,7 @@ fun DashboardScreen(
                                     .fillMaxWidth((spendPercent / 100.0).toFloat().coerceIn(0.02f, 1f))
                                     .height(10.dp)
                                     .clip(CircleShape)
-                                    .background(CobaltPrimary)
+                                    .background(MaterialTheme.colorScheme.primary)
                             )
                         }
 
@@ -739,7 +737,7 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Sync,
                                 contentDescription = null,
-                                tint = CobaltPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -788,13 +786,13 @@ fun DashboardScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(PrimaryFixed),
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = null,
-                                    tint = CobaltPrimary,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -992,13 +990,13 @@ fun DashboardScreen(
                             text = "See breakdown",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = CobaltPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1051,10 +1049,10 @@ fun DashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
-                            val categoryColors = listOf(CobaltPrimary, EmeraldSecondary, CrimsonTertiary, MaterialTheme.colorScheme.outline)
+                            val categoryColors = listOf(MaterialTheme.colorScheme.primary, EmeraldSecondary, CrimsonTertiary, MaterialTheme.colorScheme.outline)
                             breakdown.take(4).forEachIndexed { idx, item ->
                                 val pct = (item.percentageOfTotal / 100f).coerceIn(0.05f, 1f)
-                                val itemColor = categoryColors.getOrElse(idx) { CobaltPrimary }
+                                val itemColor = categoryColors.getOrElse(idx) { MaterialTheme.colorScheme.primary }
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1126,14 +1124,14 @@ fun DashboardScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(PillShape)
-                                    .background(PrimaryFixed)
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "${state.recentTransactions.size} New",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = CobaltPrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -1147,12 +1145,12 @@ fun DashboardScreen(
                             text = "View All",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = CobaltPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                     }

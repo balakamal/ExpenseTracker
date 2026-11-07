@@ -71,12 +71,10 @@ import com.innovatex.spendwell.designsystem.components.SpendwellEmptyState
 import com.innovatex.spendwell.designsystem.components.SpendwellPrimaryButton
 import com.innovatex.spendwell.designsystem.components.SpendwellTopAppBar
 import com.innovatex.spendwell.designsystem.theme.CardSurfaceWhite
-import com.innovatex.spendwell.designsystem.theme.CobaltPrimary
 import com.innovatex.spendwell.designsystem.theme.CrimsonTertiary
 import com.innovatex.spendwell.designsystem.theme.EmeraldSecondary
 import com.innovatex.spendwell.designsystem.theme.OnSecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.PillShape
-import com.innovatex.spendwell.designsystem.theme.PrimaryFixed
 import com.innovatex.spendwell.designsystem.theme.SecondaryContainer
 import com.innovatex.spendwell.designsystem.theme.SecondaryFixed
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
@@ -85,7 +83,6 @@ import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHighest
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
 import com.innovatex.spendwell.designsystem.theme.TertiaryContainer
-import com.innovatex.spendwell.designsystem.theme.TertiaryFixed
 import com.innovatex.spendwell.domain.model.Budget
 import com.innovatex.spendwell.domain.repository.BudgetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -198,7 +195,7 @@ fun BudgetManagementScreen(
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -235,7 +232,7 @@ fun BudgetManagementScreen(
                     Row(
                         modifier = Modifier
                             .clip(PillShape)
-                            .background(PrimaryFixed)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
                             .clickable { showAddDialog = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -243,7 +240,7 @@ fun BudgetManagementScreen(
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -251,7 +248,7 @@ fun BudgetManagementScreen(
                             text = "Add",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = CobaltPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -302,7 +299,7 @@ fun BudgetManagementScreen(
                                     text = safeRunway.formatInr(true),
                                     style = MaterialTheme.typography.displayMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = if (safeRunway.isNegative) OutflowRed else MaterialTheme.colorScheme.onSurface
                                 )
                             }
 
@@ -317,7 +314,7 @@ fun BudgetManagementScreen(
                                     text = totalBudgetPool.formatInr(false),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = CobaltPrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -338,7 +335,7 @@ fun BudgetManagementScreen(
                                         modifier = Modifier
                                             .weight(spendRatio.toFloat().coerceAtLeast(0.05f))
                                             .clip(CircleShape)
-                                            .background(CobaltPrimary)
+                                            .background(MaterialTheme.colorScheme.primary)
                                     )
                                 }
                                 val remainingRatio = (100.0 - spendRatio).coerceAtLeast(0.0)
@@ -365,7 +362,7 @@ fun BudgetManagementScreen(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(CobaltPrimary)
+                                        .background(MaterialTheme.colorScheme.primary)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
@@ -409,13 +406,13 @@ fun BudgetManagementScreen(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clip(CircleShape)
-                                        .background(CardSurfaceWhite),
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Bolt,
                                         contentDescription = null,
-                                        tint = CobaltPrimary,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -438,7 +435,7 @@ fun BudgetManagementScreen(
                             Row(
                                 modifier = Modifier
                                     .clip(PillShape)
-                                    .background(CardSurfaceWhite)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 10.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -501,7 +498,7 @@ fun BudgetManagementScreen(
                         Box(
                             modifier = Modifier
                                 .clip(PillShape)
-                                .background(CardSurfaceWhite)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -578,7 +575,7 @@ fun BudgetManagementScreen(
                         Icon(
                             imageVector = Icons.Default.SwapVert,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -586,7 +583,7 @@ fun BudgetManagementScreen(
                             text = "Risk Sorted",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = CobaltPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -615,8 +612,8 @@ fun BudgetManagementScreen(
                     } else 0f
                     val isNearLimit = ratio >= 0.85f
                     val icon = getCategoryIcon(budget.categoryName)
-                    val iconBg = if (isNearLimit) TertiaryFixed else PrimaryFixed
-                    val iconTint = if (isNearLimit) CrimsonTertiary else CobaltPrimary
+                    val iconBg = if (isNearLimit) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                    val iconTint = if (isNearLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
                     Card(
                         modifier = Modifier
@@ -669,14 +666,14 @@ fun BudgetManagementScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(PillShape)
-                                                    .background(if (isNearLimit) TertiaryFixed else SurfaceContainer)
+                                                    .background(if (isNearLimit) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant)
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(
                                                     text = if (isNearLimit) "Near Limit" else "Normal",
                                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                                     fontWeight = FontWeight.Bold,
-                                                    color = if (isNearLimit) CrimsonTertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = if (isNearLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
@@ -717,7 +714,7 @@ fun BudgetManagementScreen(
                                         .fillMaxWidth(ratio.coerceIn(0.02f, 1f))
                                         .height(8.dp)
                                         .clip(CircleShape)
-                                        .background(if (isNearLimit) CrimsonTertiary else CobaltPrimary)
+                                        .background(if (isNearLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                                 )
                             }
 
@@ -760,13 +757,13 @@ fun BudgetManagementScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(PrimaryFixed),
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.WorkspacePremium,
                             contentDescription = null,
-                            tint = CobaltPrimary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -840,7 +837,7 @@ private fun AddBudgetDialog(
                     }
                 }
             ) {
-                Text("Create Envelope", color = CobaltPrimary, fontWeight = FontWeight.Bold)
+                Text("Create Envelope", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

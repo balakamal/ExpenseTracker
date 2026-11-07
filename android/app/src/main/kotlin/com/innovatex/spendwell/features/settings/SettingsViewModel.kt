@@ -27,6 +27,15 @@ class SettingsViewModel @Inject constructor(
     val userName: StateFlow<String> = userPreferencesRepository.userName
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
+    val themeMode: StateFlow<String> = userPreferencesRepository.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "SYSTEM")
+
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setThemeMode(mode)
+        }
+    }
+
     fun setUserName(name: String) {
         viewModelScope.launch {
             userPreferencesRepository.setUserName(name)

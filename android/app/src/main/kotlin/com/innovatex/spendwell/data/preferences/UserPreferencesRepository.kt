@@ -32,6 +32,11 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_HF_API_TOKEN = stringPreferencesKey("hf_api_token")
         val KEY_CUSTOM_MODEL_URL = stringPreferencesKey("custom_model_url")
         val KEY_USER_NAME = stringPreferencesKey("user_name")
+        val KEY_THEME_MODE = stringPreferencesKey("theme_mode") // "SYSTEM", "LIGHT", "DARK"
+    }
+
+    val themeMode: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_THEME_MODE] ?: "SYSTEM"
     }
 
     val userName: Flow<String> = context.dataStore.data.map { preferences ->
@@ -137,6 +142,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setUserName(name: String) {
         context.dataStore.edit { preferences ->
             preferences[KEY_USER_NAME] = name.trim()
+        }
+    }
+
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_THEME_MODE] = mode
         }
     }
 }
