@@ -73,14 +73,21 @@ class DashboardViewModel @Inject constructor(
         DashboardRepoData(transactions, accounts, pendingCount)
     }
 
+    private val userPrefsFlow = combine(
+        userPreferencesRepository.cycleStartDay,
+        userPreferencesRepository.userName
+    ) { cycleStartDay, userName ->
+        Pair(cycleStartDay, userName)
+    }
+
     val uiState: StateFlow<DashboardUiState> = combine(
         repositoryDataFlow,
         isObfuscated,
         isImportingFlow,
         importMessageFlow,
-        userPreferencesRepository.cycleStartDay,
-        userPreferencesRepository.userName
-    ) { repoData, obfuscated, importing, importMsg, cycleStartDay, userName ->
+        userPrefsFlow
+    ) { repoData, obfuscated, importing, importMsg, userPrefs ->
+        val (cycleStartDay, userName) = userPrefs
         try {
             var totalBalance = Money.ZERO
             repoData.accounts.forEach { totalBalance += it.currentBalance }

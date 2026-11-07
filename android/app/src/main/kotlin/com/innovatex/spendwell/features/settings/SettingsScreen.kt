@@ -238,14 +238,31 @@ fun SettingsScreen(
                         }
                     }
 
-                    SpendwellTonalButton(
-                        text = "Edit",
-                        icon = Icons.Default.Edit,
-                        onClick = {
-                            editingName = userName
-                            showEditNameDialog = true
-                        }
-                    )
+                    Row(
+                        modifier = Modifier
+                            .clip(PillShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable {
+                                editingName = userName
+                                showEditNameDialog = true
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Name",
+                            tint = CobaltPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Edit",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = CobaltPrimary
+                        )
+                    }
                 }
             }
         }
