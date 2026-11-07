@@ -299,7 +299,7 @@ fun BudgetManagementScreen(
                                     text = safeRunway.formatInr(true),
                                     style = MaterialTheme.typography.displayMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (safeRunway.isNegative) OutflowRed else MaterialTheme.colorScheme.onSurface
+                                    color = if (safeRunway.isNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                                 )
                             }
 

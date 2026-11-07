@@ -1167,6 +1167,7 @@ private data class DetailGlyph(
     val tintColor: Color
 )
 
+@Composable
 private fun resolveDetailGlyph(tx: Transaction): DetailGlyph {
     val name = (tx.merchantName + " " + tx.categoryName).lowercase()
     return when {
