@@ -3,6 +3,7 @@ package com.innovatex.spendwell.ai.model
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.util.Log
 import com.innovatex.spendwell.core.DispatcherProvider
 import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
@@ -45,7 +46,7 @@ class ModelDownloadManager @Inject constructor(
         private const val TAG = "ModelDownloadManager"
         // Official Google AI / HuggingFace hosted Gemma 2B LiteRT quantized INT4 model
         const val OFFICIAL_GEMMA_2B_URL =
-            "https://huggingface.co/litert-community/gemma-2b-it-int4/resolve/main/gemma-2b-it-cpu-int4.bin"
+            "https://huggingface.co/google/gemma-2b-it-tflite/resolve/main/gemma-2b-it-cpu-int4.bin"
         const val MODEL_FILE_NAME = "gemma-2b-it-cpu-int4.bin"
         const val EXPECTED_MODEL_SIZE_BYTES = 1_420_000_000L // ~1.42 GB
     }
@@ -77,6 +78,64 @@ class ModelDownloadManager @Inject constructor(
     fun scanForLocalModel(): Boolean {
         checkExistingModel()
         return _downloadState.value is ModelDownloadState.Ready
+    }
+
+    /**
+     * Imports a model binary file from user-selected storage Uri (e.g. Downloads folder).
+     * @return true if successfully imported and verified
+     */
+    suspend fun importModelFromUri(contentUri: Uri): Boolean = withContext(dispatchers.io) {
+        _downloadState.value = ModelDownloadState.CheckingNetwork
+        val targetFile = getModelFile()
+        val tempFile = File(targetFile.parentFile, "$MODEL_FILE_NAME.importing")
+
+        try {
+            context.contentResolver.openInputStream(contentUri)?.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    val buffer = ByteArray(128 * 1024)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    var lastUpdate = System.currentTimeMillis()
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdate > 400) {
+                            val pct = ((totalRead * 100) / EXPECTED_MODEL_SIZE_BYTES).toInt().coerceIn(0, 99)
+                            _downloadState.value = ModelDownloadState.Downloading(
+                                bytesDownloaded = totalRead,
+                                totalBytes = EXPECTED_MODEL_SIZE_BYTES,
+                                progressPercentage = pct,
+                                speedKbps = 0.0
+                            )
+                            lastUpdate = now
+                        }
+                    }
+                }
+            } ?: throw java.io.IOException("Unable to open input stream for selected file.")
+
+            _downloadState.value = ModelDownloadState.VerifyingChecksum
+            if (tempFile.exists() && tempFile.length() > 50_000_000L) {
+                if (targetFile.exists()) targetFile.delete()
+                tempFile.renameTo(targetFile)
+
+                preferencesRepository.setModelDownloaded(true, targetFile.absolutePath)
+                _downloadState.value = ModelDownloadState.Ready(targetFile, targetFile.length())
+                Log.i(TAG, "Gemma 2B successfully imported from storage: ${targetFile.absolutePath}")
+                true
+            } else {
+                tempFile.delete()
+                _downloadState.value = ModelDownloadState.Error("Selected file is too small or invalid for Gemma 2B. Expected ~1.4 GB binary file.")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import model from Uri", e)
+            if (tempFile.exists()) tempFile.delete()
+            _downloadState.value = ModelDownloadState.Error("Failed to import model: ${e.message}")
+            false
+        }
     }
 
     fun getModelFile(): File {
@@ -137,10 +196,10 @@ class ModelDownloadManager @Inject constructor(
                     instanceFollowRedirects = false
                     setRequestProperty("User-Agent", "Spendwell-Local-Ledger/1.0")
 
-                    // Only send Hugging Face token to huggingface.co domains.
-                    // DO NOT forward to redirected S3 / CDN pre-signed URLs, otherwise AWS S3
-                    // will reject the request with HTTP 400 Bad Request ("Only one auth mechanism allowed").
-                    if (!hfToken.isNullOrBlank() && url.host.endsWith("huggingface.co")) {
+                    // Only send Hugging Face token to huggingface.co on initial request.
+                    // DO NOT forward to redirected S3 / CDN pre-signed URLs (e.g. cdn-lfs.huggingface.co),
+                    // otherwise AWS S3 will reject the request with HTTP 400 Bad Request ("Only one auth mechanism allowed").
+                    if (!hfToken.isNullOrBlank() && redirectHops == 0 && url.host.equals("huggingface.co", ignoreCase = true)) {
                         setRequestProperty("Authorization", "Bearer $hfToken")
                     }
 
@@ -175,8 +234,8 @@ class ModelDownloadManager @Inject constructor(
             val responseCode = connection.responseCode
             if (responseCode !in 200..206) {
                 val errorMessage = when (responseCode) {
-                    401 -> "Hugging Face authentication required (HTTP 401). Gemma 2B is a gated model. Please provide your Hugging Face Access Token with accepted Gemma terms, or configure a custom download URL."
-                    403 -> "Access forbidden (HTTP 403). Ensure you have accepted the Gemma license terms at huggingface.co/google/gemma-2b-it and your token has Read permissions."
+                    401 -> "Hugging Face authentication required (HTTP 401). Gemma 2B is a gated model. Please provide your Hugging Face Access Token with accepted Gemma terms, or configure a custom download URL / import file."
+                    403 -> "Access forbidden (HTTP 403). Ensure you have accepted the Gemma license terms at huggingface.co/google/gemma-2b-it-tflite and your token has Read permissions."
                     404 -> "Model file not found (HTTP 404). Please verify the download URL."
                     else -> "Server returned HTTP error code: $responseCode"
                 }

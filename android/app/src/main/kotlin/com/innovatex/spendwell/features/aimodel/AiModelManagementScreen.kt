@@ -1,9 +1,12 @@
 package com.innovatex.spendwell.features.aimodel
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,16 +27,22 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,7 +66,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +91,7 @@ import com.innovatex.spendwell.designsystem.theme.PillShape
 import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import com.innovatex.spendwell.designsystem.theme.WarningAmber
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -140,6 +153,12 @@ class AiModelManagementViewModel @Inject constructor(
         return modelDownloadManager.scanForLocalModel()
     }
 
+    fun importModel(uri: android.net.Uri) {
+        viewModelScope.launch {
+            modelDownloadManager.importModelFromUri(uri)
+        }
+    }
+
     suspend fun runBenchmark(): String {
         val start = System.currentTimeMillis()
         val response = aiAdvisorEngine.answerQuery("How much did I spend this month?")
@@ -163,6 +182,15 @@ fun AiModelManagementScreen(
     var benchmarkResult by remember { mutableStateOf<String?>(null) }
     var isBenchmarking by remember { mutableStateOf(false) }
     var showSourceConfigDialog by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            viewModel.importModel(it)
+            Toast.makeText(context, "Importing model from storage...", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -355,14 +383,23 @@ fun AiModelManagementScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        SpendwellPrimaryButton(
+                            text = "Download Gemma 2B",
+                            leadingIcon = Icons.Default.CloudDownload,
+                            onClick = { viewModel.startDownload() },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            SpendwellPrimaryButton(
-                                text = "Download Gemma 2B",
-                                leadingIcon = Icons.Default.CloudDownload,
-                                onClick = { viewModel.startDownload() },
+                            SpendwellTonalButton(
+                                text = "Import .bin File",
+                                leadingIcon = Icons.Default.UploadFile,
+                                onClick = { filePickerLauncher.launch("*/*") },
                                 modifier = Modifier.weight(1f)
                             )
                             SpendwellTonalButton(
@@ -375,7 +412,47 @@ fun AiModelManagementScreen(
                                         if (found) "Model detected and ready!" else "No model file found in internal models/ directory.",
                                         Toast.LENGTH_LONG
                                     ).show()
-                                }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .clickable { showSourceConfigDialog = true }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Step-by-Step Setup Guide",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Need help getting a token or downloading? Tap for complete instructions.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -484,7 +561,7 @@ fun AiModelManagementScreen(
                                     if (isAuthError) {
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
-                                            text = "Tip: Gemma 2B requires accepting Google's license terms on Hugging Face and configuring a free Read access token, or providing a custom direct download URL.",
+                                            text = "Tip: Gemma 2B is a gated model. Ensure you have accepted terms at huggingface.co/google/gemma-2b-it-tflite and your token has 'Read' role. Or download the .bin file via browser and tap 'Import File'.",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -492,28 +569,32 @@ fun AiModelManagementScreen(
                                 }
                             }
                             Spacer(modifier = Modifier.height(14.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                SpendwellPrimaryButton(
+                                    text = if (isAuthError) "Configure Token" else "Retry Download",
+                                    leadingIcon = if (isAuthError) Icons.Default.Key else Icons.Default.Refresh,
+                                    onClick = {
+                                        if (isAuthError) showSourceConfigDialog = true else viewModel.startDownload()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SpendwellTonalButton(
+                                    text = "Import File",
+                                    leadingIcon = Icons.Default.UploadFile,
+                                    onClick = { filePickerLauncher.launch("*/*") }
+                                )
                                 if (isAuthError) {
-                                    SpendwellPrimaryButton(
-                                        text = "Configure Token",
-                                        leadingIcon = Icons.Default.Key,
-                                        onClick = { showSourceConfigDialog = true },
-                                        modifier = Modifier.weight(1f)
-                                    )
                                     SpendwellTonalButton(
                                         text = "Retry",
                                         leadingIcon = Icons.Default.Refresh,
                                         onClick = { viewModel.startDownload() }
                                     )
                                 } else {
-                                    SpendwellPrimaryButton(
-                                        text = "Retry Download",
-                                        leadingIcon = Icons.Default.Refresh,
-                                        onClick = { viewModel.startDownload() },
-                                        modifier = Modifier.weight(1f)
-                                    )
                                     SpendwellTonalButton(
-                                        text = "Configure Source",
+                                        text = "Configure",
                                         leadingIcon = Icons.Default.Settings,
                                         onClick = { showSourceConfigDialog = true }
                                     )
@@ -587,65 +668,325 @@ fun DownloadSourceConfigDialog(
     onDismiss: () -> Unit,
     onSave: (hfToken: String?, customUrl: String?) -> Unit
 ) {
+    var selectedTab by remember { mutableStateOf(if (!initialCustomUrl.isNullOrBlank()) 1 else 0) }
     var hfToken by remember { mutableStateOf(initialHfToken ?: "") }
     var customUrl by remember { mutableStateOf(initialCustomUrl ?: "") }
+    val uriHandler = LocalUriHandler.current
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
         title = {
-            Text(
-                text = "Model Source & Authentication",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = CobaltPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Gemma 2B Model Setup",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Authentication & Download Options",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(
-                    text = "Gemma 2B is a gated model. Provide a Hugging Face Access Token with accepted Gemma terms, or specify a custom direct mirror URL.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Segmented tab switch
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceContainerLow)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val tabs = listOf("Hugging Face", "Custom URL", "Manual / ADB")
+                    tabs.forEachIndexed { index, title ->
+                        val isSelected = selectedTab == index
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) CobaltPrimary else Color.Transparent)
+                                .clickable { selectedTab = index }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value = hfToken,
-                    onValueChange = { hfToken = it },
-                    label = { Text("Hugging Face Token (hf_...)") },
-                    placeholder = { Text("hf_xxxxxxxxxxxxxxxxxxxxxx") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "• 1. Accept license at: huggingface.co/google/gemma-2b-it\n• 2. Create Read token at: huggingface.co/settings/tokens",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = CobaltPrimary
-                )
+                when (selectedTab) {
+                    0 -> { // Hugging Face Tab
+                        Text(
+                            text = "Gemma 2B is an open gated model from Google. To download it directly in-app, complete these 3 steps:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
+                        // Step 1
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Step 1: Accept License Terms",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Log in to Hugging Face and accept Google's terms on the official Gemma 2B LiteRT repository.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SpendwellTonalButton(
+                                text = "1. Open License Terms ↗",
+                                leadingIcon = Icons.Default.OpenInNew,
+                                onClick = {
+                                    uriHandler.openUri("https://huggingface.co/google/gemma-2b-it-tflite")
+                                }
+                            )
+                        }
 
-                OutlinedTextField(
-                    value = customUrl,
-                    onValueChange = { customUrl = it },
-                    label = { Text("Custom Model URL (Optional)") },
-                    placeholder = { Text("http://192.168.1.5:8080/gemma-2b-it-cpu-int4.bin") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Overrides Hugging Face. Useful for offline, self-hosted, or local server testing.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Step 2
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Step 2: Generate Access Token",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Go to your HF settings, create a User Access Token with the 'Read' role.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SpendwellTonalButton(
+                                text = "2. Open Token Settings ↗",
+                                leadingIcon = Icons.Default.OpenInNew,
+                                onClick = {
+                                    uriHandler.openUri("https://huggingface.co/settings/tokens")
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Step 3
+                        Text(
+                            text = "Step 3: Paste Your Token",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = hfToken,
+                            onValueChange = { hfToken = it },
+                            label = { Text("Access Token (hf_...)") },
+                            placeholder = { Text("hf_xxxxxxxxxxxxxxxxxxxxxx") },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) {
+                                        hfToken = clip.trim()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentPaste,
+                                        contentDescription = "Paste",
+                                        tint = CobaltPrimary
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (hfToken.startsWith("hf_")) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = EmeraldSecondary, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Valid Hugging Face token format", style = MaterialTheme.typography.labelSmall, color = EmeraldSecondary)
+                            }
+                        } else if (hfToken.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = WarningAmber, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Tokens usually start with 'hf_'", style = MaterialTheme.typography.labelSmall, color = WarningAmber)
+                            }
+                        }
+                    }
+
+                    1 -> { // Custom URL Tab
+                        Text(
+                            text = "If you have hosted the model binary on a local network HTTP server, self-hosted mirror, or offline test environment, enter the direct URL below:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = customUrl,
+                            onValueChange = { customUrl = it },
+                            label = { Text("Custom Model URL") },
+                            placeholder = { Text("http://192.168.1.5:8080/gemma-2b-it-cpu-int4.bin") },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) {
+                                        customUrl = clip.trim()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentPaste,
+                                        contentDescription = "Paste",
+                                        tint = CobaltPrimary
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "When configured, Spendwell downloads directly from this URL without requiring a Hugging Face token.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    2 -> { // Manual / ADB Tab
+                        Text(
+                            text = "Don't want to use an API token? You can download the model via your phone's browser or transfer it via ADB from PC:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Method A
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Method A: Browser Download & Import",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "1. Download 'gemma-2b-it-cpu-int4.bin' (~1.4 GB) directly using Chrome.\n2. On the AI Model screen, tap 'Import .bin File' and select it from your Downloads folder.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SpendwellTonalButton(
+                                text = "Open Download Page ↗",
+                                leadingIcon = Icons.Default.OpenInNew,
+                                onClick = {
+                                    uriHandler.openUri("https://huggingface.co/google/gemma-2b-it-tflite/tree/main")
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Method B
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Method B: ADB Push (PC via USB)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Run these commands in terminal:\n\nadb push gemma-2b-it-cpu-int4.bin /data/local/tmp/\nadb shell run-as com.innovatex.spendwell cp /data/local/tmp/gemma-2b-it-cpu-int4.bin /data/data/com.innovatex.spendwell/files/models/\n\nThen tap 'Scan ADB' on the AI screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SpendwellTonalButton(
+                                text = "Copy ADB Commands",
+                                leadingIcon = Icons.Default.ContentCopy,
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString("adb push gemma-2b-it-cpu-int4.bin /data/local/tmp/ && adb shell run-as com.innovatex.spendwell cp /data/local/tmp/gemma-2b-it-cpu-int4.bin /data/data/com.innovatex.spendwell/files/models/"))
+                                    Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             SpendwellPrimaryButton(
-                text = "Save",
+                text = "Save Configuration",
                 onClick = {
                     onSave(
                         hfToken.trim().ifEmpty { null },

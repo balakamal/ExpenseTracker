@@ -210,7 +210,8 @@ private fun SalaryCycleSelectionStep(
             Pair("5th of the month", 5),
             Pair("10th of the month", 10),
             Pair("25th of the month", 25),
-            Pair("Last Day of month", -1)
+            Pair("Last Day of month", -1),
+            Pair("Last Working Day (Salary)", -2)
         )
 
         Column(
@@ -300,7 +301,11 @@ private fun SalaryCycleSelectionStep(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (selectedCycleDay == -1) "Last Day" else "Day $selectedCycleDay",
+                    text = when (selectedCycleDay) {
+                        -2 -> "Last Working Day"
+                        -1 -> "Last Day"
+                        else -> "Day $selectedCycleDay"
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = CobaltPrimary
@@ -308,7 +313,7 @@ private fun SalaryCycleSelectionStep(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Slider(
-                value = if (selectedCycleDay == -1) 31f else selectedCycleDay.toFloat(),
+                value = if (selectedCycleDay < 1) 31f else selectedCycleDay.toFloat(),
                 onValueChange = { onCycleDaySelected(it.toInt().coerceIn(1, 31)) },
                 valueRange = 1f..31f,
                 steps = 29,
@@ -322,12 +327,11 @@ private fun SalaryCycleSelectionStep(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Live preview of cycle
-        val cyclePreview = if (selectedCycleDay == 1) {
-            "1st of the month to last day of the month"
-        } else if (selectedCycleDay == -1) {
-            "Last day of previous month to day before last day"
-        } else {
-            "Day $selectedCycleDay of current month to Day ${selectedCycleDay - 1} of next month"
+        val cyclePreview = when (selectedCycleDay) {
+            1 -> "1st of the month to last day of the month"
+            -1 -> "Last day of previous month to day before last day"
+            -2 -> "Last working day of previous month to day before last working day"
+            else -> "Day $selectedCycleDay of current month to Day ${selectedCycleDay - 1} of next month"
         }
 
         Row(

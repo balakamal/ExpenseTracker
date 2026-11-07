@@ -262,4 +262,62 @@ class FinancialAnalyticsTest {
         assertTrue(result.unmatchedLedgerTransactions.isEmpty())
         assertTrue(result.netDiscrepancy.isZero)
     }
+
+    @Test
+    fun `test last working day calculation adjusts for weekends`() {
+        val cal = Calendar.getInstance()
+
+        // October 2026: 31st is Saturday -> Last working day must be Friday 30th
+        cal.set(2026, Calendar.OCTOBER, 1)
+        assertEquals(30, FinancialAnalyticsEngine.getLastWorkingDay(cal))
+
+        // May 2026: 31st is Sunday -> Last working day must be Friday 29th
+        cal.set(2026, Calendar.MAY, 1)
+        assertEquals(29, FinancialAnalyticsEngine.getLastWorkingDay(cal))
+
+        // November 2026: 30th is Monday -> Last working day is 30th
+        cal.set(2026, Calendar.NOVEMBER, 1)
+        assertEquals(30, FinancialAnalyticsEngine.getLastWorkingDay(cal))
+
+        // December 2026: 31st is Thursday -> Last working day is 31st
+        cal.set(2026, Calendar.DECEMBER, 1)
+        assertEquals(31, FinancialAnalyticsEngine.getLastWorkingDay(cal))
+    }
+
+    @Test
+    fun `test cycle calculation for last working day cycleStartDay -2`() {
+        // November 2026 cycle with cycleStartDay = -2 (Last Working Day)
+        // Previous month: October 2026 (last working day is 30 Oct)
+        // Current month: November 2026 (last working day is 30 Nov, so cycle ends 29 Nov)
+        val cycle = FinancialAnalyticsEngine.calculateCycle(2026, Calendar.NOVEMBER, -2)
+
+        val calStart = Calendar.getInstance().apply { timeInMillis = cycle.startTime }
+        val calEnd = Calendar.getInstance().apply { timeInMillis = cycle.endTime }
+
+        assertEquals(2026, calStart.get(Calendar.YEAR))
+        assertEquals(Calendar.OCTOBER, calStart.get(Calendar.MONTH))
+        assertEquals(30, calStart.get(Calendar.DAY_OF_MONTH))
+
+        assertEquals(2026, calEnd.get(Calendar.YEAR))
+        assertEquals(Calendar.NOVEMBER, calEnd.get(Calendar.MONTH))
+        assertEquals(29, calEnd.get(Calendar.DAY_OF_MONTH))
+
+        assertEquals("30 Oct – 29 Nov", cycle.label)
+        assertEquals("November 2026", cycle.monthLabel)
+    }
+
+    @Test
+    fun `test cycle calculation for last day cycleStartDay -1`() {
+        // November 2026 cycle with cycleStartDay = -1 (Last Day)
+        // Previous month: October 2026 (last day is 31 Oct)
+        // Current month: November 2026 (last day is 30 Nov, so cycle ends 29 Nov)
+        val cycle = FinancialAnalyticsEngine.calculateCycle(2026, Calendar.NOVEMBER, -1)
+
+        val calStart = Calendar.getInstance().apply { timeInMillis = cycle.startTime }
+        val calEnd = Calendar.getInstance().apply { timeInMillis = cycle.endTime }
+
+        assertEquals(31, calStart.get(Calendar.DAY_OF_MONTH))
+        assertEquals(29, calEnd.get(Calendar.DAY_OF_MONTH))
+        assertEquals("31 Oct – 29 Nov", cycle.label)
+    }
 }

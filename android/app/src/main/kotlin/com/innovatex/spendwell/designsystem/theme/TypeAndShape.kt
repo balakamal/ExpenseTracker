@@ -128,7 +128,7 @@ val SpendwellShapes = Shapes(
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
     large = RoundedCornerShape(20.dp),
-    extraLarge = CircleShape
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 val SquircleCardShape = RoundedCornerShape(20.dp)

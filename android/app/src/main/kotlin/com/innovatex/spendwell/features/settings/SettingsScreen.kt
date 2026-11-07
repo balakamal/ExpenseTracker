@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -90,7 +91,8 @@ fun SettingsScreen(
         Pair("5th", 5),
         Pair("10th", 10),
         Pair("25th", 25),
-        Pair("Last Day", -1)
+        Pair("Last Day", -1),
+        Pair("Last Working Day", -2)
     )
 
     val cal = Calendar.getInstance()
@@ -171,6 +173,7 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             val dayLabel = when (currentCycleDay) {
+                                -2 -> "Last working day of month"
                                 -1 -> "Last day of month"
                                 1 -> "1st of month (Calendar)"
                                 else -> "${currentCycleDay}th of every month"
@@ -196,29 +199,37 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Presets row
-                Row(
+                // Presets grid (2 rows of 3 buttons)
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    presetOptions.forEach { (label, day) ->
-                        val isSelected = currentCycleDay == day
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) CobaltPrimary else SurfaceContainerLow)
-                                .clickable { viewModel.setCycleStartDay(day) }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
+                    presetOptions.chunked(3).forEach { rowPresets ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
+                            rowPresets.forEach { (label, day) ->
+                                val isSelected = currentCycleDay == day
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) CobaltPrimary else SurfaceContainerLow)
+                                        .clickable { viewModel.setCycleStartDay(day) }
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
                         }
                     }
                 }

@@ -24,7 +24,7 @@ class UserPreferencesRepository @Inject constructor(
     companion object {
         val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val KEY_IS_PRIVATE_MODE = booleanPreferencesKey("is_private_mode")
-        val KEY_CYCLE_START_DAY = intPreferencesKey("cycle_start_day") // 1 to 31, or -1 for last day of month
+        val KEY_CYCLE_START_DAY = intPreferencesKey("cycle_start_day") // 1 to 31, -1 for last day, -2 for last working day
         val KEY_MODEL_DOWNLOADED = booleanPreferencesKey("model_downloaded")
         val KEY_MODEL_FILE_PATH = stringPreferencesKey("model_file_path")
         val KEY_WIFI_ONLY_DOWNLOAD = booleanPreferencesKey("wifi_only_download")
@@ -83,7 +83,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setCycleStartDay(day: Int) {
         context.dataStore.edit { preferences ->
-            preferences[KEY_CYCLE_START_DAY] = day.coerceIn(-1, 31)
+            preferences[KEY_CYCLE_START_DAY] = day.coerceIn(-2, 31)
         }
     }
 

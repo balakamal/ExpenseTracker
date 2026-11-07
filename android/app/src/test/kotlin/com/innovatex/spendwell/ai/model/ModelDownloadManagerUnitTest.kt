@@ -92,15 +92,15 @@ class ModelDownloadManagerUnitTest {
 
     @Test
     fun `401 and 403 error messages clearly mention Hugging Face and gated access requirements`() {
-        val msg401 = "Hugging Face authentication required (HTTP 401). Gemma 2B is a gated model. Please provide your Hugging Face Access Token with accepted Gemma terms, or configure a custom download URL."
-        val msg403 = "Access forbidden (HTTP 403). Ensure you have accepted the Gemma license terms at huggingface.co/google/gemma-2b-it and your token has Read permissions."
+        val msg401 = "Hugging Face authentication required (HTTP 401). Gemma 2B is a gated model. Please provide your Hugging Face Access Token with accepted Gemma terms, or configure a custom download URL / import file."
+        val msg403 = "Access forbidden (HTTP 403). Ensure you have accepted the Gemma license terms at huggingface.co/google/gemma-2b-it-tflite and your token has Read permissions."
 
         assertTrue(msg401.contains("401"))
         assertTrue(msg401.contains("Hugging Face"))
         assertTrue(msg401.contains("gated model"))
 
         assertTrue(msg403.contains("403"))
-        assertTrue(msg403.contains("huggingface.co/google/gemma-2b-it"))
+        assertTrue(msg403.contains("huggingface.co/google/gemma-2b-it-tflite"))
     }
 }
 
