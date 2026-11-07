@@ -53,10 +53,15 @@ class SpendwellAiAdvisorEngine @Inject constructor(
     }
 
     val isModelDownloaded: Flow<Boolean> = preferencesRepository.isModelDownloaded
+    val aiEngineMode: Flow<String> = preferencesRepository.aiEngineMode
+
+    suspend fun setAiEngineMode(mode: String) {
+        preferencesRepository.setAiEngineMode(mode)
+    }
 
     fun isGemmaModelReady(): Boolean {
         val file = modelDownloadManager.getModelFile()
-        return file.exists() && file.length() > 50_000_000L
+        return file.exists() && file.length() > 10_000_000L
     }
 
     @Volatile
@@ -64,11 +69,21 @@ class SpendwellAiAdvisorEngine @Inject constructor(
     @Volatile
     private var lastLoadedPath: String? = null
 
+    @Volatile
+    var lastInitErrorMessage: String? = null
+        private set
+
+    @Volatile
+    var lastInferenceErrorMessage: String? = null
+        private set
+
     private fun getOrInitLlmInference(modelFile: File): Any? {
         if (llmInferenceInstance != null && lastLoadedPath == modelFile.absolutePath) {
             return llmInferenceInstance
         }
-        return try {
+
+        // 1. Try MediaPipe Tasks GenAI LlmInference
+        try {
             val optionsClass = Class.forName("com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceOptions")
             val builderMethod = optionsClass.getMethod("builder")
             val builder = builderMethod.invoke(null)
@@ -81,23 +96,80 @@ class SpendwellAiAdvisorEngine @Inject constructor(
             val instance = createMethod.invoke(null, context, options)
             llmInferenceInstance = instance
             lastLoadedPath = modelFile.absolutePath
-            Log.i(TAG, "Gemma 2B LiteRT on-device inference successfully initialized from ${modelFile.absolutePath}")
-            instance
+            lastInitErrorMessage = null
+            Log.i(TAG, "Gemma 2B MediaPipe on-device inference successfully initialized from ${modelFile.absolutePath}")
+            return instance
         } catch (e: Throwable) {
-            Log.w(TAG, "LlmInference initialization bypassed or unavailable: ${e.message}")
-            null
+            val causeMsg = e.cause?.message ?: e.message ?: e.javaClass.simpleName
+            Log.w(TAG, "MediaPipe LlmInference initialization attempt failed: $causeMsg")
+            lastInitErrorMessage = "MediaPipe: $causeMsg"
         }
+
+        // 2. Try LiteRT-LM Engine
+        try {
+            val engineConfigClass = Class.forName("com.google.ai.edge.litertlm.EngineConfig")
+            val backendClass = Class.forName("com.google.ai.edge.litertlm.Backend\$CPU")
+            val backendInstance = backendClass.getDeclaredConstructor().newInstance()
+
+            val constructor = engineConfigClass.constructors.firstOrNull {
+                it.parameterTypes.isNotEmpty() && it.parameterTypes[0] == String::class.java
+            }
+            if (constructor != null) {
+                val config = when (constructor.parameterTypes.size) {
+                    1 -> constructor.newInstance(modelFile.absolutePath)
+                    else -> constructor.newInstance(modelFile.absolutePath, backendInstance)
+                }
+                if (config != null) {
+                    val engineClass = Class.forName("com.google.ai.edge.litertlm.Engine")
+                    val engineInstance = engineClass.getConstructor(engineConfigClass).newInstance(config)
+                    val initMethod = engineClass.getMethod("initialize")
+                    initMethod.invoke(engineInstance)
+
+                    llmInferenceInstance = engineInstance
+                    lastLoadedPath = modelFile.absolutePath
+                    lastInitErrorMessage = null
+                    Log.i(TAG, "LiteRT-LM Engine successfully initialized from ${modelFile.absolutePath}")
+                    return engineInstance
+                }
+            }
+        } catch (e: Throwable) {
+            val causeMsg = e.cause?.message ?: e.message ?: e.javaClass.simpleName
+            Log.w(TAG, "LiteRT-LM Engine initialization attempt failed: $causeMsg")
+            lastInitErrorMessage = (lastInitErrorMessage?.let { "$it; LiteRT: $causeMsg" }) ?: "LiteRT: $causeMsg"
+        }
+
+        return null
     }
 
     private fun runGemmaInference(instance: Any, prompt: String): String? {
-        return try {
+        lastInferenceErrorMessage = null
+        // 1. Try generateResponse (MediaPipe LlmInference)
+        try {
             val generateMethod = instance.javaClass.getMethod("generateResponse", String::class.java)
             val response = generateMethod.invoke(instance, prompt) as? String
-            response?.trim()
+            if (!response.isNullOrBlank()) return response.trim()
         } catch (e: Throwable) {
-            Log.e(TAG, "Gemma inference generation failed", e)
-            null
+            lastInferenceErrorMessage = e.cause?.message ?: e.message
         }
+
+        // 2. Try LiteRT-LM createConversation + sendMessage
+        try {
+            val createConvMethod = instance.javaClass.getMethod("createConversation")
+            val conversation = createConvMethod.invoke(instance)
+            if (conversation != null) {
+                val sendMethod = conversation.javaClass.methods.firstOrNull {
+                    it.name == "sendMessage" || it.name == "sendMessageAsync"
+                }
+                if (sendMethod != null) {
+                    val result = sendMethod.invoke(conversation, prompt)
+                    if (result is String && result.isNotBlank()) return result.trim()
+                }
+            }
+        } catch (e: Throwable) {
+            lastInferenceErrorMessage = e.cause?.message ?: e.message
+        }
+
+        return null
     }
 
     fun buildGemmaPrompt(
@@ -137,11 +209,12 @@ Instructions: Answer the user's question directly, concisely, and warmly. Addres
     }
 
     /**
-     * Executes a user query using on-device Gemma 2B LLM with prompt grounding
-     * or context-aware heuristic fallback engine.
+     * Executes a user query using on-device Gemma 2B LLM or deterministic
+     * Spendwell financial analytics engine, routed by selected engine mode.
      * Guarantees zero ledger modification capability.
      */
-    suspend fun answerQuery(query: String): String = withContext(dispatchers.io) {
+    suspend fun answerQuery(query: String, explicitEngineMode: String? = null): String = withContext(dispatchers.io) {
+        val selectedEngineMode = explicitEngineMode ?: preferencesRepository.aiEngineMode.first()
         val userName = preferencesRepository.userName.first()
         val allTx = transactionRepository.observeAllTransactions().first()
         val cal = Calendar.getInstance()
@@ -155,75 +228,101 @@ Instructions: Answer the user's question directly, concisely, and warmly. Addres
         val recurring = recurringPaymentRepository.observeActiveRecurring().first()
         val accounts = accountRepository.observeAccounts().first()
 
-        val modelFile = modelDownloadManager.getModelFile()
-        val isModelReady = modelFile.exists() && modelFile.length() > 50_000_000L
+        fun runDeterministicAppEngine(): String {
+            val nameGreeting = if (userName.isNotBlank()) "Hello $userName! " else ""
+            val lower = query.lowercase(Locale.ROOT)
+            return when {
+                lower.contains("spent") || lower.contains("expense") || lower.contains("outflow") -> {
+                    val totalExpenses = summary.totalExpenses.formatInr(true)
+                    val avgDaily = summary.averageDailySpend.formatInr(true)
+                    "${nameGreeting}You have spent $totalExpenses so far this month, averaging $avgDaily per day. Your projected month-end spend is ${summary.projectedMonthEndSpend.formatInr(true)}."
+                }
 
-        if (isModelReady) {
+                lower.contains("income") || lower.contains("earned") || lower.contains("salary") -> {
+                    val totalIncome = summary.totalIncome.formatInr(true)
+                    val savings = summary.netSavings.formatInr(true)
+                    "${nameGreeting}Your total income recorded this month is $totalIncome. Your current net savings is $savings (Savings rate: ${String.format(Locale.ENGLISH, "%.1f", summary.savingsRatePercentage)}%)."
+                }
+
+                lower.contains("category") || lower.contains("top category") || lower.contains("where") -> {
+                    if (summary.categoryBreakdown.isEmpty()) {
+                        "${nameGreeting}You don't have any categorised consumption expenses recorded yet."
+                    } else {
+                        val top3 = summary.categoryBreakdown.take(3).joinToString("\n") {
+                            "• ${it.categoryName}: ${it.amount.formatInr(true)} (${String.format(Locale.ENGLISH, "%.1f", it.percentageOfTotal)}%)"
+                        }
+                        "${nameGreeting}Your top spending categories this month:\n$top3"
+                    }
+                }
+
+                lower.contains("subscription") || lower.contains("recurring") || lower.contains("bills") -> {
+                    if (recurring.isEmpty()) {
+                        "${nameGreeting}No active recurring subscriptions or bills were found in your ledger."
+                    } else {
+                        var total = Money.ZERO
+                        val items = recurring.joinToString("\n") {
+                            total += it.amount
+                            "• ${it.title}: ${it.amount.formatInr(true)} (${it.cadence.lowercase()})"
+                        }
+                        "${nameGreeting}Active recurring commitments:\n$items\n\nTotal commitment: ${total.formatInr(true)}"
+                    }
+                }
+
+                lower.contains("cut") || lower.contains("save") || lower.contains("recommend") || lower.contains("advice") -> {
+                    val topCat = summary.categoryBreakdown.firstOrNull()
+                    if (topCat != null) {
+                        "${nameGreeting}Based on your ledger, '${topCat.categoryName}' accounts for ${String.format(Locale.ENGLISH, "%.1f", topCat.percentageOfTotal)}% of your expenses (${topCat.amount.formatInr(true)}). Setting a monthly budget on this category could save you up to 15% next month."
+                    } else {
+                        "${nameGreeting}Maintain your spending discipline! Track all incoming alerts and verify any flagged duplicate items in the Review Center."
+                    }
+                }
+
+                else -> {
+                    "${nameGreeting}I am your Spendwell On-Device AI Advisor running locally. You can ask me:\n• 'How much did I spend this month?'\n• 'What are my top spending categories?'\n• 'List my recurring subscriptions'\n• 'How can I save more money?'\n\n(Tip: Switch to Gemma 2B mode for open-ended generative insights)."
+                }
+            }
+        }
+
+        // Direct Route: App Engine selected
+        if (selectedEngineMode == "APP_ENGINE") {
+            return@withContext "[Spendwell App Engine]\n\n" + runDeterministicAppEngine()
+        }
+
+        val modelFile = modelDownloadManager.getModelFile()
+        val isModelFileExisting = modelFile.exists() && modelFile.length() > 10_000_000L
+
+        // Direct Route: Gemma LLM selected but file missing
+        if (selectedEngineMode == "GEMMA_LLM" && !isModelFileExisting) {
+            return@withContext "[Gemma 2B Mode: Model Not Downloaded]\n\n" +
+                "The Gemma 2B model weights have not been downloaded to this device yet.\n\n" +
+                "• Target file: ${modelFile.name}\n" +
+                "• Expected size: ~1.42 GB (CPU INT4 Quantized)\n\n" +
+                "Please download Gemma 2B in Settings > AI Engine or use the dropdown above to select 'Spendwell App Engine' for instant calculations."
+        }
+
+        // Attempt LLM execution
+        if (isModelFileExisting) {
             val llm = getOrInitLlmInference(modelFile)
             if (llm != null) {
                 val prompt = buildGemmaPrompt(userName, query, summary, recurring, accounts)
                 val gemmaResponse = runGemmaInference(llm, prompt)
                 if (!gemmaResponse.isNullOrBlank()) {
                     return@withContext "[Gemma 2B Local LLM]\n\n$gemmaResponse"
+                } else if (selectedEngineMode == "GEMMA_LLM") {
+                    return@withContext "[Gemma 2B Mode: Generation Warning]\n\n" +
+                        "The model initialized but returned an empty response (${lastInferenceErrorMessage ?: "Inference timed out"}).\n\n" +
+                        "Answer from Spendwell App Engine:\n\n" + runDeterministicAppEngine()
                 }
+            } else if (selectedEngineMode == "GEMMA_LLM") {
+                return@withContext "[Gemma 2B Mode: Initialization Warning]\n\n" +
+                    "Model binary found (${modelFile.length() / (1024 * 1024)} MB), but the local inference runtime could not be started:\n" +
+                    "${lastInitErrorMessage ?: "Memory allocation or native library error"}.\n\n" +
+                    "Answer from Spendwell App Engine:\n\n" + runDeterministicAppEngine()
             }
         }
 
-        // Context-aware heuristic fallback engine
-        val nameGreeting = if (userName.isNotBlank()) "Hello $userName! " else ""
-        val lower = query.lowercase(Locale.ROOT)
-        val responseText = when {
-            lower.contains("spent") || lower.contains("expense") || lower.contains("outflow") -> {
-                val totalExpenses = summary.totalExpenses.formatInr(true)
-                val avgDaily = summary.averageDailySpend.formatInr(true)
-                "${nameGreeting}You have spent $totalExpenses so far this month, averaging $avgDaily per day. Your projected month-end spend is ${summary.projectedMonthEndSpend.formatInr(true)}."
-            }
-
-            lower.contains("income") || lower.contains("earned") || lower.contains("salary") -> {
-                val totalIncome = summary.totalIncome.formatInr(true)
-                val savings = summary.netSavings.formatInr(true)
-                "${nameGreeting}Your total income recorded this month is $totalIncome. Your current net savings is $savings (Savings rate: ${String.format(Locale.ENGLISH, "%.1f", summary.savingsRatePercentage)}%)."
-            }
-
-            lower.contains("category") || lower.contains("top category") || lower.contains("where") -> {
-                if (summary.categoryBreakdown.isEmpty()) {
-                    "${nameGreeting}You don't have any categorised consumption expenses recorded yet."
-                } else {
-                    val top3 = summary.categoryBreakdown.take(3).joinToString("\n") {
-                        "• ${it.categoryName}: ${it.amount.formatInr(true)} (${String.format(Locale.ENGLISH, "%.1f", it.percentageOfTotal)}%)"
-                    }
-                    "${nameGreeting}Your top spending categories this month:\n$top3"
-                }
-            }
-
-            lower.contains("subscription") || lower.contains("recurring") || lower.contains("bills") -> {
-                if (recurring.isEmpty()) {
-                    "${nameGreeting}No active recurring subscriptions or bills were found in your ledger."
-                } else {
-                    var total = Money.ZERO
-                    val items = recurring.joinToString("\n") {
-                        total += it.amount
-                        "• ${it.title}: ${it.amount.formatInr(true)} (${it.cadence.lowercase()})"
-                    }
-                    "${nameGreeting}Active recurring commitments:\n$items\n\nTotal commitment: ${total.formatInr(true)}"
-                }
-            }
-
-            lower.contains("cut") || lower.contains("save") || lower.contains("recommend") || lower.contains("advice") -> {
-                val topCat = summary.categoryBreakdown.firstOrNull()
-                if (topCat != null) {
-                    "${nameGreeting}Based on your ledger, '${topCat.categoryName}' accounts for ${String.format(Locale.ENGLISH, "%.1f", topCat.percentageOfTotal)}% of your expenses (${topCat.amount.formatInr(true)}). Setting a monthly budget on this category could save you up to 15% next month."
-                } else {
-                    "${nameGreeting}Maintain your spending discipline! Track all incoming alerts and verify any flagged duplicate items in the Review Center."
-                }
-            }
-
-            else -> {
-                "${nameGreeting}I am your Spendwell On-Device AI Advisor running locally. You can ask me:\n• 'How much did I spend this month?'\n• 'What are my top spending categories?'\n• 'List my recurring subscriptions'\n• 'How can I save more money?'\n\n(Tip: Download Gemma 2B in Settings for advanced open-ended reasoning)."
-            }
-        }
-
-        val tag = if (isModelReady) "[Gemma 2B Fallback Engine]\n\n" else "[Spendwell Local Engine]\n\n"
-        tag + responseText
+        // Default / Auto Fallback
+        val tag = if (isModelFileExisting) "[Spendwell App Engine (Auto Fallback)]\n\n" else "[Spendwell App Engine]\n\n"
+        tag + runDeterministicAppEngine()
     }
 }

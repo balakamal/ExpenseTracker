@@ -33,6 +33,11 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_CUSTOM_MODEL_URL = stringPreferencesKey("custom_model_url")
         val KEY_USER_NAME = stringPreferencesKey("user_name")
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode") // "SYSTEM", "LIGHT", "DARK"
+        val KEY_AI_ENGINE_MODE = stringPreferencesKey("ai_engine_mode") // "AUTO", "GEMMA_LLM", "APP_ENGINE"
+    }
+
+    val aiEngineMode: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[KEY_AI_ENGINE_MODE] ?: "AUTO"
     }
 
     val themeMode: Flow<String> = context.dataStore.data.map { preferences ->
@@ -148,6 +153,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setThemeMode(mode: String) {
         context.dataStore.edit { preferences ->
             preferences[KEY_THEME_MODE] = mode
+        }
+    }
+
+    suspend fun setAiEngineMode(mode: String) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_AI_ENGINE_MODE] = mode
         }
     }
 }

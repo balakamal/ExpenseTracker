@@ -152,8 +152,9 @@ dependencies {
     // DataStore Preferences
     implementation(libs.androidx.datastore.preferences)
 
-    // LiteRT-LM for compatible local LLM inference
+    // LiteRT-LM & MediaPipe GenAI for local LLM inference
     implementation(libs.litertlm.android)
+    implementation(libs.mediapipe.tasks.genai)
 
     // WorkManager + Hilt Work
     implementation(libs.androidx.work.runtime.ktx)

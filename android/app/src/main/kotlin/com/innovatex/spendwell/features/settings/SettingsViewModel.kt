@@ -30,6 +30,15 @@ class SettingsViewModel @Inject constructor(
     val themeMode: StateFlow<String> = userPreferencesRepository.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "SYSTEM")
 
+    val aiEngineMode: StateFlow<String> = userPreferencesRepository.aiEngineMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "AUTO")
+
+    fun setAiEngineMode(mode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAiEngineMode(mode)
+        }
+    }
+
     fun setThemeMode(mode: String) {
         viewModelScope.launch {
             userPreferencesRepository.setThemeMode(mode)

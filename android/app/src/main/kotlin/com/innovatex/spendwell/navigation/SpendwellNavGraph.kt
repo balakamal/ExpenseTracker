@@ -212,6 +212,7 @@ fun SpendwellApp(
                 AiAdvisorScreen(
                     engine = aiAdvisorEngine,
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    onNavigateToModelManagement = { navController.navigate(Screen.AiModel.route) },
                     userName = currentUserName
                 )
             }

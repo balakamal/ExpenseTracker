@@ -18,6 +18,7 @@ coil = "2.7.0"
 paging = "3.3.2"
 leakCanary = "2.14"
 litertLm = "0.16.1"
+tasksGenai = "0.10.14"
 sqlcipher = "4.6.1"
 sqlite = "2.4.0"
 workRuntime = "2.9.1"
@@ -70,6 +71,7 @@ androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", 
 # DataStore
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertLm" }
+mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "tasksGenai" }
 sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
 androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "sqlite" }
 androidx-sqlite-framework = { group = "androidx.sqlite", name = "sqlite-framework", version.ref = "sqlite" }
