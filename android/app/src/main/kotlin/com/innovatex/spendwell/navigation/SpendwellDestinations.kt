@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector? = null) {

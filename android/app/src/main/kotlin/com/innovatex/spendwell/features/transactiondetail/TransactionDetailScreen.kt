@@ -110,6 +110,7 @@ import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import com.innovatex.spendwell.designsystem.theme.TextOnSurface
 import com.innovatex.spendwell.domain.model.Category
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus

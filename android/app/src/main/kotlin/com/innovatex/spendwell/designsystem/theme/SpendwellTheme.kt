@@ -66,6 +66,9 @@ val DeepCharcoal = TextOnSurface
 val OutflowRed = CrimsonTertiary
 val InflowGreen = EmeraldSecondary
 val WarningAmber = Color(0xFFF59E0B)
+val PrimaryContainer = CobaltPrimaryContainer
+val SecondaryContainer = EmeraldSecondaryContainer
+val TertiaryContainer = CrimsonTertiaryContainer
 
 private val LightSpendwellColorScheme = lightColorScheme(
     primary = CobaltPrimary,
