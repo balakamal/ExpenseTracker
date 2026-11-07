@@ -69,6 +69,16 @@ class ModelDownloadManager @Inject constructor(
         }
     }
 
+    /**
+     * Scans the local filesystem for manually sideloaded model binaries
+     * (e.g. via ADB push).
+     * @return true if an existing model was detected and ready
+     */
+    fun scanForLocalModel(): Boolean {
+        checkExistingModel()
+        return _downloadState.value is ModelDownloadState.Ready
+    }
+
     fun getModelFile(): File {
         val modelsDir = File(context.filesDir, "models")
         if (!modelsDir.exists()) {
@@ -98,6 +108,10 @@ class ModelDownloadManager @Inject constructor(
             return@withContext
         }
 
+        val customUrl = preferencesRepository.customModelUrl.first()
+        val effectiveDownloadUrl = if (!customUrl.isNullOrBlank()) customUrl else downloadUrl
+        val hfToken = preferencesRepository.hfApiToken.first()
+
         val targetFile = getModelFile()
         val tempFile = File(targetFile.parentFile, "$MODEL_FILE_NAME.download")
 
@@ -106,26 +120,67 @@ class ModelDownloadManager @Inject constructor(
         var outputStream: FileOutputStream? = null
 
         try {
-            val url = URL(downloadUrl)
-            connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 30_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "Spendwell-Local-Ledger/1.0")
-            }
-
-            // Check resume
             var downloadedBytes = 0L
             if (tempFile.exists()) {
                 downloadedBytes = tempFile.length()
-                connection.setRequestProperty("Range", "bytes=$downloadedBytes-")
             }
 
-            connection.connect()
+            var currentUrl = effectiveDownloadUrl
+            var redirectHops = 0
+            val maxHops = 5
+
+            while (redirectHops < maxHops) {
+                val url = URL(currentUrl)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30_000
+                    readTimeout = 60_000
+                    instanceFollowRedirects = false
+                    setRequestProperty("User-Agent", "Spendwell-Local-Ledger/1.0")
+
+                    // Only send Hugging Face token to huggingface.co domains.
+                    // DO NOT forward to redirected S3 / CDN pre-signed URLs, otherwise AWS S3
+                    // will reject the request with HTTP 400 Bad Request ("Only one auth mechanism allowed").
+                    if (!hfToken.isNullOrBlank() && url.host.endsWith("huggingface.co")) {
+                        setRequestProperty("Authorization", "Bearer $hfToken")
+                    }
+
+                    if (downloadedBytes > 0) {
+                        setRequestProperty("Range", "bytes=$downloadedBytes-")
+                    }
+                }
+
+                conn.connect()
+                val code = conn.responseCode
+
+                if (code in listOf(301, 302, 303, 307, 308)) {
+                    val location = conn.getHeaderField("Location")
+                    conn.disconnect()
+                    if (location.isNullOrBlank()) {
+                        throw java.io.IOException("Redirect response $code with missing Location header")
+                    }
+                    currentUrl = URL(url, location).toString()
+                    redirectHops++
+                    continue
+                }
+
+                connection = conn
+                break
+            }
+
+            if (connection == null) {
+                _downloadState.value = ModelDownloadState.Error("Failed to establish server connection after redirects.")
+                return@withContext
+            }
 
             val responseCode = connection.responseCode
             if (responseCode !in 200..206) {
-                _downloadState.value = ModelDownloadState.Error("Server returned HTTP error code: $responseCode")
+                val errorMessage = when (responseCode) {
+                    401 -> "Hugging Face authentication required (HTTP 401). Gemma 2B is a gated model. Please provide your Hugging Face Access Token with accepted Gemma terms, or configure a custom download URL."
+                    403 -> "Access forbidden (HTTP 403). Ensure you have accepted the Gemma license terms at huggingface.co/google/gemma-2b-it and your token has Read permissions."
+                    404 -> "Model file not found (HTTP 404). Please verify the download URL."
+                    else -> "Server returned HTTP error code: $responseCode"
+                }
+                _downloadState.value = ModelDownloadState.Error(errorMessage)
                 return@withContext
             }
 

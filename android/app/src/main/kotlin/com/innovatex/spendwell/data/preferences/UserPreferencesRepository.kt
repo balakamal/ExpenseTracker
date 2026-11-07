@@ -29,6 +29,8 @@ class UserPreferencesRepository @Inject constructor(
         val KEY_MODEL_FILE_PATH = stringPreferencesKey("model_file_path")
         val KEY_WIFI_ONLY_DOWNLOAD = booleanPreferencesKey("wifi_only_download")
         val KEY_SYNCED_MONTHS = stringSetPreferencesKey("synced_months")
+        val KEY_HF_API_TOKEN = stringPreferencesKey("hf_api_token")
+        val KEY_CUSTOM_MODEL_URL = stringPreferencesKey("custom_model_url")
     }
 
     val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -57,6 +59,14 @@ class UserPreferencesRepository @Inject constructor(
 
     val syncedMonths: Flow<Set<String>> = context.dataStore.data.map { preferences ->
         preferences[KEY_SYNCED_MONTHS] ?: emptySet()
+    }
+
+    val hfApiToken: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[KEY_HF_API_TOKEN]
+    }
+
+    val customModelUrl: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[KEY_CUSTOM_MODEL_URL]
     }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {
@@ -96,6 +106,26 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { preferences ->
             val current = preferences[KEY_SYNCED_MONTHS] ?: emptySet()
             preferences[KEY_SYNCED_MONTHS] = current + monthKey
+        }
+    }
+
+    suspend fun setHfApiToken(token: String?) {
+        context.dataStore.edit { preferences ->
+            if (token.isNullOrBlank()) {
+                preferences.remove(KEY_HF_API_TOKEN)
+            } else {
+                preferences[KEY_HF_API_TOKEN] = token.trim()
+            }
+        }
+    }
+
+    suspend fun setCustomModelUrl(url: String?) {
+        context.dataStore.edit { preferences ->
+            if (url.isNullOrBlank()) {
+                preferences.remove(KEY_CUSTOM_MODEL_URL)
+            } else {
+                preferences[KEY_CUSTOM_MODEL_URL] = url.trim()
+            }
         }
     }
 }

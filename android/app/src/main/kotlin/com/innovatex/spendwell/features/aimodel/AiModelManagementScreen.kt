@@ -26,19 +26,26 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,6 +97,10 @@ class AiModelManagementViewModel @Inject constructor(
     val downloadState: StateFlow<ModelDownloadState> = modelDownloadManager.downloadState
     val isWifiOnly: StateFlow<Boolean> = preferencesRepository.isWifiOnlyDownload
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val hfApiToken: StateFlow<String?> = preferencesRepository.hfApiToken
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val customModelUrl: StateFlow<String?> = preferencesRepository.customModelUrl
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun startDownload() {
         viewModelScope.launch {
@@ -113,6 +124,22 @@ class AiModelManagementViewModel @Inject constructor(
         }
     }
 
+    fun saveHfApiToken(token: String?) {
+        viewModelScope.launch {
+            preferencesRepository.setHfApiToken(token)
+        }
+    }
+
+    fun saveCustomModelUrl(url: String?) {
+        viewModelScope.launch {
+            preferencesRepository.setCustomModelUrl(url)
+        }
+    }
+
+    fun scanLocalModel(): Boolean {
+        return modelDownloadManager.scanForLocalModel()
+    }
+
     suspend fun runBenchmark(): String {
         val start = System.currentTimeMillis()
         val response = aiAdvisorEngine.answerQuery("How much did I spend this month?")
@@ -129,10 +156,13 @@ fun AiModelManagementScreen(
 ) {
     val downloadState by viewModel.downloadState.collectAsState()
     val isWifiOnly by viewModel.isWifiOnly.collectAsState()
+    val hfApiToken by viewModel.hfApiToken.collectAsState()
+    val customModelUrl by viewModel.customModelUrl.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var benchmarkResult by remember { mutableStateOf<String?>(null) }
     var isBenchmarking by remember { mutableStateOf(false) }
+    var showSourceConfigDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -248,7 +278,55 @@ fun AiModelManagementScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Source & Auth Card
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (!customModelUrl.isNullOrBlank()) Icons.Default.Link else Icons.Default.Key,
+                                        contentDescription = null,
+                                        tint = CobaltPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Download Source & Auth",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (!customModelUrl.isNullOrBlank()) {
+                                        "Custom URL: ${customModelUrl!!.take(28)}..."
+                                    } else if (!hfApiToken.isNullOrBlank()) {
+                                        "Hugging Face (Token Configured: hf_...)"
+                                    } else {
+                                        "Hugging Face (Token required for Gemma 2B)"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (customModelUrl.isNullOrBlank() && hfApiToken.isNullOrBlank()) CrimsonTertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            SpendwellTonalButton(
+                                text = "Configure",
+                                leadingIcon = Icons.Default.Settings,
+                                onClick = { showSourceConfigDialog = true }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier
@@ -277,11 +355,29 @@ fun AiModelManagementScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        SpendwellPrimaryButton(
-                            text = "Download Gemma 2B (~1.4 GB)",
-                            leadingIcon = Icons.Default.CloudDownload,
-                            onClick = { viewModel.startDownload() }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SpendwellPrimaryButton(
+                                text = "Download Gemma 2B",
+                                leadingIcon = Icons.Default.CloudDownload,
+                                onClick = { viewModel.startDownload() },
+                                modifier = Modifier.weight(1f)
+                            )
+                            SpendwellTonalButton(
+                                text = "Scan ADB",
+                                leadingIcon = Icons.Default.Folder,
+                                onClick = {
+                                    val found = viewModel.scanLocalModel()
+                                    Toast.makeText(
+                                        context,
+                                        if (found) "Model detected and ready!" else "No model file found in internal models/ directory.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            )
+                        }
                     }
 
                     is ModelDownloadState.CheckingNetwork -> {
@@ -374,22 +470,55 @@ fun AiModelManagementScreen(
                     }
 
                     is ModelDownloadState.Error -> {
+                        val isAuthError = state.message.contains("401") || state.message.contains("403") || state.message.contains("authentication", ignoreCase = true)
                         Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.Top) {
                                 Icon(imageVector = Icons.Default.ErrorOutline, contentDescription = null, tint = CrimsonTertiary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = state.message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = CrimsonTertiary
-                                )
+                                Column {
+                                    Text(
+                                        text = state.message,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CrimsonTertiary
+                                    )
+                                    if (isAuthError) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "Tip: Gemma 2B requires accepting Google's license terms on Hugging Face and configuring a free Read access token, or providing a custom direct download URL.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            SpendwellPrimaryButton(
-                                text = "Retry Download",
-                                leadingIcon = Icons.Default.Refresh,
-                                onClick = { viewModel.startDownload() }
-                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (isAuthError) {
+                                    SpendwellPrimaryButton(
+                                        text = "Configure Token",
+                                        leadingIcon = Icons.Default.Key,
+                                        onClick = { showSourceConfigDialog = true },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    SpendwellTonalButton(
+                                        text = "Retry",
+                                        leadingIcon = Icons.Default.Refresh,
+                                        onClick = { viewModel.startDownload() }
+                                    )
+                                } else {
+                                    SpendwellPrimaryButton(
+                                        text = "Retry Download",
+                                        leadingIcon = Icons.Default.Refresh,
+                                        onClick = { viewModel.startDownload() },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    SpendwellTonalButton(
+                                        text = "Configure Source",
+                                        leadingIcon = Icons.Default.Settings,
+                                        onClick = { showSourceConfigDialog = true }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -434,7 +563,103 @@ fun AiModelManagementScreen(
                 )
             }
         }
+
+        if (showSourceConfigDialog) {
+            DownloadSourceConfigDialog(
+                initialHfToken = hfApiToken,
+                initialCustomUrl = customModelUrl,
+                onDismiss = { showSourceConfigDialog = false },
+                onSave = { token, url ->
+                    viewModel.saveHfApiToken(token)
+                    viewModel.saveCustomModelUrl(url)
+                    showSourceConfigDialog = false
+                    Toast.makeText(context, "Download source settings updated.", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
     }
+}
+
+@Composable
+fun DownloadSourceConfigDialog(
+    initialHfToken: String?,
+    initialCustomUrl: String?,
+    onDismiss: () -> Unit,
+    onSave: (hfToken: String?, customUrl: String?) -> Unit
+) {
+    var hfToken by remember { mutableStateOf(initialHfToken ?: "") }
+    var customUrl by remember { mutableStateOf(initialCustomUrl ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Model Source & Authentication",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Gemma 2B is a gated model. Provide a Hugging Face Access Token with accepted Gemma terms, or specify a custom direct mirror URL.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = hfToken,
+                    onValueChange = { hfToken = it },
+                    label = { Text("Hugging Face Token (hf_...)") },
+                    placeholder = { Text("hf_xxxxxxxxxxxxxxxxxxxxxx") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "• 1. Accept license at: huggingface.co/google/gemma-2b-it\n• 2. Create Read token at: huggingface.co/settings/tokens",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CobaltPrimary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = customUrl,
+                    onValueChange = { customUrl = it },
+                    label = { Text("Custom Model URL (Optional)") },
+                    placeholder = { Text("http://192.168.1.5:8080/gemma-2b-it-cpu-int4.bin") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Overrides Hugging Face. Useful for offline, self-hosted, or local server testing.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            SpendwellPrimaryButton(
+                text = "Save",
+                onClick = {
+                    onSave(
+                        hfToken.trim().ifEmpty { null },
+                        customUrl.trim().ifEmpty { null }
+                    )
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
