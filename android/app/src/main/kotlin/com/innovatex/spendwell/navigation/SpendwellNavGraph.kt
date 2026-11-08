@@ -101,6 +101,7 @@ fun SpendwellApp(
     )
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         bottomBar = {
             AnimatedVisibility(
                 visible = isBottomBarVisible,
@@ -129,7 +130,7 @@ fun SpendwellApp(
         NavHost(
             navController = navController,
             startDestination = if (isOnboardingCompleted == true) Screen.Dashboard.route else Screen.Onboarding.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(

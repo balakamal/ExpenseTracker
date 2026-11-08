@@ -27,6 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderZip
@@ -35,17 +39,23 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,6 +74,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.innovatex.spendwell.ai.AiRefinementResult
+import com.innovatex.spendwell.ai.SpendwellAiAdvisorEngine
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.analytics.FinancialCycleWindow
 import com.innovatex.spendwell.common.Money
@@ -113,7 +125,8 @@ data class CycleFilterOption(
 class TransactionFeedViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val smsHistoryImporter: SmsHistoryImporter
+    private val smsHistoryImporter: SmsHistoryImporter,
+    private val aiAdvisorEngine: SpendwellAiAdvisorEngine
 ) : ViewModel() {
     val transactions: StateFlow<List<Transaction>> = transactionRepository.observeAllTransactions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -124,10 +137,50 @@ class TransactionFeedViewModel @Inject constructor(
     val syncedMonths: StateFlow<Set<String>> = userPreferencesRepository.syncedMonths
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    val isRefiningAi = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val aiRefinementResults = kotlinx.coroutines.flow.MutableStateFlow<List<AiRefinementResult>>(emptyList())
+
     fun saveTransaction(tx: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(tx)
         }
+    }
+
+    fun runAiCategorization(candidates: List<Transaction>) {
+        if (candidates.isEmpty() || isRefiningAi.value) return
+        viewModelScope.launch {
+            isRefiningAi.value = true
+            try {
+                val results = aiAdvisorEngine.refineTransactionsWithAi(candidates)
+                aiRefinementResults.value = results
+            } catch (ignored: Exception) {
+            } finally {
+                isRefiningAi.value = false
+            }
+        }
+    }
+
+    fun applyRefinements(refinements: List<AiRefinementResult>) {
+        viewModelScope.launch {
+            refinements.forEach { ref ->
+                transactionRepository.updateCategory(ref.transactionId, ref.suggestedCategoryId)
+                val tx = transactionRepository.getTransactionById(ref.transactionId)
+                if (tx != null && ref.cleanedMerchant.isNotBlank() && ref.cleanedMerchant != tx.merchantName) {
+                    transactionRepository.saveTransaction(
+                        tx.copy(
+                            merchantName = ref.cleanedMerchant,
+                            categoryId = ref.suggestedCategoryId,
+                            categoryName = ref.suggestedCategoryName
+                        )
+                    )
+                }
+            }
+            aiRefinementResults.value = emptyList()
+        }
+    }
+
+    fun dismissRefinements() {
+        aiRefinementResults.value = emptyList()
     }
 
     fun lazyLoadCycleHistory(startTime: Long, endTime: Long) {
@@ -142,6 +195,7 @@ class TransactionFeedViewModel @Inject constructor(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionFeedScreen(
     viewModel: TransactionFeedViewModel,
@@ -152,6 +206,8 @@ fun TransactionFeedScreen(
     val context = LocalContext.current
     val allTransactions by viewModel.transactions.collectAsState()
     val cycleStartDay by viewModel.cycleStartDay.collectAsState()
+    val isRefiningAi by viewModel.isRefiningAi.collectAsState()
+    val aiRefinements by viewModel.aiRefinementResults.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("ALL") }
@@ -448,6 +504,19 @@ fun TransactionFeedScreen(
                         label = "Pending ($pendingCount)",
                         isSelected = selectedFilter == "PENDING",
                         onClick = { selectedFilter = "PENDING" }
+                    )
+
+                    SpendwellFilterPill(
+                        label = if (isRefiningAi) "✨ Categorizing..." else "✨ AI Categorize",
+                        isSelected = false,
+                        onClick = {
+                            val candidates = allTransactions.filter {
+                                it.categoryName.equals("Miscellaneous", ignoreCase = true) ||
+                                it.categoryId == "cat_other" ||
+                                it.status == TransactionStatus.NEEDS_REVIEW
+                            }
+                            viewModel.runAiCategorization(if (candidates.isNotEmpty()) candidates else allTransactions.take(15))
+                        }
                     )
                 }
 
@@ -857,6 +926,203 @@ fun TransactionFeedScreen(
                 Toast.makeText(context, "Cash expense logged successfully", Toast.LENGTH_SHORT).show()
             }
         )
+    }
+
+    if (aiRefinements.isNotEmpty()) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.dismissRefinements() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = CardSurfaceWhite,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = CobaltPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "AI Transaction Accuracy",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${aiRefinements.size} candidate transactions refined on-device",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.dismissRefinements() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(aiRefinements.size) { idx ->
+                        val ref = aiRefinements[idx]
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                    .padding(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = ref.cleanedMerchant,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (ref.originalMerchant.isNotBlank() && ref.originalMerchant != ref.cleanedMerchant) {
+                                            Text(
+                                                text = "Raw: ${ref.originalMerchant}",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(PillShape)
+                                            .background(EmeraldSecondary.copy(alpha = 0.15f))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "${(ref.confidence * 100).toInt()}% Match",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldSecondary
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Category: ",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = ref.suggestedCategoryName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CobaltPrimary
+                                    )
+                                }
+
+                                if (ref.tags.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        ref.tags.forEach { tag ->
+                                            Text(
+                                                text = tag,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier
+                                                    .clip(PillShape)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.dismissRefinements() },
+                        colors = ButtonDefaults.outlinedButtonColors(),
+                        modifier = Modifier.weight(1f),
+                        shape = PillShape
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.applyRefinements(aiRefinements)
+                            Toast.makeText(context, "Applied AI refinements to ${aiRefinements.size} transactions", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CobaltPrimary),
+                        modifier = Modifier.weight(2f),
+                        shape = PillShape
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Apply All (${aiRefinements.size})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

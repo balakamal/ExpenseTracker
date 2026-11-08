@@ -18,6 +18,7 @@ import com.innovatex.spendwell.database.dao.AccountDao
 import com.innovatex.spendwell.database.dao.AiInsightDao
 import com.innovatex.spendwell.database.dao.BudgetDao
 import com.innovatex.spendwell.database.dao.CategoryDao
+import com.innovatex.spendwell.database.dao.ChatDao
 import com.innovatex.spendwell.database.dao.DuplicateCandidateDao
 import com.innovatex.spendwell.database.dao.MerchantDao
 import com.innovatex.spendwell.database.dao.ReconciliationDao
@@ -106,12 +107,16 @@ object DatabaseModule {
             SpendwellDatabase::class.java,
             SpendwellDatabase.DATABASE_NAME
         )
+            .addMigrations(SpendwellDatabase.MIGRATION_1_2)
             .fallbackToDestructiveMigration()
             .build()
     }
 
     @Provides
     fun provideTransactionDao(db: SpendwellDatabase): TransactionDao = db.transactionDao()
+
+    @Provides
+    fun provideChatDao(db: SpendwellDatabase): ChatDao = db.chatDao()
 
     @Provides
     fun provideAccountDao(db: SpendwellDatabase): AccountDao = db.accountDao()

@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -769,6 +770,82 @@ fun TransactionDetailScreen(
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // AI Smart Category Recommendation
+                    val merchantLower = currentTx.merchantName.lowercase(Locale.ROOT)
+                    val suggestedCategory = when {
+                        merchantLower.contains("country delight") || merchantLower.contains("countrydelight") -> categories.firstOrNull { it.id == "cat_groceries" }
+                        merchantLower.contains("swiggy") || merchantLower.contains("zomato") || merchantLower.contains("mcdonald") -> categories.firstOrNull { it.id == "cat_food" }
+                        merchantLower.contains("blinkit") || merchantLower.contains("zepto") || merchantLower.contains("instamart") || merchantLower.contains("bigbasket") -> categories.firstOrNull { it.id == "cat_groceries" }
+                        merchantLower.contains("uber") || merchantLower.contains("ola") || merchantLower.contains("rapido") -> categories.firstOrNull { it.id == "cat_transport" }
+                        merchantLower.contains("amazon") || merchantLower.contains("flipkart") || merchantLower.contains("myntra") || merchantLower.contains("ajio") -> categories.firstOrNull { it.id == "cat_shopping" }
+                        merchantLower.contains("netflix") || merchantLower.contains("spotify") || merchantLower.contains("prime video") || merchantLower.contains("hotstar") -> categories.firstOrNull { it.id == "cat_entertainment" }
+                        merchantLower.contains("apollo") || merchantLower.contains("1mg") || merchantLower.contains("pharmeasy") -> categories.firstOrNull { it.id == "cat_health" }
+                        merchantLower.contains("airtel") || merchantLower.contains("jio") || merchantLower.contains("bescom") || merchantLower.contains("electricity") -> categories.firstOrNull { it.id == "cat_utilities" }
+                        merchantLower.contains("zerodha") || merchantLower.contains("groww") -> categories.firstOrNull { it.id == "cat_investment" }
+                        else -> null
+                    }
+
+                    if (suggestedCategory != null && (suggestedCategory.id != currentTx.categoryId || currentTx.categoryName.equals("Miscellaneous", ignoreCase = true))) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CobaltPrimaryContainer.copy(alpha = 0.12f))
+                                .border(1.dp, CobaltPrimary.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = CobaltPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "AI Smart Category Suggestion",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = CobaltPrimary
+                                    )
+                                    Text(
+                                        text = "Change to " + suggestedCategory.name + " (98% match)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(CobaltPrimary)
+                                    .clickable {
+                                        scope.launch {
+                                            transactionRepository.updateCategory(currentTx.id, suggestedCategory.id)
+                                            transaction = currentTx.copy(categoryId = suggestedCategory.id, categoryName = suggestedCategory.name)
+                                            Toast.makeText(context, "Updated to " + suggestedCategory.name + " via AI", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Apply",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
                     }

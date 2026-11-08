@@ -10,6 +10,7 @@ import com.innovatex.spendwell.database.dao.AccountDao
 import com.innovatex.spendwell.database.dao.AiInsightDao
 import com.innovatex.spendwell.database.dao.BudgetDao
 import com.innovatex.spendwell.database.dao.CategoryDao
+import com.innovatex.spendwell.database.dao.ChatDao
 import com.innovatex.spendwell.database.dao.DuplicateCandidateDao
 import com.innovatex.spendwell.database.dao.MerchantDao
 import com.innovatex.spendwell.database.dao.ReconciliationDao
@@ -22,6 +23,8 @@ import com.innovatex.spendwell.database.entity.AccountEntity
 import com.innovatex.spendwell.database.entity.AiInsightEntity
 import com.innovatex.spendwell.database.entity.BudgetEntity
 import com.innovatex.spendwell.database.entity.CategoryEntity
+import com.innovatex.spendwell.database.entity.ChatMessageEntity
+import com.innovatex.spendwell.database.entity.ChatSessionEntity
 import com.innovatex.spendwell.database.entity.CreditCardEntity
 import com.innovatex.spendwell.database.entity.DuplicateCandidateEntity
 import com.innovatex.spendwell.database.entity.FinancialRuleEntity
@@ -52,10 +55,12 @@ import com.innovatex.spendwell.database.entity.UserProfileEntity
         FinancialRuleEntity::class,
         AiInsightEntity::class,
         ReconciliationSessionEntity::class,
-        ImportedStatementEntity::class
+        ImportedStatementEntity::class,
+        ChatSessionEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 1,
-    exportSchema = true
+    version = 2,
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class SpendwellDatabase : RoomDatabase() {
@@ -72,13 +77,34 @@ abstract class SpendwellDatabase : RoomDatabase() {
     abstract fun aiInsightDao(): AiInsightDao
     abstract fun reconciliationDao(): ReconciliationDao
     abstract fun userProfileDao(): UserProfileDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         const val DATABASE_NAME = "spendwell_ledger.db"
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Future migration blueprint
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS chat_sessions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        summary TEXT
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sessionId TEXT NOT NULL,
+                        sender TEXT NOT NULL,
+                        text TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        FOREIGN KEY(sessionId) REFERENCES chat_sessions(id) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_sessionId ON chat_messages(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_timestamp ON chat_messages(timestamp)")
             }
         }
     }
