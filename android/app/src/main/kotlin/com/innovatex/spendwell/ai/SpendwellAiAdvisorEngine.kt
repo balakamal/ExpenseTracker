@@ -111,14 +111,37 @@ class SpendwellAiAdvisorEngine @Inject constructor(
             val backendClass = Class.forName("com.google.ai.edge.litertlm.Backend\$CPU")
             val backendInstance = backendClass.getDeclaredConstructor().newInstance()
 
-            val constructor = engineConfigClass.constructors.firstOrNull {
-                it.parameterTypes.isNotEmpty() && it.parameterTypes[0] == String::class.java
+            // Find best matching constructor (supports 1-arg, 2-arg, or full multi-arg with default padding)
+            val constructors = engineConfigClass.constructors
+            val targetConstructor = constructors.firstOrNull { c ->
+                val p = c.parameterTypes
+                p.isNotEmpty() && p[0] == String::class.java && (p.size == 1 || (p.size == 2 && p[1].isAssignableFrom(backendClass)))
+            } ?: constructors.firstOrNull { c ->
+                val p = c.parameterTypes
+                p.isNotEmpty() && p[0] == String::class.java
             }
-            if (constructor != null) {
-                val config = when (constructor.parameterTypes.size) {
-                    1 -> constructor.newInstance(modelFile.absolutePath)
-                    else -> constructor.newInstance(modelFile.absolutePath, backendInstance)
+
+            if (targetConstructor != null) {
+                val paramTypes = targetConstructor.parameterTypes
+                val paramCount = paramTypes.size
+                val args = arrayOfNulls<Any>(paramCount)
+                args[0] = modelFile.absolutePath
+                if (paramCount > 1 && paramTypes[1].isAssignableFrom(backendClass)) {
+                    args[1] = backendInstance
                 }
+                for (i in 2 until paramCount) {
+                    val pType = paramTypes[i]
+                    args[i] = when (pType) {
+                        Int::class.javaPrimitiveType -> 0
+                        Boolean::class.javaPrimitiveType -> false
+                        Long::class.javaPrimitiveType -> 0L
+                        Float::class.javaPrimitiveType -> 0.0f
+                        Double::class.javaPrimitiveType -> 0.0
+                        else -> null
+                    }
+                }
+
+                val config = targetConstructor.newInstance(*args)
                 if (config != null) {
                     val engineClass = Class.forName("com.google.ai.edge.litertlm.Engine")
                     val engineInstance = engineClass.getConstructor(engineConfigClass).newInstance(config)
@@ -158,11 +181,23 @@ class SpendwellAiAdvisorEngine @Inject constructor(
             val conversation = createConvMethod.invoke(instance)
             if (conversation != null) {
                 val sendMethod = conversation.javaClass.methods.firstOrNull {
-                    it.name == "sendMessage" || it.name == "sendMessageAsync"
+                    it.name == "sendMessage" && it.parameterTypes.size == 1
+                } ?: conversation.javaClass.methods.firstOrNull {
+                    it.name == "sendMessageAsync" && it.parameterTypes.size == 1
                 }
                 if (sendMethod != null) {
                     val result = sendMethod.invoke(conversation, prompt)
-                    if (result is String && result.isNotBlank()) return result.trim()
+                    if (result is String && result.isNotBlank()) {
+                        return result.trim()
+                    } else if (result != null) {
+                        val textProp = result.javaClass.methods.firstOrNull {
+                            it.name == "getText" || it.name == "getContent"
+                        }
+                        val str = (textProp?.invoke(result) as? String) ?: result.toString()
+                        if (str.isNotBlank() && !str.startsWith(result.javaClass.name)) {
+                            return str.trim()
+                        }
+                    }
                 }
             }
         } catch (e: Throwable) {

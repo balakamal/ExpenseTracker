@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Flag
@@ -110,13 +112,18 @@ import com.innovatex.spendwell.designsystem.theme.SquircleCardShape
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainer
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerHigh
 import com.innovatex.spendwell.designsystem.theme.SurfaceContainerLow
+import com.innovatex.spendwell.common.Money
 import com.innovatex.spendwell.designsystem.theme.TextOnSurface
 import com.innovatex.spendwell.domain.model.Category
+import com.innovatex.spendwell.domain.model.SourceType
 import com.innovatex.spendwell.domain.model.Transaction
 import com.innovatex.spendwell.domain.model.TransactionStatus
 import com.innovatex.spendwell.domain.model.TransactionType
 import com.innovatex.spendwell.domain.repository.CategoryRepository
 import com.innovatex.spendwell.domain.repository.TransactionRepository
+import com.innovatex.spendwell.transactionengine.model.RawSignal
+import com.innovatex.spendwell.transactionengine.stages.Stage3MessageNormalization
+import com.innovatex.spendwell.transactionengine.stages.Stage6StructuredExtraction
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -150,6 +157,8 @@ fun TransactionDetailScreen(
     var showAddTagDialog by remember { mutableStateOf(false) }
     var newTagInput by remember { mutableStateOf("") }
     var showReportDialog by remember { mutableStateOf(false) }
+    var showEditAmountDialog by remember { mutableStateOf(false) }
+    var editAmountInput by remember { mutableStateOf("") }
 
     LaunchedEffect(transactionId) {
         transaction = transactionRepository.getTransactionById(transactionId)
@@ -157,6 +166,24 @@ fun TransactionDetailScreen(
     }
 
     val currentTx = transaction
+    val parsedSmsAmount = remember(currentTx?.rawMessageSnippet) {
+        val snippet = currentTx?.rawMessageSnippet
+        if (!snippet.isNullOrBlank()) {
+            try {
+                val signal = RawSignal(
+                    sourceType = SourceType.SMS,
+                    senderAddress = currentTx?.accountId ?: "SMS",
+                    rawText = snippet,
+                    timestamp = currentTx?.timestamp ?: System.currentTimeMillis()
+                )
+                val norm = Stage3MessageNormalization.normalize(signal)
+                val ext = Stage6StructuredExtraction.extract(norm)
+                ext?.amount
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
     if (currentTx == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             SpendwellLoadingState(message = "Loading transaction details...")
@@ -343,15 +370,35 @@ fun TransactionDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Prominent Currency Typography
+                        // Prominent Currency Typography with Edit Action
                         val amountPrefix = if (isCredit) "+" else if (isRefund || isFailed) "" else "−"
-                        Text(
-                            text = "$amountPrefix${currentTx.amount.formatInr(true)}",
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = amountColor,
-                            textDecoration = if (isRefund || isFailed) TextDecoration.LineThrough else null
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "$amountPrefix${currentTx.amount.formatInr(true)}",
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = amountColor,
+                                textDecoration = if (isRefund || isFailed) TextDecoration.LineThrough else null
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    editAmountInput = currentTx.amount.amount.stripTrailingZeros().toPlainString()
+                                    showEditAmountDialog = true
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Amount",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -899,6 +946,62 @@ fun TransactionDetailScreen(
                                 lineHeight = 16.sp
                             )
                         }
+
+                        if (parsedSmsAmount != null && parsedSmsAmount != currentTx.amount) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFFEF3C7)
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoFixHigh,
+                                            contentDescription = null,
+                                            tint = Color(0xFFB45309),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "SMS Amount Discrepancy",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF92400E)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Raw SMS indicates ${parsedSmsAmount.formatInr(true)}, but ledger record displays ${currentTx.amount.formatInr(true)}.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF78350F)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val updated = currentTx.copy(amount = parsedSmsAmount)
+                                            scope.launch {
+                                                transactionRepository.updateTransaction(updated)
+                                                transaction = updated
+                                                Toast.makeText(context, "Amount updated to ${parsedSmsAmount.formatInr(true)}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                        shape = PillShape,
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Text(
+                                            text = "Sync to ${parsedSmsAmount.formatInr(true)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1154,6 +1257,56 @@ fun TransactionDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showReportDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Edit Amount Dialog
+    if (showEditAmountDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditAmountDialog = false },
+            title = { Text("Edit Transaction Amount", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "Enter the corrected amount in INR (₹):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editAmountInput,
+                        onValueChange = { editAmountInput = it },
+                        label = { Text("Amount (₹)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newMoney = Money.fromString(editAmountInput)
+                        if (!newMoney.isZero) {
+                            val updated = currentTx.copy(amount = newMoney)
+                            scope.launch {
+                                transactionRepository.updateTransaction(updated)
+                                transaction = updated
+                                showEditAmountDialog = false
+                                Toast.makeText(context, "Amount updated to ${newMoney.formatInr(true)}", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditAmountDialog = false }) {
                     Text("Cancel")
                 }
             }

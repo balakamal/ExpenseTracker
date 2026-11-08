@@ -190,4 +190,58 @@ class TransactionEngineUnitTest {
         val dropReason = Stage4SpamAndReminderFilter.filter(normalized)
         assertEquals(DropReason.AUTHENTICATION_OTP, dropReason)
     }
+
+    @Test
+    fun `test Country Delight HDFC Credit Card SMS extracts full 1500 instead of truncated 150`() {
+        val raw = "Amount Spent: Rs.1500 with HDFC Bank Credit Card 2815 at COUNTRY DELIGHT on 2026-11-08:09:28:09 This transaction was com"
+        val signal = RawSignal(SourceType.SMS, "VM-HDFCBK", raw)
+        val normalized = Stage3MessageNormalization.normalize(signal)
+
+        assertNull(Stage4SpamAndReminderFilter.filter(normalized))
+        assertTrue(Stage5TransactionDetection.isTransaction(normalized.normalizedText))
+
+        val extracted = Stage6StructuredExtraction.extract(normalized)
+        assertNotNull(extracted)
+        assertEquals("1,500.00", extracted!!.amount.formatInr(false))
+        assertEquals(150000L, extracted.amount.toPaisa())
+        assertEquals("Country Delight", extracted.normalizedMerchant)
+        assertEquals("2815", extracted.accountLast4)
+        assertEquals(TransactionType.DEBIT, extracted.transactionType)
+        assertEquals(TransactionStatus.SUCCESSFUL, extracted.status)
+    }
+
+    @Test
+    fun `test unformatted amounts without commas do not truncate to 3 digits`() {
+        // 4 digits: Rs.2500 -> 2,500.00
+        val raw4 = "Spent Rs.2500 on HDFC Card 1111 at RELIANCE"
+        val extracted4 = Stage6StructuredExtraction.extract(Stage3MessageNormalization.normalize(RawSignal(SourceType.SMS, "VM-HDFCBK", raw4)))
+        assertNotNull(extracted4)
+        assertEquals("2,500.00", extracted4!!.amount.formatInr(false))
+
+        // 5 digits: Rs.15000 -> 15,000.00
+        val raw5 = "Spent Rs.15000 on SBI Card 2222 at CROMA"
+        val extracted5 = Stage6StructuredExtraction.extract(Stage3MessageNormalization.normalize(RawSignal(SourceType.SMS, "AD-SBIN", raw5)))
+        assertNotNull(extracted5)
+        assertEquals("15,000.00", extracted5!!.amount.formatInr(false))
+
+        // 3 digits: Rs.150 -> 150.00
+        val raw3 = "Spent Rs.150 on Kotak Card 3333 at CHAI POINT"
+        val extracted3 = Stage6StructuredExtraction.extract(Stage3MessageNormalization.normalize(RawSignal(SourceType.SMS, "VM-KOTAK", raw3)))
+        assertNotNull(extracted3)
+        assertEquals("150.00", extracted3!!.amount.formatInr(false))
+
+        // Indian comma notation: Rs. 1,50,000.50 -> 1,50,000.50
+        val rawLakh = "Paid Rs. 1,50,000.50 to TATA MOTORS via NEFT"
+        val extractedLakh = Stage6StructuredExtraction.extract(Stage3MessageNormalization.normalize(RawSignal(SourceType.SMS, "VM-HDFCBK", rawLakh)))
+        assertNotNull(extractedLakh)
+        assertEquals("1,50,000.50", extractedLakh!!.amount.formatInr(false))
+    }
+
+    @Test
+    fun `test fallback amount pattern with colons and varied keywords`() {
+        val raw = "Transaction successful for account 1234. Amount: 4200.00 at DMart"
+        val extracted = Stage6StructuredExtraction.extract(Stage3MessageNormalization.normalize(RawSignal(SourceType.SMS, "VM-HDFCBK", raw)))
+        assertNotNull(extracted)
+        assertEquals("4,200.00", extracted!!.amount.formatInr(false))
+    }
 }

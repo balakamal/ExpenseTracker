@@ -42,10 +42,11 @@ object Stage5TransactionDetection {
 
 object Stage6StructuredExtraction {
 
-    // Matches ₹ 1,234.50 or ₹ 500 or ₹12.00
-    private val AMOUNT_PATTERN = Pattern.compile("₹\\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\\.[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)")
-    // Fallback amount: e.g. "for 1,250.00"
-    private val FALLBACK_AMOUNT_PATTERN = Pattern.compile("(?i)(?:for|of|amount)\\s*([0-9]+(?:,[0-9]+)*(?:\\.[0-9]{1,2})?)")
+    // Matches formatted numbers with commas (e.g. 1,500.00, 1,50,000.50) OR plain unformatted numbers (e.g. 1500, 1500.00, 150)
+    // with negative lookahead (?![0-9]) to prevent greedy partial-digit matching (e.g. 1500 -> 150).
+    private val AMOUNT_PATTERN = Pattern.compile("₹\\s*([0-9]{1,3}(?:,[0-9]{2,3})+(?:\\.[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)(?![0-9])")
+    // Fallback amount: e.g. "for 1,250.00" or "amount: 1500"
+    private val FALLBACK_AMOUNT_PATTERN = Pattern.compile("(?i)(?:for|of|amount|amt)(?:\\s*[:#])?\\s*([0-9]+(?:,[0-9]+)*(?:\\.[0-9]{1,2})?)(?![0-9])")
 
     // Account Last 4
     private val ACCOUNT_PATTERNS = listOf(

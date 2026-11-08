@@ -102,8 +102,14 @@
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 
+# MediaPipe Tasks GenAI LLM Inference
+-keep class com.google.mediapipe.tasks.genai.llminference.** { *; }
+-keepclassmembers class com.google.mediapipe.tasks.genai.llminference.** { *; }
+-dontwarn com.google.mediapipe.tasks.genai.llminference.**
+
 # LiteRT-LM native model runtime (if present)
 -keep class com.google.ai.edge.litertlm.** { *; }
+-keepclassmembers class com.google.ai.edge.litertlm.** { *; }
 -dontwarn com.google.ai.edge.litertlm.**
 
 # Protocol Buffers used by native runtime metadata

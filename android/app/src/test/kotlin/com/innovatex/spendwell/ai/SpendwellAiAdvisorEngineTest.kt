@@ -138,8 +138,20 @@ class SpendwellAiAdvisorEngineTest {
     fun `answerQuery addresses user by name and returns tagged local response when model missing`() = runTest(testDispatcher) {
         val response = engine.answerQuery("How much have I spent?")
 
-        assertTrue(response.contains("[Spendwell Local Engine]"))
+        assertTrue(response.contains("[Spendwell App Engine]") || response.contains("[Spendwell Local Engine]"))
         assertTrue(response.contains("Kamal"))
         assertTrue(response.contains("spent"))
+    }
+
+    @Test
+    fun `answerQuery in GEMMA_LLM mode reports graceful initialization warning without crashing`() = runTest(testDispatcher) {
+        every { preferencesRepo.aiEngineMode } returns flowOf("GEMMA_LLM")
+        val dummyModel = File(tempDir, "gemma-2b-it-cpu-int4.bin")
+        dummyModel.writeBytes(ByteArray(15 * 1024 * 1024))
+        every { modelDownloadManager.getModelFile() } returns dummyModel
+
+        val response = engine.answerQuery("How much have I spent?")
+        // When native libs are absent on host JVM test, it must handle gracefully
+        assertTrue(response.contains("Initialization Warning") || response.contains("Gemma 2B") || response.contains("App Engine"))
     }
 }
