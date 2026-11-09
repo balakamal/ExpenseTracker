@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +55,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -107,6 +109,7 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showLogExpenseSheet by remember { mutableStateOf(false) }
+    var showSafeToSpendDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     var hasSmsPermission by remember {
@@ -595,7 +598,7 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. Safe-to-Spend Balance Card (Stitch White Squircle Card)
+                // 3. Daily Safe-to-Spend Pacing Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = SquircleCardShape,
@@ -619,63 +622,188 @@ fun DashboardScreen(
                             spendablePool.toPaisa() / daysRemaining
                         } else 0L
 
+                        val todaySpent = state.dailySummary?.totalExpenses ?: Money.ZERO
+                        val isOverDailyCap = dailyAllowance > 0 && todaySpent.toPaisa() > dailyAllowance
+                        val pacePillBg = if (isOverDailyCap) MaterialTheme.colorScheme.errorContainer else SecondaryFixed
+                        val pacePillColor = if (isOverDailyCap) MaterialTheme.colorScheme.onErrorContainer else OnSecondaryContainer
+                        val paceIcon = if (isOverDailyCap) Icons.Default.TrendingUp else Icons.Default.CheckCircle
+                        val paceText = if (isOverDailyCap) "Above Cap" else "On Pace"
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Safe-to-Spend Runway",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { showSafeToSpendDialog = true }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Info,
+                                        imageVector = Icons.Default.Bolt,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(14.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (state.isBalanceObfuscated) "₹ ••••••" else Money.fromPaisa(dailyAllowance * daysRemaining).formatInr(true),
-                                        style = MaterialTheme.typography.headlineLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "/ ${spendablePool.formatInr(false)} Total Pool",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "DAILY SAFE-TO-SPEND",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Safe-to-spend info",
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(13.dp)
+                                )
                             }
 
                             Row(
                                 modifier = Modifier
                                     .clip(PillShape)
-                                    .background(SecondaryFixed)
+                                    .background(pacePillBg)
                                     .padding(horizontal = 10.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = paceIcon,
                                     contentDescription = null,
-                                    tint = EmeraldSecondary,
+                                    tint = pacePillColor,
                                     modifier = Modifier.size(13.dp)
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "On Pace",
+                                    text = paceText,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = OnSecondaryContainer
+                                    color = pacePillColor
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Hero Number: Daily Allowance
+                        val dailyAllowanceMoney = Money.fromPaisa(dailyAllowance)
+                        val dailyDisplay = if (state.isBalanceObfuscated) "₹ •••" else dailyAllowanceMoney.formatInr(false)
+
+                        Row(
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(
+                                text = dailyDisplay,
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                letterSpacing = (-0.5).sp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "/ day",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Text(
+                            text = if (state.isBalanceObfuscated) "•••••• uncommitted reserve • $daysRemaining days left in cycle"
+                            else "${spendablePool.formatInr(false)} uncommitted reserve • $daysRemaining days left in cycle",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Dual Insight Boxes (Spent Today vs Cycle Usage)
+                        val spendPercent = if (spendablePool.isPositive && totalOutflow.isPositive) {
+                            ((totalOutflow.toPaisa().toDouble() / spendablePool.toPaisa().toDouble()) * 100).coerceIn(0.0, 100.0)
+                        } else 0.0
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Column 1: Spent Today
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceContainerLow)
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = "SPENT TODAY",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ •••" else todaySpent.formatInr(true),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val remainingTodayPaisa = dailyAllowance - todaySpent.toPaisa()
+                                val remainingText = when {
+                                    todaySpent.isZero -> "No spends today"
+                                    remainingTodayPaisa > 0 -> "₹%,d cap left".format(remainingTodayPaisa / 100)
+                                    else -> "₹%,d over cap".format((-remainingTodayPaisa) / 100)
+                                }
+                                val remainingColor = when {
+                                    remainingTodayPaisa >= 0 -> EmeraldSecondary
+                                    else -> MaterialTheme.colorScheme.error
+                                }
+                                Text(
+                                    text = remainingText,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = remainingColor,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            // Column 2: Cycle Spent
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SurfaceContainerLow)
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = "CYCLE SPENT",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ •••" else totalOutflow.formatInr(true),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "%.1f%% of budget pool".format(spendPercent),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -683,43 +811,19 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Progress Meter
-                        val spendPercent = if (spendablePool.isPositive && totalOutflow.isPositive) {
-                            ((totalOutflow.toPaisa().toDouble() / spendablePool.toPaisa().toDouble()) * 100).coerceIn(0.0, 100.0)
-                        } else 64.4
-
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(10.dp)
+                                .height(8.dp)
                                 .clip(CircleShape)
                                 .background(SurfaceContainerHigh)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth((spendPercent / 100.0).toFloat().coerceIn(0.02f, 1f))
-                                    .height(10.dp)
+                                    .height(8.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Daily allowance: ₹%,d/day".format(dailyAllowance / 100),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "%.1f%% spent".format(spendPercent),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .background(if (spendPercent > 90.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                             )
                         }
 
@@ -753,6 +857,41 @@ fun DashboardScreen(
                             )
                         }
                     }
+                }
+
+                if (showSafeToSpendDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showSafeToSpendDialog = false },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Daily Safe-to-Spend",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        },
+                        text = {
+                            Text(
+                                text = "Safe-to-Spend calculates your safe daily spending allowance across the remaining days of your cycle ($daysRemaining days left) without depleting your liquid funds or missing upcoming bill commitments.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 20.sp
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showSafeToSpendDialog = false }) {
+                                Text("Got it", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

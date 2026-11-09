@@ -3,6 +3,7 @@ package com.innovatex.spendwell.features.dashboard
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.innovatex.spendwell.analytics.DailyFinancialSummary
 import com.innovatex.spendwell.analytics.FinancialAnalyticsEngine
 import com.innovatex.spendwell.analytics.MonthlyFinancialSummary
 import com.innovatex.spendwell.common.Money
@@ -29,6 +30,7 @@ data class DashboardUiState(
     val netBalance: Money = Money.ZERO,
     val isBalanceObfuscated: Boolean = false,
     val monthlySummary: MonthlyFinancialSummary? = null,
+    val dailySummary: DailyFinancialSummary? = null,
     val recentTransactions: List<Transaction> = emptyList(),
     val accounts: List<Account> = emptyList(),
     val pendingReviewCount: Int = 0,
@@ -99,12 +101,17 @@ class DashboardViewModel @Inject constructor(
                 monthZeroIndexed = cal.get(Calendar.MONTH),
                 cycleStartDay = cycleStartDay
             )
+            val daily = FinancialAnalyticsEngine.analyzeDaily(
+                transactions = repoData.transactions,
+                targetTimestamp = cal.timeInMillis
+            )
 
             DashboardUiState(
                 isLoading = false,
                 netBalance = totalBalance,
                 isBalanceObfuscated = obfuscated,
                 monthlySummary = summary,
+                dailySummary = daily,
                 recentTransactions = repoData.transactions.take(5),
                 accounts = repoData.accounts,
                 pendingReviewCount = repoData.pendingReviewCount,
