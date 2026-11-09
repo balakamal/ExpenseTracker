@@ -693,6 +693,14 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 SpendwellTonalButton(
+                    text = "Load 30-Day Demo Ledger",
+                    leadingIcon = Icons.Default.AutoAwesome,
+                    onClick = {
+                        viewModel.seedRealisticDemoData()
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                SpendwellTonalButton(
                     text = "Erase Local Ledger",
                     leadingIcon = Icons.Default.Delete,
                     onClick = { showClearDataDialog = true }
@@ -709,7 +717,10 @@ fun SettingsScreen(
             title = { Text("Erase All Data?", fontWeight = FontWeight.Bold) },
             text = { Text("This will permanently delete all encrypted transactions, accounts, and history from this device.") },
             confirmButton = {
-                TextButton(onClick = { showClearDataDialog = false }) {
+                TextButton(onClick = {
+                    viewModel.clearAllData()
+                    showClearDataDialog = false
+                }) {
                     Text("Delete Everything", color = OutflowRed, fontWeight = FontWeight.Bold)
                 }
             },

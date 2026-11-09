@@ -1,7 +1,9 @@
 package com.innovatex.spendwell.transactionengine
 
+import android.content.Context
 import com.innovatex.spendwell.core.DispatcherProvider
 import com.innovatex.spendwell.database.SpendwellDatabase
+import com.innovatex.spendwell.integrations.widget.SpendwellWidgetManager
 import com.innovatex.spendwell.transactionengine.model.DropReason
 import com.innovatex.spendwell.transactionengine.model.EngineResult
 import com.innovatex.spendwell.transactionengine.model.RawSignal
@@ -14,6 +16,7 @@ import com.innovatex.spendwell.transactionengine.stages.Stage4SpamAndReminderFil
 import com.innovatex.spendwell.transactionengine.stages.Stage5TransactionDetection
 import com.innovatex.spendwell.transactionengine.stages.Stage6StructuredExtraction
 import com.innovatex.spendwell.transactionengine.stages.Stage9DuplicateCandidateDetection
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -23,7 +26,8 @@ import javax.inject.Singleton
 @Singleton
 class TransactionEngine @Inject constructor(
     private val database: SpendwellDatabase,
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    @ApplicationContext private val context: Context
 ) {
 
     private val engineMutex = Mutex()
@@ -41,7 +45,7 @@ class TransactionEngine @Inject constructor(
      * 9. Duplicate Candidate Detection
      * 10. Transaction Lifecycle Resolution
      * 11. Category Classification
-     * 12. Ledger Persistence
+     * 12. Ledger Persistence + Real-Time Widget Refresh
      */
     suspend fun processSignal(signal: RawSignal): EngineResult = withContext(dispatchers.io) {
         // Stage 1 & 3: Ingestion & Message Normalization (includes Stage 2 Sender Identification)
@@ -72,7 +76,7 @@ class TransactionEngine @Inject constructor(
             )
 
         // Concurrency Lock for deterministic deduplication and database persistence
-        engineMutex.withLock {
+        val result = engineMutex.withLock {
             // Stage 9: Duplicate Candidate Detection
             val duplicateResolution = Stage9DuplicateCandidateDetection.evaluate(database, extractedInfo)
 
@@ -93,5 +97,12 @@ class TransactionEngine @Inject constructor(
                 confidence = confidence
             )
         }
+
+        // Trigger real-time Home Screen AppWidget refresh on successful persistence
+        if (result is EngineResult.Success || result is EngineResult.FlaggedForReview) {
+            SpendwellWidgetManager.updateAllWidgets(context)
+        }
+
+        result
     }
 }

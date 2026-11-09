@@ -1,9 +1,13 @@
 package com.innovatex.spendwell.features.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.innovatex.spendwell.data.preferences.UserPreferencesRepository
+import com.innovatex.spendwell.data.seeder.SampleFinancialDataSeeder
+import com.innovatex.spendwell.database.SpendwellDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -12,7 +16,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val database: SpendwellDatabase,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val cycleStartDay: StateFlow<Int> = userPreferencesRepository.cycleStartDay
@@ -60,6 +66,20 @@ class SettingsViewModel @Inject constructor(
     fun setPrivateMode(isPrivate: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setPrivateMode(isPrivate)
+        }
+    }
+
+    fun seedRealisticDemoData(onCompleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            SampleFinancialDataSeeder.seedDemoLedger(database, context)
+            onCompleted()
+        }
+    }
+
+    fun clearAllData(onCompleted: () -> Unit = {}) {
+        viewModelScope.launch {
+            SampleFinancialDataSeeder.clearAllData(database, context)
+            onCompleted()
         }
     }
 }
