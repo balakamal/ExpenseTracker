@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
+import androidx.glance.LocalContext
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.action.clickable
@@ -88,6 +89,10 @@ class SmallSpendwellGlanceWidget : GlanceAppWidget() {
 
     @Composable
     private fun SmallWidgetContent(data: WidgetSnapshot) {
+        val context = LocalContext.current
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val d = data.daily
         val isOverAvg = d.comparisonTo30DayAvgPct > 0
 
@@ -97,7 +102,7 @@ class SmallSpendwellGlanceWidget : GlanceAppWidget() {
                 .cornerRadius(18.dp)
                 .background(Color(0xFF0C101A))
                 .padding(14.dp)
-                .clickable(actionStartActivity<MainActivity>()),
+                .clickable(actionStartActivity(launchIntent)),
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.Start
         ) {
@@ -159,7 +164,7 @@ class SmallSpendwellGlanceWidget : GlanceAppWidget() {
                 style = TextStyle(
                     color = ColorProvider(statusColor),
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Medium
                 )
             )
         }
@@ -182,6 +187,10 @@ class MediumSpendwellGlanceWidget : GlanceAppWidget() {
 
     @Composable
     private fun MediumWidgetContent(data: WidgetSnapshot) {
+        val context = LocalContext.current
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val w = data.weekly
         val m = data.monthly
 
@@ -191,7 +200,7 @@ class MediumSpendwellGlanceWidget : GlanceAppWidget() {
                 .cornerRadius(18.dp)
                 .background(Color(0xFF0C101A))
                 .padding(16.dp)
-                .clickable(actionStartActivity<MainActivity>()),
+                .clickable(actionStartActivity(launchIntent)),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left Column: This Week
@@ -279,6 +288,10 @@ class LargeSpendwellGlanceWidget : GlanceAppWidget() {
 
     @Composable
     private fun LargeWidgetContent(data: WidgetSnapshot) {
+        val context = LocalContext.current
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val d = data.daily
         val w = data.weekly
         val m = data.monthly
@@ -289,7 +302,7 @@ class LargeSpendwellGlanceWidget : GlanceAppWidget() {
                 .cornerRadius(20.dp)
                 .background(Color(0xFF0C101A))
                 .padding(18.dp)
-                .clickable(actionStartActivity<MainActivity>())
+                .clickable(actionStartActivity(launchIntent))
         ) {
             // Header Bar
             Row(
