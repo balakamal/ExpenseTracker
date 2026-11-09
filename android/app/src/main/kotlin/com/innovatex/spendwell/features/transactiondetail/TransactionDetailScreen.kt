@@ -202,7 +202,7 @@ fun TransactionDetailScreen(
         isRefund -> Color(0xFFD97706)
         isFailed -> CrimsonTertiary
         isCredit -> EmeraldSecondary
-        else -> MaterialTheme.colorScheme.onSurface
+        else -> CrimsonTertiary
     }
 
     val dateFormat = SimpleDateFormat("dd MMM yyyy, h:mm a 'IST'", Locale.ENGLISH)

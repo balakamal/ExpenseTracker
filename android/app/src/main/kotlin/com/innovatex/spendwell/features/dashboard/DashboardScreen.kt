@@ -1211,7 +1211,7 @@ fun DashboardScreen(
                                         .background(
                                             Brush.horizontalGradient(
                                                 listOf(
-                                                    Color(0xFFFF7A30),
+                                                    CrimsonTertiary.copy(alpha = 0.75f),
                                                     CrimsonTertiary
                                                 )
                                             )

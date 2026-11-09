@@ -478,7 +478,7 @@ fun SpendwellTransactionRow(
     val amountColor = when {
         isRefundOrReversed || isFailed -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         isCredit -> EmeraldSecondary
-        else -> MaterialTheme.colorScheme.onSurface
+        else -> CrimsonTertiary
     }
 
     val textDecoration = if (isRefundOrReversed || isFailed) TextDecoration.LineThrough else TextDecoration.None
