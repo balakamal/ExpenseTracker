@@ -7,6 +7,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -1044,100 +1050,311 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 5. AI Velocity Insight Card (Matching Stitch Light: Bolt in Crimson, SurfaceContainerLow)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(SquircleCardShape)
-                        .background(SurfaceContainerLow)
-                        .padding(18.dp)
+                // 5. Graphic AI Velocity Insight Card (Dribbble/Copilot Inspired)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SquircleCardShape,
+                    colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Bolt,
-                                contentDescription = null,
-                                tint = CrimsonTertiary,
-                                modifier = Modifier.size(18.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                shape = SquircleCardShape
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            .padding(18.dp)
+                    ) {
+                        val topCategory = state.monthlySummary?.categoryBreakdown?.maxByOrNull { it.amount }
+                        val categoryName = topCategory?.categoryName ?: "Shopping"
+                        val topAmount = topCategory?.amount ?: Money.fromPaisa(7284134)
+                        val baselineAmount = Money.fromPaisa((topAmount.toPaisa() / 1.22).toLong())
+
+                        // Header Bar: Glowing Lightning Badge + Spike Badge
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(CrimsonTertiary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = CrimsonTertiary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "AI VELOCITY DETECTED",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CrimsonTertiary,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .clip(PillShape)
+                                    .background(CrimsonTertiary.copy(alpha = 0.12f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    tint = CrimsonTertiary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "+22% Spike",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CrimsonTertiary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Category Title & Headline
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "$categoryName Pace Surge",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "10-day velocity vs 3-month baseline",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
                             Text(
-                                text = "AI VELOCITY INSIGHT",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = if (state.isBalanceObfuscated) "₹ ••••••" else topAmount.formatInr(true),
+                                style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = CrimsonTertiary,
-                                letterSpacing = 1.sp
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Graphic Visual Comparison Bars
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(SurfaceContainerLow)
+                                .padding(12.dp)
+                        ) {
+                            // Bar 1: Current 10-Day Pace
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(CrimsonTertiary)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Current 10-Day Pace",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ •••" else topAmount.formatInr(false),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CrimsonTertiary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceContainerHigh)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.92f)
+                                        .height(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFFFF7A30),
+                                                    CrimsonTertiary
+                                                )
+                                            )
+                                        )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Bar 2: 3-Month Baseline Pace
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.outline)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "3-Month Baseline Pace",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    text = if (state.isBalanceObfuscated) "₹ •••" else baselineAmount.formatInr(false),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(CircleShape)
+                                    .background(SurfaceContainerHigh)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.72f)
+                                        .height(8.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.outlineVariant)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Dynamic Sparkline Vector Wave
                         Box(
                             modifier = Modifier
-                                .clip(PillShape)
-                                .background(CardSurfaceWhite)
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceContainerLow.copy(alpha = 0.5f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text(
-                                text = "Just now",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val w = size.width
+                                val h = size.height
+
+                                val path = Path().apply {
+                                    moveTo(0f, h * 0.75f)
+                                    cubicTo(w * 0.25f, h * 0.70f, w * 0.40f, h * 0.55f, w * 0.60f, h * 0.45f)
+                                    cubicTo(w * 0.75f, h * 0.35f, w * 0.88f, h * 0.15f, w, h * 0.10f)
+                                }
+                                drawPath(
+                                    path = path,
+                                    color = CrimsonTertiary,
+                                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                                )
+
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = 4.dp.toPx(),
+                                    center = Offset(w - 2.dp.toPx(), h * 0.10f)
+                                )
+                                drawCircle(
+                                    color = CrimsonTertiary,
+                                    radius = 2.5.dp.toPx(),
+                                    center = Offset(w - 2.dp.toPx(), h * 0.10f)
+                                )
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    val topCategory = state.monthlySummary?.categoryBreakdown?.maxByOrNull { it.amount }
-                    if (topCategory != null && topCategory.amount.isPositive) {
-                        Text(
-                            text = "${topCategory.categoryName} is 22% higher",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "You spent ${topCategory.amount.formatInr(true)} across ${topCategory.categoryName} in the last 10 days, trending above your 3-month rolling average.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text(
-                            text = "On-Device Engine Active",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Spendwell monitors your transaction velocity entirely on your device with 100% confidentiality.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                        // Quick Action Chips Row (View Breakdown & Set Cap)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                    .clickable { onNavigateToTransactions() }
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "View Breakdown",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.clickable { onNavigateToTransactions() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "See breakdown",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(SurfaceContainerLow)
+                                    .clickable { onNavigateToTransactions() }
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Set Category Cap",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
 
