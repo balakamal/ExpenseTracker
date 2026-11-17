@@ -96,9 +96,13 @@ fun SpendwellApp(
         Screen.Dashboard.route,
         Screen.Transactions.route,
         Screen.Analytics.route,
+        Screen.Accounts.route,
+        Screen.Settings.route,
         Screen.Budgets.route,
         Screen.Advisor.route
     )
+
+    var showGlobalLogSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
@@ -122,11 +126,23 @@ fun SpendwellApp(
                                 restoreState = true
                             }
                         }
-                    }
+                    },
+                    onCenterActionClick = { showGlobalLogSheet = true }
                 )
             }
         }
     ) { innerPadding ->
+        if (showGlobalLogSheet) {
+            com.innovatex.spendwell.features.transactions.LogExpenseSheet(
+                onDismiss = { showGlobalLogSheet = false },
+                onSaveTransaction = { tx ->
+                    coroutineScope.launch {
+                        transactionRepository.insertTransaction(tx)
+                        showGlobalLogSheet = false
+                    }
+                }
+            )
+        }
         NavHost(
             navController = navController,
             startDestination = if (isOnboardingCompleted == true) Screen.Dashboard.route else Screen.Onboarding.route,
@@ -279,65 +295,126 @@ fun SpendwellApp(
 @Composable
 private fun SpendwellBottomBar(
     currentRoute: String?,
-    onNavigateToDestination: (Screen) -> Unit
+    onNavigateToDestination: (Screen) -> Unit,
+    onCenterActionClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        color = CardSurfaceWhite.copy(alpha = 0.95f),
+        color = CardSurfaceWhite.copy(alpha = 0.96f),
         shadowElevation = 10.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(68.dp)
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Screen.bottomNavItems.forEach { screen ->
-                val isSelected = currentRoute == screen.route
-                val activeBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                val activeTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            // 1. Home
+            BottomNavColumn(
+                screen = Screen.Dashboard,
+                isSelected = currentRoute == Screen.Dashboard.route,
+                onClick = { onNavigateToDestination(Screen.Dashboard) },
+                modifier = Modifier.weight(1f)
+            )
 
-                Column(
+            // 2. Analytics
+            BottomNavColumn(
+                screen = Screen.Analytics,
+                isSelected = currentRoute == Screen.Analytics.route,
+                onClick = { onNavigateToDestination(Screen.Analytics) },
+                modifier = Modifier.weight(1f)
+            )
+
+            // 3. Center Elevated Action Button (Quick Log / Scan)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onNavigateToDestination(screen) }
-                        .padding(horizontal = 2.dp, vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF131722))
+                        .clickable { onCenterActionClick() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(PillShape)
-                            .background(activeBg)
-                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        screen.icon?.let { icon ->
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = screen.title,
-                                tint = activeTint,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = screen.title,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        fontWeight = fontWeight,
-                        color = activeTint,
-                        maxLines = 1
+                    androidx.compose.material3.Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Add,
+                        contentDescription = "Quick Log Expense",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
+
+            // 4. Cards
+            BottomNavColumn(
+                screen = Screen.Accounts,
+                isSelected = currentRoute == Screen.Accounts.route,
+                onClick = { onNavigateToDestination(Screen.Accounts) },
+                modifier = Modifier.weight(1f)
+            )
+
+            // 5. Profile
+            BottomNavColumn(
+                screen = Screen.Settings,
+                isSelected = currentRoute == Screen.Settings.route,
+                onClick = { onNavigateToDestination(Screen.Settings) },
+                modifier = Modifier.weight(1f)
+            )
         }
+    }
+}
+
+@Composable
+private fun BottomNavColumn(
+    screen: Screen,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val activeTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(PillShape)
+                .background(activeBg)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            screen.icon?.let { icon ->
+                Icon(
+                    imageVector = icon,
+                    contentDescription = screen.title,
+                    tint = activeTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = screen.title,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            fontWeight = fontWeight,
+            color = activeTint,
+            maxLines = 1
+        )
     }
 }

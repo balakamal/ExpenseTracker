@@ -33,7 +33,13 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
@@ -1251,69 +1257,104 @@ private fun EmptyTransactionsCard(title: String, description: String) {
 
 @Composable
 private fun CategoryBreakdownRow(item: CategorySpending) {
+    val (glyphIcon, glyphBg, glyphTint) = when (item.categoryId) {
+        "cat_food" -> Triple(Icons.Default.Restaurant, Color(0xFFFEE2E2), Color(0xFFDC2626))
+        "cat_shopping" -> Triple(Icons.Default.ShoppingBag, Color(0xFFF3E8FF), Color(0xFF7E22CE))
+        "cat_health" -> Triple(Icons.Default.FitnessCenter, Color(0xFFCCFBF1), Color(0xFF0F766E))
+        "cat_transport" -> Triple(Icons.Default.DirectionsCar, Color(0xFFFEF3C7), Color(0xFFD97706))
+        "cat_entertainment" -> Triple(Icons.Default.SmartDisplay, Color(0xFFFFEDD5), Color(0xFFC2410C))
+        "cat_investment" -> Triple(Icons.Default.TrendingUp, Color(0xFFD1FAE5), Color(0xFF059669))
+        else -> Triple(Icons.Default.ReceiptLong, SurfaceContainerLow, MaterialTheme.colorScheme.primary)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = SquircleCardShape,
         colors = CardDefaults.cardColors(containerColor = CardSurfaceWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), SquircleCardShape)
-                .padding(16.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), SquircleCardShape)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val catColor = try {
-                Color(android.graphics.Color.parseColor(item.colorHex))
-            } catch (_: Exception) {
-                CobaltPrimary
+            // Category Icon
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(glyphBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = glyphIcon,
+                    contentDescription = item.categoryName,
+                    tint = glyphTint,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(catColor)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Center: Name and inline progress bar
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = item.categoryName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${String.format(Locale.ENGLISH, "%.0f", item.percentageOfTotal)}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val pct = (item.percentageOfTotal / 100f).coerceIn(0.04f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceContainerLow)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(pct)
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(glyphTint)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Right: Amount and chevron
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${item.amount.formatInr(true)} (${String.format(Locale.ENGLISH, "%.1f", item.percentageOfTotal)}%)",
+                    text = item.amount.formatInr(true),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            val pct = (item.percentageOfTotal / 100f).coerceIn(0.02f, 1f)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceContainer)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(pct)
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(catColor)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }

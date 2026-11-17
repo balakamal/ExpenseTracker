@@ -2,7 +2,9 @@ package com.innovatex.spendwell.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
@@ -14,7 +16,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
     object PrivacyMode : Screen("privacy_mode", "Privacy Mode")
     object Dashboard : Screen("dashboard", "Home", Icons.Default.Home)
     object Transactions : Screen("transactions", "Transactions", Icons.Default.ReceiptLong)
-    object Analytics : Screen("analytics", "Insights", Icons.Default.PieChart)
+    object Analytics : Screen("analytics", "Analytics", Icons.Default.PieChart)
     object Budgets : Screen("budgets", "Budgets", Icons.Default.Tune)
     object Advisor : Screen("advisor", "AI Advisor", Icons.Default.AutoAwesome)
 
@@ -23,22 +25,21 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
     }
 
     object ReviewCenter : Screen("review_center", "Review Center")
-    object Accounts : Screen("accounts", "Accounts & Cards")
+    object Accounts : Screen("accounts", "Cards", Icons.Default.CreditCard)
     object Recurring : Screen("recurring", "Recurring Payments")
     object Reconciliation : Screen("reconciliation", "Reconciliation")
     object AiModel : Screen("ai_model", "AI Model Management")
     object Permissions : Screen("permissions", "Permissions")
     object SavingsGoals : Screen("savings_goals", "Savings Goals")
-    object Settings : Screen("settings", "Settings")
+    object Settings : Screen("settings", "Profile", Icons.Default.Person)
 
     companion object {
         val bottomNavItems: List<Screen>
             get() = listOf(
                 Dashboard,
-                Transactions,
                 Analytics,
-                Advisor,
-                Budgets
+                Accounts,
+                Settings
             )
     }
 }
